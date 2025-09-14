@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir)",
+      "Bash(dir:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm start)",
+      "Bash(npm test)",
+      "Bash(npm run:*)",
+      "Bash(curl:*)",
+      "Bash(ss:*)",
+      "Bash(pkill:*)",
+      "Bash(sudo apt:*)",
+      "Bash(dpkg:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/home/akfldk1028/.ai-agents-az-video-generator/videos",
+      "/home/akfldk1028/.ai-agents-az-video-generator"
+    ]
+  }
+}
