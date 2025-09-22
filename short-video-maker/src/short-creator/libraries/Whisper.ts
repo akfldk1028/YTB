@@ -1,9 +1,10 @@
 import {
   downloadWhisperModel,
   installWhisperCpp,
-  transcribe,
 } from "@remotion/install-whisper-cpp";
 import path from "path";
+import { execSync } from "child_process";
+import fs from "fs";
 
 import { Config } from "../../config";
 import type { Caption } from "../../types/shorts";
@@ -43,51 +44,75 @@ export class Whisper {
     return new Whisper(config);
   }
 
-  // todo shall we extract it to a Caption class?
+  // Direct whisper.cpp CLI call for Korean language support
   async CreateCaption(audioPath: string): Promise<Caption[]> {
-    logger.debug({ audioPath }, "Starting to transcribe audio");
-    const { transcription } = await transcribe({
-      model: this.config.whisperModel,
-      whisperPath: this.config.whisperInstallPath,
-      modelFolder: path.join(this.config.whisperInstallPath, "models"),
-      whisperCppVersion: this.config.whisperVersion,
-      inputPath: audioPath,
-      tokenLevelTimestamps: true,
-      printOutput: this.config.whisperVerbose,
-      onProgress: (progress) => {
-        logger.debug({ audioPath }, `Transcribing is ${progress} complete`);
-      },
-    });
-    logger.debug({ audioPath }, "Transcription finished, creating captions");
-
-    const captions: Caption[] = [];
-    transcription.forEach((record) => {
-      if (record.text === "") {
-        return;
-      }
-
-      record.tokens.forEach((token) => {
-        if (token.text.startsWith("[_TT")) {
-          return;
-        }
-        // if token starts without space and the previous node didn't have space either, merge them
-        if (
-          captions.length > 0 &&
-          !token.text.startsWith(" ") &&
-          !captions[captions.length - 1].text.endsWith(" ")
-        ) {
-          captions[captions.length - 1].text += record.text;
-          captions[captions.length - 1].endMs = record.offsets.to;
-          return;
-        }
-        captions.push({
-          text: token.text,
-          startMs: record.offsets.from,
-          endMs: record.offsets.to,
-        });
+    logger.debug({ audioPath }, "Starting to transcribe audio with direct whisper.cpp CLI");
+    
+    const whisperExecutable = path.join(this.config.whisperInstallPath, "main");
+    const modelPath = path.join(this.config.whisperInstallPath, "models", `ggml-${this.config.whisperModel}.bin`);
+    const outputJsonPath = audioPath.replace('.wav', '_whisper_output.json');
+    
+    try {
+      // Build whisper command with Korean language and no translation
+      const command = `"${whisperExecutable}" -m "${modelPath}" -l ko -oj -of "${outputJsonPath.replace('.json', '')}" "${audioPath}"`;
+      
+      logger.debug({ command }, "Executing whisper command");
+      
+      // Execute whisper.cpp directly
+      const output = execSync(command, { 
+        encoding: 'utf8',
+        timeout: 60000 // 60 second timeout
       });
-    });
-    logger.debug({ audioPath, captions }, "Captions created");
-    return captions;
+      
+      logger.debug({ output }, "Whisper command completed");
+      
+      // Read the JSON output file
+      const jsonOutputPath = outputJsonPath;
+      if (!fs.existsSync(jsonOutputPath)) {
+        throw new Error(`Whisper output file not found: ${jsonOutputPath}`);
+      }
+      
+      const whisperResult = JSON.parse(fs.readFileSync(jsonOutputPath, 'utf8'));
+      logger.debug({ whisperResult }, "Whisper JSON result parsed");
+      
+      // Convert whisper output to Caption format
+      const captions: Caption[] = [];
+      
+      if (whisperResult.transcription) {
+        whisperResult.transcription.forEach((segment: any) => {
+          if (segment.text && segment.text.trim() !== "") {
+            // Split by words and create individual captions for better timing
+            const words = segment.text.trim().split(/\s+/);
+            const segmentDuration = (segment.offsets.to - segment.offsets.from);
+            const wordDuration = segmentDuration / words.length;
+            
+            words.forEach((word: string, index: number) => {
+              const startMs = segment.offsets.from + (index * wordDuration);
+              const endMs = segment.offsets.from + ((index + 1) * wordDuration);
+              
+              captions.push({
+                text: word,
+                startMs: Math.round(startMs),
+                endMs: Math.round(endMs),
+              });
+            });
+          }
+        });
+      }
+      
+      // Clean up output file
+      try {
+        fs.unlinkSync(jsonOutputPath);
+      } catch (cleanupError) {
+        logger.warn({ cleanupError }, "Failed to cleanup whisper output file");
+      }
+      
+      logger.debug({ audioPath, captionCount: captions.length }, "Korean captions created successfully");
+      return captions;
+      
+    } catch (error) {
+      logger.error({ error, audioPath }, "Error in direct whisper transcription");
+      throw new Error(`Whisper transcription failed: ${error}`);
+    }
   }
 }

@@ -8,7 +8,7 @@ import { kokoroModelPrecision, whisperModels } from "./types/shorts";
 const defaultLogLevel: pino.Level = "info";
 const defaultPort = 3123;
 const whisperVersion = "1.7.1";
-const defaultWhisperModel: whisperModels = "medium.en"; // possible options: "tiny", "tiny.en", "base", "base.en", "small", "small.en", "medium", "medium.en", "large-v1", "large-v2", "large-v3", "large-v3-turbo"
+const defaultWhisperModel: whisperModels = "medium"; // For multilingual support including Korean. English-only options: "tiny.en", "base.en", "small.en", "medium.en"
 
 // Create the global logger
 const versionNumber = process.env.npm_package_version;
@@ -43,6 +43,9 @@ export class Config {
   public googleCloudRegion: string = "us-central1";
   public leonardoApiKey?: string;
   public googleGeminiApiKey?: string; // For Imagen image generation
+  public googleTtsApiKey?: string; // For Google Cloud Text-to-Speech
+  public googleTtsProjectId?: string; // For Google Cloud TTS project
+  public ttsProvider: "kokoro" | "google" = "kokoro"; // TTS provider selection
   public videoSource: "pexels" | "veo" | "leonardo" | "both" | "ffmpeg" = "pexels";
   public logLevel: pino.Level;
   public whisperVerbose: boolean;
@@ -86,6 +89,9 @@ export class Config {
     this.googleCloudRegion = process.env.GOOGLE_CLOUD_REGION || "us-central1";
     this.leonardoApiKey = process.env.LEONARDO_API_KEY;
     this.googleGeminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
+    this.googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY;
+    this.googleTtsProjectId = process.env.GOOGLE_TTS_PROJECT_ID;
+    this.ttsProvider = (process.env.TTS_PROVIDER as "kokoro" | "google") || "kokoro";
     this.videoSource = (process.env.VIDEO_SOURCE as "pexels" | "veo" | "leonardo" | "both" | "ffmpeg") || "pexels";
     this.logLevel = (process.env.LOG_LEVEL || defaultLogLevel) as pino.Level;
     this.whisperVerbose = process.env.WHISPER_VERBOSE === "true";

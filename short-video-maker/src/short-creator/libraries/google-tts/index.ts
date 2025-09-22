@@ -1,0 +1,1 @@
+export { GoogleTTS, type GoogleTTSConfig, type GoogleVoice } from './GoogleTTS';

@@ -2,3 +2,33 @@ node_modules
 dist
 .DS_Store
 .env
+
+# Google Cloud Service Account Keys
+*.json
+ttstest-*.json
+*-service-account.json
+
+# Chrome/Chromium packages
+chrome.deb
+*.deb
+
+# AI Model files and data
+*.bin
+*.ggml
+*.onnx
+
+# Whisper models and data
+whisper/
+whisper-*
+*.wav
+*.mp3
+*.mp4
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Generated videos and audio
+videos/
+output/

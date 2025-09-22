@@ -140,17 +140,26 @@ export class FFMpeg {
   }
 
   private createSubtitleFilter(captions: any[], orientation: OrientationEnum): string | null {
-    // Simple implementation - you might want to enhance this based on your caption format
-    // This is a basic example that overlays text
     try {
       if (!captions || captions.length === 0) return null;
       
-      // For now, return a simple drawtext filter
-      // You'll need to adapt this based on your actual caption format
-      const fontSize = orientation === OrientationEnum.portrait ? 24 : 32;
+      const fontSize = orientation === OrientationEnum.portrait ? 32 : 40; // Larger for better readability
       const yPosition = orientation === OrientationEnum.portrait ? 'h*0.8' : 'h*0.85';
       
-      return `drawtext=fontfile=/System/Library/Fonts/Arial.ttf:text='${captions[0]?.text || ''}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5`;
+      // Use Nanum Gothic for proper Korean support
+      const fontPath = '/home/akfldk1028/.fonts/NanumGothic-Regular.ttf';
+      
+      // Create multiple drawtext filters for each caption with timing
+      const drawTextFilters = captions.map((caption, index) => {
+        const startTime = caption.startMs / 1000; // Convert to seconds
+        const endTime = caption.endMs / 1000;
+        const text = caption.text.replace(/'/g, "\\'"); // Escape quotes
+        
+        return `drawtext=fontfile=${fontPath}:text='${text}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.7:boxborderw=5:enable='between(t,${startTime},${endTime})'`;
+      });
+      
+      // Join all filters
+      return drawTextFilters.join(',');
     } catch (error) {
       logger.warn(error, "Could not create subtitle filter");
       return null;

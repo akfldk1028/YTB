@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs-extra";
 
 import { Kokoro } from "./short-creator/libraries/Kokoro";
+import { GoogleTTS } from "./short-creator/libraries/google-tts";
 import { Remotion } from "./short-creator/libraries/Remotion";
 import { Whisper } from "./short-creator/libraries/Whisper";
 import { FFMpeg } from "./short-creator/libraries/FFmpeg";
@@ -35,8 +36,21 @@ async function main() {
 
   logger.debug("initializing remotion");
   const remotion = await Remotion.init(config);
-  logger.debug("initializing kokoro");
-  const kokoro = await Kokoro.init(config.kokoroModelPrecision);
+  
+  // Initialize TTS provider based on config
+  let ttsProvider: Kokoro | GoogleTTS;
+  if (config.ttsProvider === "google") {
+    logger.debug("initializing google tts");
+    const googleTtsConfig = config.googleTtsProjectId ? {
+      projectId: config.googleTtsProjectId,
+      keyFilename: config.googleTtsApiKey
+    } : undefined;
+    ttsProvider = await GoogleTTS.init(googleTtsConfig);
+  } else {
+    logger.debug("initializing kokoro");
+    ttsProvider = await Kokoro.init(config.kokoroModelPrecision);
+  }
+  
   logger.debug("initializing whisper");
   const whisper = await Whisper.init(config);
   logger.debug("initializing ffmpeg");
@@ -73,7 +87,7 @@ async function main() {
   const shortCreator = new ShortCreator(
     config,
     remotion,
-    kokoro,
+    ttsProvider,
     whisper,
     ffmpeg,
     pexelsApi,
@@ -91,7 +105,7 @@ async function main() {
         "testing if the installation was successful - this may take a while...",
       );
       try {
-        const audioBuffer = (await kokoro.generate("hi", "af_heart")).audio;
+        const audioBuffer = (await ttsProvider.generate("hi", "af_heart")).audio;
         await ffmpeg.createMp3DataUri(audioBuffer);
         await pexelsApi.findVideo(["dog"], 2.4);
         const testVideoPath = path.join(config.tempDirPath, "test.mp4");

@@ -52,7 +52,12 @@
       "Bash(ffprobe:*)",
       "Bash(git clone:*)",
       "WebFetch(domain:ai.google.dev)",
-      "Bash(PORT=3124 npm start)"
+      "Bash(PORT=3124 npm start)",
+      "Bash(PORT=3125 npm start)",
+      "Bash(/home/akfldk1028/.ai-agents-az-video-generator/libs/whisper/main:*)",
+      "Bash(fc-list:*)",
+      "Bash(fc-cache:*)",
+      "Bash(PORT=3131 npm start)"
     ],
     "deny": [],
     "ask": [],
