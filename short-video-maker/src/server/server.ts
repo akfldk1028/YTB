@@ -8,6 +8,7 @@ import path from "path";
 import { ShortCreator } from "../short-creator/ShortCreator";
 import { APIRouter } from "./routers/rest";
 import { MCPRouter } from "./routers/mcp";
+import { ImageRoutes } from "../image-generation/routes/imageRoutes";
 import { logger } from "../logger";
 import { Config } from "../config";
 
@@ -26,8 +27,11 @@ export class Server {
 
     const apiRouter = new APIRouter(config, shortCreator);
     const mcpRouter = new MCPRouter(shortCreator);
+    const imageRoutes = new ImageRoutes(config);
+    
     this.app.use("/api", apiRouter.router);
     this.app.use("/mcp", mcpRouter.router);
+    this.app.use("/api/images", imageRoutes.router);
 
     // Serve static files from the UI build
     this.app.use(express.static(path.join(__dirname, "../../dist/ui")));

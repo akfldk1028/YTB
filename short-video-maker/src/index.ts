@@ -7,6 +7,8 @@ import { Remotion } from "./short-creator/libraries/Remotion";
 import { Whisper } from "./short-creator/libraries/Whisper";
 import { FFMpeg } from "./short-creator/libraries/FFmpeg";
 import { PexelsAPI } from "./short-creator/libraries/Pexels";
+import { GoogleVeoAPI } from "./short-creator/libraries/GoogleVeo";
+import { LeonardoAI } from "./short-creator/libraries/LeonardoAI";
 import { Config } from "./config";
 import { ShortCreator } from "./short-creator/ShortCreator";
 import { logger } from "./logger";
@@ -40,6 +42,32 @@ async function main() {
   logger.debug("initializing ffmpeg");
   const ffmpeg = await FFMpeg.init();
   const pexelsApi = new PexelsAPI(config.pexelsApiKey);
+  
+  // Initialize Veo API if configured
+  let veoApi: GoogleVeoAPI | null = null;
+  if (config.videoSource === "veo" || config.videoSource === "both") {
+    if (config.googleVeoApiKey && config.googleCloudProjectId) {
+      logger.debug("initializing google veo api");
+      veoApi = new GoogleVeoAPI(
+        config.googleVeoApiKey,
+        config.googleCloudProjectId,
+        config.googleCloudRegion
+      );
+    } else {
+      logger.warn("Veo API keys not configured, but VIDEO_SOURCE includes 'veo'");
+    }
+  }
+
+  // Initialize Leonardo.AI API if configured
+  let leonardoApi: LeonardoAI | null = null;
+  if (config.videoSource === "leonardo" || config.videoSource === "both") {
+    if (config.leonardoApiKey) {
+      logger.debug("initializing leonardo ai api");
+      leonardoApi = new LeonardoAI(config.leonardoApiKey);
+    } else {
+      logger.warn("Leonardo.AI API key not configured, but VIDEO_SOURCE includes 'leonardo'");
+    }
+  }
 
   logger.debug("initializing the short creator");
   const shortCreator = new ShortCreator(
@@ -50,6 +78,8 @@ async function main() {
     ffmpeg,
     pexelsApi,
     musicManager,
+    veoApi || undefined,
+    leonardoApi || undefined,
   );
 
   if (!config.runningInDocker) {

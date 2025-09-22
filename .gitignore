@@ -170,3 +170,6 @@
 #*.tar.gz
 #*.rar
 #*.7z
+
+## RAW folder
+RAW/

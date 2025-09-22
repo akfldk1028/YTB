@@ -1,6 +1,8 @@
 import ffmpeg from "fluent-ffmpeg";
 import { Readable } from "node:stream";
 import { logger } from "../../logger";
+import { OrientationEnum } from "../../types/shorts";
+import type { RenderConfig } from "../../types/shorts";
 
 export class FFMpeg {
   static async init(): Promise<FFMpeg> {
@@ -89,5 +91,69 @@ export class FFMpeg {
           reject(err);
         });
     });
+  }
+
+  async combineVideoWithAudioAndCaptions(
+    videoPath: string,
+    audioPath: string,
+    captions: any[],
+    outputPath: string,
+    durationSeconds: number,
+    orientation: OrientationEnum,
+    config: RenderConfig
+  ): Promise<string> {
+    logger.debug({ videoPath, audioPath, outputPath }, "Combining video with audio using FFmpeg");
+
+    return new Promise((resolve, reject) => {
+      const ffmpegCommand = ffmpeg()
+        .input(videoPath)
+        .input(audioPath)
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+          '-map', '0:v:0',  // Use video from first input
+          '-map', '1:a:0',  // Use audio from second input
+          '-shortest',      // Stop when shortest input ends
+          `-t ${durationSeconds}` // Set duration
+        ]);
+
+      // Add subtitle filter for captions if available
+      if (captions && captions.length > 0) {
+        // Create a simple subtitle track (you might want to enhance this)
+        const subtitleFilter = this.createSubtitleFilter(captions, orientation);
+        if (subtitleFilter) {
+          ffmpegCommand.videoFilters(subtitleFilter);
+        }
+      }
+
+      ffmpegCommand
+        .on('end', () => {
+          logger.debug({ outputPath }, "Video combination complete");
+          resolve(outputPath);
+        })
+        .on('error', (error: any) => {
+          logger.error(error, "Error combining video with audio");
+          reject(error);
+        })
+        .save(outputPath);
+    });
+  }
+
+  private createSubtitleFilter(captions: any[], orientation: OrientationEnum): string | null {
+    // Simple implementation - you might want to enhance this based on your caption format
+    // This is a basic example that overlays text
+    try {
+      if (!captions || captions.length === 0) return null;
+      
+      // For now, return a simple drawtext filter
+      // You'll need to adapt this based on your actual caption format
+      const fontSize = orientation === OrientationEnum.portrait ? 24 : 32;
+      const yPosition = orientation === OrientationEnum.portrait ? 'h*0.8' : 'h*0.85';
+      
+      return `drawtext=fontfile=/System/Library/Fonts/Arial.ttf:text='${captions[0]?.text || ''}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5`;
+    } catch (error) {
+      logger.warn(error, "Could not create subtitle filter");
+      return null;
+    }
   }
 }

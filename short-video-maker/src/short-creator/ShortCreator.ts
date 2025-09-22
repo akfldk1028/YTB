@@ -11,6 +11,8 @@ import { Remotion } from "./libraries/Remotion";
 import { Whisper } from "./libraries/Whisper";
 import { FFMpeg } from "./libraries/FFmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
+import { GoogleVeoAPI } from "./libraries/GoogleVeo";
+import { LeonardoAI } from "./libraries/LeonardoAI";
 import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
@@ -38,6 +40,8 @@ export class ShortCreator {
     private ffmpeg: FFMpeg,
     private pexelsApi: PexelsAPI,
     private musicManager: MusicManager,
+    private googleVeoApi?: GoogleVeoAPI,
+    private leonardoApi?: LeonardoAI,
   ) {}
 
   public status(id: string): VideoStatus {
@@ -137,12 +141,73 @@ export class ShortCreator {
       const captions = await this.whisper.CreateCaption(tempWavPath);
 
       await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
-      const video = await this.pexelsApi.findVideo(
-        scene.searchTerms,
-        audioLength,
-        excludeVideoIds,
-        orientation,
-      );
+      
+      let video;
+      if (this.config.videoSource === "veo" && this.googleVeoApi) {
+        video = await this.googleVeoApi.findVideo(
+          scene.searchTerms,
+          audioLength,
+          excludeVideoIds,
+          orientation,
+        );
+      } else if (this.config.videoSource === "leonardo" && this.leonardoApi) {
+        video = await this.leonardoApi.findVideo(
+          scene.searchTerms,
+          audioLength,
+          excludeVideoIds,
+          orientation,
+        );
+      } else if (this.config.videoSource === "both" && Math.random() > 0.5) {
+        // Randomly choose between API services if both are configured
+        if (this.googleVeoApi && this.leonardoApi) {
+          const useVeo = Math.random() > 0.5;
+          if (useVeo) {
+            video = await this.googleVeoApi.findVideo(
+              scene.searchTerms,
+              audioLength,
+              excludeVideoIds,
+              orientation,
+            );
+          } else {
+            video = await this.leonardoApi.findVideo(
+              scene.searchTerms,
+              audioLength,
+              excludeVideoIds,
+              orientation,
+            );
+          }
+        } else if (this.googleVeoApi) {
+          video = await this.googleVeoApi.findVideo(
+            scene.searchTerms,
+            audioLength,
+            excludeVideoIds,
+            orientation,
+          );
+        } else if (this.leonardoApi) {
+          video = await this.leonardoApi.findVideo(
+            scene.searchTerms,
+            audioLength,
+            excludeVideoIds,
+            orientation,
+          );
+        } else {
+          // Fallback to Pexels
+          video = await this.pexelsApi.findVideo(
+            scene.searchTerms,
+            audioLength,
+            excludeVideoIds,
+            orientation,
+          );
+        }
+      } else {
+        // Default to Pexels
+        video = await this.pexelsApi.findVideo(
+          scene.searchTerms,
+          audioLength,
+          excludeVideoIds,
+          orientation,
+        );
+      }
 
       logger.debug(`Downloading video from ${video.url} to ${tempVideoPath}`);
 
@@ -190,26 +255,70 @@ export class ShortCreator {
       totalDuration += config.paddingBack / 1000;
     }
 
-    const selectedMusic = this.findMusic(totalDuration, config.music);
-    logger.debug({ selectedMusic }, "Selected music for the video");
+    // Check if we're using API-generated video or FFmpeg mode that doesn't need Remotion
+    const isApiVideo = this.config.videoSource === "veo" || this.config.videoSource === "leonardo" || 
+                      (this.config.videoSource === "both" && (this.googleVeoApi || this.leonardoApi));
+    const isFFmpegMode = this.config.videoSource === "ffmpeg";
+    
+    if ((isApiVideo && scenes.length === 1) || isFFmpegMode) {
+      // For single-scene API videos, we can skip Remotion and use the video directly
+      // Just add audio overlay using FFmpeg
+      const scene = scenes[0];
+      const outputLocation = path.join(this.config.videosDirPath, `${videoId}.mp4`);
+      
+      logger.debug({ videoId }, "Using API-generated video directly with FFmpeg audio overlay");
+      
+      // BUGFIX: Use the actual temp file paths from the scene creation, not URL parsing
+      // The scene URLs contain the temp file names that were generated during processing
+      const videoFileName = scene.video.split('/').pop();
+      const audioFileName = scene.audio.url.split('/').pop();
+      
+      const tempVideoPath = path.join(this.config.tempDirPath, videoFileName!);
+      const tempMp3Path = path.join(this.config.tempDirPath, audioFileName!);
+      
+      // Verify files exist before processing
+      if (!fs.existsSync(tempVideoPath)) {
+        throw new Error(`Temp video file not found: ${tempVideoPath}`);
+      }
+      if (!fs.existsSync(tempMp3Path)) {
+        throw new Error(`Temp audio file not found: ${tempMp3Path}`);
+      }
+      
+      logger.debug({ tempVideoPath, tempMp3Path, outputLocation }, "FFmpeg file paths verified");
+      
+      // Use FFmpeg to combine video with audio and captions
+      await this.ffmpeg.combineVideoWithAudioAndCaptions(
+        tempVideoPath,
+        tempMp3Path,
+        scene.captions,
+        outputLocation,
+        totalDuration,
+        orientation,
+        config
+      );
+    } else {
+      // Use traditional Remotion rendering for complex scenes or Pexels videos
+      const selectedMusic = this.findMusic(totalDuration, config.music);
+      logger.debug({ selectedMusic }, "Selected music for the video");
 
-    await this.remotion.render(
-      {
-        music: selectedMusic,
-        scenes,
-        config: {
-          durationMs: totalDuration * 1000,
-          paddingBack: config.paddingBack,
-          ...{
-            captionBackgroundColor: config.captionBackgroundColor,
-            captionPosition: config.captionPosition,
+      await this.remotion.render(
+        {
+          music: selectedMusic,
+          scenes,
+          config: {
+            durationMs: totalDuration * 1000,
+            paddingBack: config.paddingBack,
+            ...{
+              captionBackgroundColor: config.captionBackgroundColor,
+              captionPosition: config.captionPosition,
+            },
+            musicVolume: config.musicVolume,
           },
-          musicVolume: config.musicVolume,
         },
-      },
-      videoId,
-      orientation,
-    );
+        videoId,
+        orientation,
+      );
+    }
 
     for (const file of tempFiles) {
       fs.removeSync(file);

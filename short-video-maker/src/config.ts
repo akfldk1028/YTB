@@ -38,6 +38,12 @@ export class Config {
   public packageDirPath: string;
   public musicDirPath: string;
   public pexelsApiKey: string;
+  public googleVeoApiKey?: string;
+  public googleCloudProjectId?: string;
+  public googleCloudRegion: string = "us-central1";
+  public leonardoApiKey?: string;
+  public googleGeminiApiKey?: string; // For Imagen image generation
+  public videoSource: "pexels" | "veo" | "leonardo" | "both" | "ffmpeg" = "pexels";
   public logLevel: pino.Level;
   public whisperVerbose: boolean;
   public port: number;
@@ -75,6 +81,12 @@ export class Config {
     this.musicDirPath = path.join(this.staticDirPath, "music");
 
     this.pexelsApiKey = process.env.PEXELS_API_KEY as string;
+    this.googleVeoApiKey = process.env.GOOGLE_VEO_API_KEY;
+    this.googleCloudProjectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
+    this.googleCloudRegion = process.env.GOOGLE_CLOUD_REGION || "us-central1";
+    this.leonardoApiKey = process.env.LEONARDO_API_KEY;
+    this.googleGeminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
+    this.videoSource = (process.env.VIDEO_SOURCE as "pexels" | "veo" | "leonardo" | "both" | "ffmpeg") || "pexels";
     this.logLevel = (process.env.LOG_LEVEL || defaultLogLevel) as pino.Level;
     this.whisperVerbose = process.env.WHISPER_VERBOSE === "true";
     this.port = process.env.PORT ? parseInt(process.env.PORT) : defaultPort;
@@ -101,10 +113,33 @@ export class Config {
   }
 
   public ensureConfig() {
-    if (!this.pexelsApiKey) {
-      throw new Error(
-        "PEXELS_API_KEY environment variable is missing. Get your free API key: https://www.pexels.com/api/key/ - see how to run the project: https://github.com/gyoridavid/short-video-maker",
-      );
+    if (this.videoSource === "pexels" || this.videoSource === "both") {
+      if (!this.pexelsApiKey) {
+        throw new Error(
+          "PEXELS_API_KEY environment variable is missing. Get your free API key: https://www.pexels.com/api/key/ - see how to run the project: https://github.com/gyoridavid/short-video-maker",
+        );
+      }
+    }
+    
+    if (this.videoSource === "veo" || this.videoSource === "both") {
+      if (!this.googleVeoApiKey) {
+        throw new Error(
+          "GOOGLE_VEO_API_KEY environment variable is missing. Please set up Google Cloud authentication for Vertex AI Veo API.",
+        );
+      }
+      if (!this.googleCloudProjectId) {
+        throw new Error(
+          "GOOGLE_CLOUD_PROJECT_ID environment variable is missing. Please provide your Google Cloud project ID.",
+        );
+      }
+    }
+    
+    if (this.videoSource === "leonardo" || this.videoSource === "both") {
+      if (!this.leonardoApiKey) {
+        throw new Error(
+          "LEONARDO_API_KEY environment variable is missing. Please get your API key from https://leonardo.ai/api/",
+        );
+      }
     }
   }
 }

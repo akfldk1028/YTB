@@ -3,6 +3,7 @@ import { shortVideoSchema } from "../utils";
 import { PortraitVideo } from "../videos/PortraitVideo";
 import { LandscapeVideo } from "../videos/LandscapeVideo";
 import { TestVideo } from "../videos/Test";
+import { ImageVideo, imageVideoSchema } from "../videos/ImageVideo";
 import z from "zod";
 import { AvailableComponentsEnum } from "../types";
 
@@ -283,6 +284,23 @@ export const RemotionRoot: React.FC = () => {
         fps={23}
         width={100}
         height={100}
+      />
+      <Composition
+        id="ImageVideo"
+        component={ImageVideo}
+        durationInFrames={125}
+        fps={FPS}
+        width={1080}
+        height={1920}
+        schema={imageVideoSchema}
+        defaultProps={{
+          imagePath: "/home/akfldk1028/.ai-agents-az-video-generator/temp/imagen-1758287728966-0.png",
+          title: "미래형 AR 글래스",
+          subtitles: [
+            { text: "혁신적인 증강현실 기술", start: 0.5, end: 2.5 },
+            { text: "일상을 바꾸는 스마트 글래스", start: 3.0, end: 5.0 },
+          ]
+        }}
       />
     </>
   );

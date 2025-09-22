@@ -346,7 +346,9 @@ graph TD
 
 ### 📡 주요 엔드포인트
 ```http
-POST /api/short-video     # 비디오 생성 요청
+POST /api/short-
+
+video     # 비디오 생성 요청
 GET  /api/short-video/:id/status  # 진행 상황 확인  
 GET  /api/short-video/:id # 완성된 비디오 다운로드
 GET  /api/voices          # 사용 가능한 음성 목록
