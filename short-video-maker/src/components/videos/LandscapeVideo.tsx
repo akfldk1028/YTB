@@ -1,6 +1,7 @@
 import {
   AbsoluteFill,
   Sequence,
+  Series,
   useCurrentFrame,
   useVideoConfig,
   Audio,
@@ -54,107 +55,105 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
       <Audio
         loop
         src={music.url}
+        delayRenderTimeoutInMilliseconds={60000}
         startFrom={music.start * fps}
         endAt={music.end * fps}
         volume={() => musicVolume}
         muted={musicMuted}
       />
 
-      {scenes.map((scene, i) => {
-        const { captions, audio, video } = scene;
-        const pages = createCaptionPages({
-          captions,
-          lineMaxLength: 30,
-          lineCount: 1,
-          maxDistanceMs: 1000,
-        });
+      <Series>
+        {scenes.map((scene, i) => {
+          const { captions, audio, video } = scene;
+          const pages = createCaptionPages({
+            captions,
+            lineMaxLength: 30,
+            lineCount: 1,
+            maxDistanceMs: 1000,
+          });
 
-        // Calculate the start and end time of the scene
-        const startFrame =
-          scenes.slice(0, i).reduce((acc, curr) => {
-            return acc + curr.audio.duration;
-          }, 0) * fps;
-        let durationInFrames =
-          scenes.slice(0, i + 1).reduce((acc, curr) => {
-            return acc + curr.audio.duration;
-          }, 0) * fps;
-        if (config.paddingBack && i === scenes.length - 1) {
-          durationInFrames += (config.paddingBack / 1000) * fps;
-        }
+          // Each scene duration in frames
+          let sceneDurationInFrames = scene.audio.duration * fps;
+          if (config.paddingBack && i === scenes.length - 1) {
+            sceneDurationInFrames += (config.paddingBack / 1000) * fps;
+          }
 
-        return (
-          <Sequence
-            from={startFrame}
-            durationInFrames={durationInFrames}
-            key={`scene-${i}`}
-          >
-            <OffthreadVideo src={video} muted />
-            <Audio src={audio.url} />
-            {pages.map((page, j) => {
-              return (
-                <Sequence
-                  key={`scene-${i}-page-${j}`}
-                  from={Math.round((page.startMs / 1000) * fps)}
-                  durationInFrames={Math.round(
-                    ((page.endMs - page.startMs) / 1000) * fps,
-                  )}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      width: "100%",
-                      ...captionStyle,
-                    }}
-                  >
-                    {page.lines.map((line, k) => {
-                      return (
-                        <p
-                          style={{
-                            fontSize: "8em",
-                            fontFamily: fontFamily,
-                            fontWeight: "black",
-                            color: "white",
-                            WebkitTextStroke: "2px black",
-                            WebkitTextFillColor: "white",
-                            textShadow: "0px 0px 10px black",
-                            textAlign: "center",
-                            width: "100%",
-                            // uppercase
-                            textTransform: "uppercase",
-                          }}
-                          key={`scene-${i}-page-${j}-line-${k}`}
-                        >
-                          {line.texts.map((text, l) => {
-                            const active =
-                              frame >=
-                                startFrame + (text.startMs / 1000) * fps &&
-                              frame <= startFrame + (text.endMs / 1000) * fps;
-                            return (
-                              <>
-                                <span
-                                  style={{
-                                    fontWeight: "bold",
-                                    ...(active ? activeStyle : {}),
-                                  }}
-                                  key={`scene-${i}-page-${j}-line-${k}-text-${l}`}
-                                >
-                                  {text.text}
-                                </span>
-                                {l < line.texts.length - 1 ? " " : ""}
-                              </>
-                            );
-                          })}
-                        </p>
-                      );
-                    })}
-                  </div>
-                </Sequence>
-              );
-            })}
-          </Sequence>
-        );
-      })}
+          return (
+            <Series.Sequence 
+              durationInFrames={Math.round(sceneDurationInFrames)}
+              key={`scene-${i}`}
+            >
+              <AbsoluteFill>
+                <OffthreadVideo src={video} muted delayRenderTimeoutInMilliseconds={60000} />
+                <Audio src={audio.url} delayRenderTimeoutInMilliseconds={60000} />
+                {pages.map((page, j) => {
+                  return (
+                    <Sequence
+                      key={`scene-${i}-page-${j}`}
+                      from={Math.round((page.startMs / 1000) * fps)}
+                      durationInFrames={Math.round(
+                        ((page.endMs - page.startMs) / 1000) * fps,
+                      )}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          width: "100%",
+                          ...captionStyle,
+                        }}
+                      >
+                        {page.lines.map((line, k) => {
+                          return (
+                            <p
+                              style={{
+                                fontSize: "8em",
+                                fontFamily: fontFamily,
+                                fontWeight: "black",
+                                color: "white",
+                                WebkitTextStroke: "2px black",
+                                WebkitTextFillColor: "white",
+                                textShadow: "0px 0px 10px black",
+                                textAlign: "center",
+                                width: "100%",
+                                // uppercase
+                                textTransform: "uppercase",
+                              }}
+                              key={`scene-${i}-page-${j}-line-${k}`}
+                            >
+                              {line.texts.map((text, l) => {
+                                const currentSceneFrame = useCurrentFrame();
+                                const active =
+                                  currentSceneFrame >=
+                                    (text.startMs / 1000) * fps &&
+                                  currentSceneFrame <= (text.endMs / 1000) * fps;
+                                return (
+                                  <>
+                                    <span
+                                      style={{
+                                        fontWeight: "bold",
+                                        ...(active ? activeStyle : {}),
+                                      }}
+                                      key={`scene-${i}-page-${j}-line-${k}-text-${l}`}
+                                    >
+                                      {text.text}
+                                    </span>
+                                    {l < line.texts.length - 1 ? " " : ""}
+                                  </>
+                                );
+                              })}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    </Sequence>
+                  );
+                })}
+              </AbsoluteFill>
+            </Series.Sequence>
+          );
+        })}
+      </Series>
     </AbsoluteFill>
   );
 };

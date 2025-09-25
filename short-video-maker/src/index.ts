@@ -4,7 +4,6 @@ import fs from "fs-extra";
 
 import { Kokoro } from "./short-creator/libraries/Kokoro";
 import { GoogleTTS } from "./short-creator/libraries/google-tts";
-import { Remotion } from "./short-creator/libraries/Remotion";
 import { Whisper } from "./short-creator/libraries/Whisper";
 import { FFMpeg } from "./short-creator/libraries/FFmpeg";
 import { PexelsAPI } from "./short-creator/libraries/Pexels";
@@ -34,8 +33,6 @@ async function main() {
     process.exit(1);
   }
 
-  logger.debug("initializing remotion");
-  const remotion = await Remotion.init(config);
   
   // Initialize TTS provider based on config
   let ttsProvider: Kokoro | GoogleTTS;
@@ -86,7 +83,6 @@ async function main() {
   logger.debug("initializing the short creator");
   const shortCreator = new ShortCreator(
     config,
-    remotion,
     ttsProvider,
     whisper,
     ffmpeg,
@@ -108,9 +104,7 @@ async function main() {
         const audioBuffer = (await ttsProvider.generate("hi", "af_heart")).audio;
         await ffmpeg.createMp3DataUri(audioBuffer);
         await pexelsApi.findVideo(["dog"], 2.4);
-        const testVideoPath = path.join(config.tempDirPath, "test.mp4");
-        await remotion.testRender(testVideoPath);
-        fs.rmSync(testVideoPath, { force: true });
+        // FFmpeg mode - no additional testing needed
         fs.writeFileSync(config.installationSuccessfulPath, "ok", {
           encoding: "utf-8",
         });

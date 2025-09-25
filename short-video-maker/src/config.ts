@@ -38,7 +38,7 @@ export class Config {
   public packageDirPath: string;
   public musicDirPath: string;
   public pexelsApiKey: string;
-  public googleVeoApiKey?: string;
+  public googleVeoApiKey?: string; // Service account key file path for Veo
   public googleCloudProjectId?: string;
   public googleCloudRegion: string = "us-central1";
   public leonardoApiKey?: string;
@@ -130,7 +130,7 @@ export class Config {
     if (this.videoSource === "veo" || this.videoSource === "both") {
       if (!this.googleVeoApiKey) {
         throw new Error(
-          "GOOGLE_VEO_API_KEY environment variable is missing. Please set up Google Cloud authentication for Vertex AI Veo API.",
+          "GOOGLE_VEO_API_KEY environment variable is missing. Please provide the path to your Google Cloud service account key file for Vertex AI Veo API.",
         );
       }
       if (!this.googleCloudProjectId) {

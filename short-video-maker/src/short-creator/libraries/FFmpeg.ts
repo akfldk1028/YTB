@@ -1,5 +1,7 @@
 import ffmpeg from "fluent-ffmpeg";
 import { Readable } from "node:stream";
+import path from "path";
+import fs from "fs-extra";
 import { logger } from "../../logger";
 import { OrientationEnum } from "../../types/shorts";
 import type { RenderConfig } from "../../types/shorts";
@@ -100,7 +102,8 @@ export class FFMpeg {
     outputPath: string,
     durationSeconds: number,
     orientation: OrientationEnum,
-    config: RenderConfig
+    config: RenderConfig,
+    skipSubtitles = false // 멀티씬에서 개별 씬 처리시 자막 건너뛰기
   ): Promise<string> {
     logger.debug({ videoPath, audioPath, outputPath }, "Combining video with audio using FFmpeg");
 
@@ -117,9 +120,8 @@ export class FFMpeg {
           `-t ${durationSeconds}` // Set duration
         ]);
 
-      // Add subtitle filter for captions if available
-      if (captions && captions.length > 0) {
-        // Create a simple subtitle track (you might want to enhance this)
+      // Add subtitle filter for captions if available (unless skipped for multi-scene)
+      if (!skipSubtitles && captions && captions.length > 0) {
         const subtitleFilter = this.createSubtitleFilter(captions, orientation);
         if (subtitleFilter) {
           ffmpegCommand.videoFilters(subtitleFilter);
@@ -164,5 +166,113 @@ export class FFMpeg {
       logger.warn(error, "Could not create subtitle filter");
       return null;
     }
+  }
+
+  /**
+   * 여러 비디오 파일을 FFmpeg concat demuxer로 결합
+   * 무손실 결합을 위해 concat demuxer 사용 (재인코딩 없음)
+   */
+  async concatVideos(inputPaths: string[], outputPath: string): Promise<string> {
+    logger.debug({ inputPaths, outputPath }, "Concatenating videos with FFmpeg mergeToFile");
+    
+    return new Promise(async (resolve, reject) => {
+      try {
+        if (inputPaths.length === 0) {
+          reject(new Error("No input paths provided"));
+          return;
+        }
+        
+        if (inputPaths.length === 1) {
+          // 단일 파일인 경우 복사만 수행
+          fs.copyFileSync(inputPaths[0], outputPath);
+          resolve(outputPath);
+          return;
+        }
+
+        // fluent-ffmpeg의 mergeToFile 사용 (부드러운 연결 보장)
+        let ffmpegCommand = ffmpeg(inputPaths[0]);
+        
+        // 나머지 입력 파일들 추가
+        for (let i = 1; i < inputPaths.length; i++) {
+          ffmpegCommand = ffmpegCommand.input(inputPaths[i]);
+        }
+
+        // 임시 디렉토리 생성 (mergeToFile에서 요구함)
+        const tempDir = path.join(path.dirname(outputPath), `temp_merge_${Date.now()}`);
+        fs.mkdirSync(tempDir, { recursive: true });
+        
+        ffmpegCommand
+          .on('start', (commandLine) => {
+            logger.debug('FFmpeg mergeToFile command: ' + commandLine);
+          })
+          .on('progress', (progress) => {
+            logger.debug(`Merge progress: ${Math.floor(progress.percent || 0)}% done`);
+          })
+          .on('end', () => {
+            logger.debug({ outputPath }, "Video merge complete");
+            // 임시 디렉토리 정리
+            try {
+              fs.rmSync(tempDir, { recursive: true, force: true });
+            } catch (error) {
+              logger.warn(error, "Could not clean up temp merge directory");
+            }
+            resolve(outputPath);
+          })
+          .on('error', (error) => {
+            logger.error(error, "FFmpeg merge failed");
+            // 임시 디렉토리 정리
+            try {
+              fs.rmSync(tempDir, { recursive: true, force: true });
+            } catch (cleanupError) {
+              logger.warn(cleanupError, "Could not clean up temp merge directory after error");
+            }
+            reject(error);
+          })
+          .mergeToFile(outputPath, tempDir);
+
+      } catch (error) {
+        logger.error(error, "Error setting up FFmpeg mergeToFile");
+        reject(error);
+      }
+    });
+  }
+
+
+  /**
+   * 기존 비디오에 시간 동기화된 자막 추가 (멀티씬용)
+   */
+  async addSubtitlesToVideo(
+    inputVideoPath: string,
+    outputVideoPath: string,
+    captions: any[],
+    orientation: OrientationEnum
+  ): Promise<string> {
+    logger.debug({ inputVideoPath, outputVideoPath, captionCount: captions.length }, "Adding synchronized subtitles to video");
+
+    return new Promise((resolve, reject) => {
+      const ffmpegCommand = ffmpeg()
+        .input(inputVideoPath)
+        .videoCodec('libx264')
+        .audioCodec('aac');
+
+      // Add subtitle filter for captions
+      if (captions && captions.length > 0) {
+        const subtitleFilter = this.createSubtitleFilter(captions, orientation);
+        if (subtitleFilter) {
+          ffmpegCommand.videoFilters(subtitleFilter);
+        }
+      }
+
+      ffmpegCommand
+        .on('end', () => {
+          logger.debug({ outputVideoPath }, "Subtitle addition complete");
+          resolve(outputVideoPath);
+        })
+        .on('error', (error: any) => {
+          logger.error(error, "Error adding subtitles to video");
+          reject(error);
+        })
+        .save(outputVideoPath);
+    });
   }
 }

@@ -10,8 +10,8 @@ import { validateCreateShortInput } from "../validator";
 import { ShortCreator } from "../../short-creator/ShortCreator";
 import { logger } from "../../logger";
 import { Config } from "../../config";
+import { RawDataParser } from "../parsers/N8NDataParser";
 
-// todo abstract class
 export class APIRouter {
   public router: express.Router;
   private shortCreator: ShortCreator;
@@ -23,22 +23,82 @@ export class APIRouter {
     this.shortCreator = shortCreator;
 
     this.router.use(express.json());
-
     this.setupRoutes();
   }
 
   private setupRoutes() {
+    // Raw 데이터 엔드포인트 - 모든 타입 받음
+    this.router.post(
+      "/create-video",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          logger.info("Received raw data");
+          
+          const processedData = RawDataParser.parseRawData(req.body);
+          
+          // N8N callback webhook URL 추출 (있으면)
+          const callbackUrl = req.body.webhook_url || req.body.callback_url;
+          
+          // ParsedVideoData에서 scenes와 config만 추출해서 validation
+          const validationInput = {
+            scenes: processedData.scenes,
+            config: processedData.config
+          };
+          
+          const input = validateCreateShortInput(validationInput);
+          
+          const videoId = this.shortCreator.addToQueue(
+            input.scenes, 
+            input.config, 
+            callbackUrl, 
+            processedData.metadata
+          );
+          
+          res.status(201).json({ videoId });
+        } catch (error: unknown) {
+          logger.error(error, "Error processing raw data");
+          res.status(400).json({
+            error: error instanceof Error ? error.message : "Processing failed"
+          });
+        }
+      },
+    );
+
+    // 기존 엔드포인트 유지 (하위 호환성) - N8N raw 데이터도 지원
     this.router.post(
       "/short-video",
       async (req: ExpressRequest, res: ExpressResponse) => {
         try {
-          const input = validateCreateShortInput(req.body);
-
+          logger.info("Processing request (legacy endpoint)");
+          
+          // N8N raw 데이터인지 확인하고 파싱 시도
+          let processedData;
+          let metadata;
+          let callbackUrl;
+          
+          try {
+            const rawParseResult = RawDataParser.parseRawData(req.body);
+            // ParsedVideoData에서 scenes와 config만 추출해서 validation
+            processedData = {
+              scenes: rawParseResult.scenes,
+              config: rawParseResult.config
+            };
+            metadata = rawParseResult.metadata;
+            callbackUrl = req.body.webhook_url || req.body.callback_url;
+          } catch (parseError) {
+            // 파싱 실패시 기존 방식으로 처리
+            processedData = req.body;
+            callbackUrl = req.body.webhook_url || req.body.callback_url;
+          }
+          
+          const input = validateCreateShortInput(processedData);
           logger.info({ input }, "Creating short video");
 
           const videoId = this.shortCreator.addToQueue(
             input.scenes,
             input.config,
+            callbackUrl,
+            metadata
           );
 
           res.status(201).json({
@@ -47,7 +107,6 @@ export class APIRouter {
         } catch (error: unknown) {
           logger.error(error, "Error validating input");
 
-          // Handle validation errors specifically
           if (error instanceof Error && error.message.startsWith("{")) {
             try {
               const errorData = JSON.parse(error.message);
@@ -62,7 +121,6 @@ export class APIRouter {
             }
           }
 
-          // Fallback for other errors
           res.status(400).json({
             error: "Invalid input",
             message: error instanceof Error ? error.message : "Unknown error",
@@ -81,10 +139,21 @@ export class APIRouter {
           });
           return;
         }
-        const status = this.shortCreator.status(videoId);
-        res.status(200).json({
-          status,
-        });
+        try {
+          const status = this.shortCreator.status(videoId);
+          const detailedStatus = this.shortCreator.getDetailedStatus(videoId);
+          
+          res.status(200).json({
+            status,
+            ...detailedStatus
+          });
+        } catch (error: unknown) {
+          logger.error(error, "Error getting video status");
+          res.status(404).json({
+            error: "Video not found or error getting status",
+            message: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
       },
     );
 

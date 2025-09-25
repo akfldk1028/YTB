@@ -1,7 +1,8 @@
 import z from "zod";
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { renderMedia, selectComposition, openBrowser } from "@remotion/renderer";
 import path from "path";
+import fs from "fs";
 import { ensureBrowser } from "@remotion/renderer";
 
 import { Config } from "../../config";
@@ -22,10 +23,10 @@ export class Remotion {
     const bundled = await bundle({
       entryPoint: path.join(
         config.packageDirPath,
-        config.devMode ? "src" : "dist",
+        "src",
         "components",
         "root",
-        `index.${config.devMode ? "ts" : "js"}`,
+        "index.ts",
       ),
     });
 
@@ -43,6 +44,7 @@ export class Remotion {
       serveUrl: this.bundled,
       id: component,
       inputProps: data,
+      timeoutInMilliseconds: 300000, // 5분으로 증가
     });
 
     logger.debug({ component, videoID: id }, "Rendering video with Remotion");
@@ -58,9 +60,10 @@ export class Remotion {
       onProgress: ({ progress }) => {
         logger.debug(`Rendering ${id} ${Math.floor(progress * 100)}% complete`);
       },
-      // preventing memory issues with docker
-      concurrency: this.config.concurrency,
+      concurrency: 2,
       offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
+      timeoutInMilliseconds: 300000, // 5분으로 증가
+      logLevel: "verbose" as const,
     });
 
     logger.debug(
@@ -77,6 +80,7 @@ export class Remotion {
     const composition = await selectComposition({
       serveUrl: this.bundled,
       id: "TestVideo",
+      timeoutInMilliseconds: 300000,
     });
 
     await renderMedia({
@@ -89,9 +93,10 @@ export class Remotion {
           `Rendering test video: ${Math.floor(progress * 100)}% complete`,
         );
       },
-      // preventing memory issues with docker
-      concurrency: this.config.concurrency,
+      concurrency: 2,
       offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
+      timeoutInMilliseconds: 300000,
+      logLevel: "verbose" as const,
     });
   }
 }

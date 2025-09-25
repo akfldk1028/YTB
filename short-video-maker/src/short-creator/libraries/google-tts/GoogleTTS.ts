@@ -115,39 +115,39 @@ export class GoogleTTS {
   }
 
   private mapKokoroToGoogleVoice(kokoroVoice: Voices): GoogleVoice {
-    // Kokoro 음성을 Google TTS의 자연스러운 음성으로 매핑
+    // Kokoro 음성을 Google TTS의 한국어 음성으로 매핑
     const voiceMap: Record<string, GoogleVoice> = {
-      // Female voices
-      'af_heart': this.availableVoices.find(v => v.name === 'en-US-Neural2-C')!,
-      'af_alloy': this.availableVoices.find(v => v.name === 'en-US-Neural2-E')!,
-      'af_aoede': this.availableVoices.find(v => v.name === 'en-US-Neural2-F')!,
-      'af_bella': this.availableVoices.find(v => v.name === 'en-US-Neural2-G')!,
-      'af_jessica': this.availableVoices.find(v => v.name === 'en-US-Neural2-H')!,
-      'af_kore': this.availableVoices.find(v => v.name === 'en-US-Studio-O')!,
-      'af_nicole': this.availableVoices.find(v => v.name === 'en-GB-Neural2-A')!,
-      'af_nova': this.availableVoices.find(v => v.name === 'en-GB-Neural2-C')!,
+      // Female voices - 한국어
+      'af_heart': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-A')!,
+      'af_alloy': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-B')!,
+      'af_aoede': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-A')!,
+      'af_bella': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-B')!,
+      'af_jessica': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-A')!,
+      'af_kore': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-B')!,
+      'af_nicole': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-A')!,
+      'af_nova': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-B')!,
       'af_river': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-A')!,
       'af_sarah': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-B')!,
-      'af_sky': this.availableVoices.find(v => v.name === 'ja-JP-Neural2-B')!,
-      'bf_emma': this.availableVoices.find(v => v.name === 'es-US-Neural2-A')!,
-      'bf_isabella': this.availableVoices.find(v => v.name === 'en-US-Neural2-C')!,
-      'bf_alice': this.availableVoices.find(v => v.name === 'en-US-Neural2-E')!,
-      'bf_lily': this.availableVoices.find(v => v.name === 'en-US-Neural2-F')!,
+      'af_sky': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-A')!,
+      'bf_emma': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-B')!,
+      'bf_isabella': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-A')!,
+      'bf_alice': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-B')!,
+      'bf_lily': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-A')!,
       
-      // Male voices
-      'am_adam': this.availableVoices.find(v => v.name === 'en-US-Neural2-A')!,
-      'am_echo': this.availableVoices.find(v => v.name === 'en-US-Neural2-D')!,
-      'am_eric': this.availableVoices.find(v => v.name === 'en-US-Neural2-I')!,
-      'am_fenrir': this.availableVoices.find(v => v.name === 'en-US-Neural2-J')!,
-      'am_liam': this.availableVoices.find(v => v.name === 'en-US-Studio-M')!,
-      'am_michael': this.availableVoices.find(v => v.name === 'en-GB-Neural2-B')!,
-      'am_onyx': this.availableVoices.find(v => v.name === 'en-GB-Neural2-D')!,
+      // Male voices - 한국어
+      'am_adam': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'am_echo': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'am_eric': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'am_fenrir': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'am_liam': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'am_michael': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'am_onyx': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
       'am_puck': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
-      'am_santa': this.availableVoices.find(v => v.name === 'ja-JP-Neural2-C')!,
-      'bm_george': this.availableVoices.find(v => v.name === 'ja-JP-Neural2-D')!,
-      'bm_lewis': this.availableVoices.find(v => v.name === 'es-US-Neural2-B')!,
-      'bm_daniel': this.availableVoices.find(v => v.name === 'es-US-Neural2-C')!,
-      'bm_fable': this.availableVoices.find(v => v.name === 'en-US-Neural2-A')!,
+      'am_santa': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'bm_george': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'bm_lewis': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'bm_daniel': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
+      'bm_fable': this.availableVoices.find(v => v.name === 'ko-KR-Neural2-C')!,
     };
 
     const mappedVoice = voiceMap[kokoroVoice];

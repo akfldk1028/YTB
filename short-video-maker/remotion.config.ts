@@ -9,3 +9,6 @@ Config.setVideoImageFormat("jpeg");
 Config.setOverwriteOutput(true);
 Config.setPublicDir("static/music");
 Config.setEntryPoint("src/components/root/index.ts");
+Config.setDelayRenderTimeoutInMilliseconds(300000);
+Config.setTimeoutInMilliseconds(300000);
+Config.setRendererPort(3333); // 번들 서버 포트를 3333으로 변경
