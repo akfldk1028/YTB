@@ -8,6 +8,8 @@ import http from "http";
 
 import { Kokoro } from "./libraries/Kokoro";
 import { GoogleTTS } from "./libraries/google-tts";
+import { ElevenLabsTTS } from "./libraries/elevenlabs-tts";
+import { TTSProvider } from "./libraries/TTSProvider";
 import { Whisper } from "./libraries/Whisper";
 import { FFMpeg } from "./libraries/FFmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
@@ -36,7 +38,7 @@ export class ShortCreator {
   }[] = [];
   constructor(
     private config: Config,
-    private ttsProvider: Kokoro | GoogleTTS,
+    private ttsProvider: Kokoro | GoogleTTS | ElevenLabsTTS | TTSProvider,
     private whisper: Whisper,
     private ffmpeg: FFMpeg,
     private pexelsApi: PexelsAPI,
@@ -738,7 +740,24 @@ export class ShortCreator {
         
         sceneVideoPaths.push(sceneVideoPath);
         tempFilesToCleanup.push(sceneVideoPath);
-        cumulativeDuration += sceneDuration;
+        
+        // Use Whisper's actual audio end time instead of TTS estimation for accurate timing
+        if (scene.captions && scene.captions.length > 0) {
+          const lastCaption = scene.captions[scene.captions.length - 1];
+          const actualSceneDuration = lastCaption.endMs / 1000;
+          cumulativeDuration += actualSceneDuration;
+          
+          logger.debug({
+            sceneIndex: i,
+            ttsEstimated: sceneDuration,
+            whisperActual: actualSceneDuration,
+            timingDifference: Math.abs(sceneDuration - actualSceneDuration).toFixed(3) + 's',
+            cumulativeAccuracy: cumulativeDuration.toFixed(3) + 's'
+          }, "Using Whisper-based accurate scene timing");
+        } else {
+          cumulativeDuration += sceneDuration;  // Fallback to TTS estimation
+          logger.debug({ sceneIndex: i, fallbackToTTS: true }, "No captions available, using TTS duration estimate");
+        }
         
         logger.debug({ sceneIndex: i, sceneVideoPath }, `Scene ${i + 1} processed successfully`);
       }

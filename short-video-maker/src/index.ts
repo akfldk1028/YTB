@@ -4,6 +4,8 @@ import fs from "fs-extra";
 
 import { Kokoro } from "./short-creator/libraries/Kokoro";
 import { GoogleTTS } from "./short-creator/libraries/google-tts";
+import { ElevenLabsTTS } from "./short-creator/libraries/elevenlabs-tts";
+import { TTSProvider } from "./short-creator/libraries/TTSProvider";
 import { Whisper } from "./short-creator/libraries/Whisper";
 import { FFMpeg } from "./short-creator/libraries/FFmpeg";
 import { PexelsAPI } from "./short-creator/libraries/Pexels";
@@ -34,19 +36,19 @@ async function main() {
   }
 
   
-  // Initialize TTS provider based on config
-  let ttsProvider: Kokoro | GoogleTTS;
-  if (config.ttsProvider === "google") {
-    logger.debug("initializing google tts");
-    const googleTtsConfig = config.googleTtsProjectId ? {
+  // Initialize TTS provider with automatic fallback support
+  logger.debug(`initializing ${config.ttsProvider} tts with fallback support`);
+  
+  const ttsConfigs = {
+    elevenLabsConfig: config.elevenLabsApiKey ? { apiKey: config.elevenLabsApiKey } : undefined,
+    googleTtsConfig: config.googleTtsProjectId ? {
       projectId: config.googleTtsProjectId,
       keyFilename: config.googleTtsApiKey
-    } : undefined;
-    ttsProvider = await GoogleTTS.init(googleTtsConfig);
-  } else {
-    logger.debug("initializing kokoro");
-    ttsProvider = await Kokoro.init(config.kokoroModelPrecision);
-  }
+    } : undefined,
+    kokoroConfig: { kokoroModelPrecision: config.kokoroModelPrecision }
+  };
+  
+  const ttsProvider = await TTSProvider.createWithFallback(config.ttsProvider, ttsConfigs);
   
   logger.debug("initializing whisper");
   const whisper = await Whisper.init(config);

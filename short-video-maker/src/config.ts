@@ -45,7 +45,8 @@ export class Config {
   public googleGeminiApiKey?: string; // For Imagen image generation
   public googleTtsApiKey?: string; // For Google Cloud Text-to-Speech
   public googleTtsProjectId?: string; // For Google Cloud TTS project
-  public ttsProvider: "kokoro" | "google" = "kokoro"; // TTS provider selection
+  public elevenLabsApiKey?: string; // For ElevenLabs Text-to-Speech
+  public ttsProvider: "kokoro" | "google" | "elevenlabs" = "kokoro"; // TTS provider selection
   public videoSource: "pexels" | "veo" | "leonardo" | "both" | "ffmpeg" = "pexels";
   public logLevel: pino.Level;
   public whisperVerbose: boolean;
@@ -91,7 +92,8 @@ export class Config {
     this.googleGeminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
     this.googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY;
     this.googleTtsProjectId = process.env.GOOGLE_TTS_PROJECT_ID;
-    this.ttsProvider = (process.env.TTS_PROVIDER as "kokoro" | "google") || "kokoro";
+    this.elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
+    this.ttsProvider = (process.env.TTS_PROVIDER as "kokoro" | "google" | "elevenlabs") || "kokoro";
     this.videoSource = (process.env.VIDEO_SOURCE as "pexels" | "veo" | "leonardo" | "both" | "ffmpeg") || "pexels";
     this.logLevel = (process.env.LOG_LEVEL || defaultLogLevel) as pino.Level;
     this.whisperVerbose = process.env.WHISPER_VERBOSE === "true";
