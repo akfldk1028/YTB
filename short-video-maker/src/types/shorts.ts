@@ -37,6 +37,20 @@ export const sceneInput = z.object({
     .describe(
       "Search term for video, 1 word, and at least 2-3 search terms should be provided for each scene. Make sure to match the overall context with the word - regardless what the video search result would be.",
     ),
+  imageData: z.object({
+    data: z.string().optional().describe("Base64 encoded image data"),
+    mimeType: z.string().optional().describe("MIME type of the image (e.g., image/jpeg, image/png)"),
+    prompt: z.string().optional().describe("Image generation prompt"),
+    style: z.string().optional().describe("Image generation style"),
+    mood: z.string().optional().describe("Image generation mood"),
+    generateMultiple: z.boolean().optional().describe("Whether to generate multiple images for consistency"),
+    useConsistency: z.boolean().optional().describe("Whether to use consistency mode (alias for generateMultiple)"),
+    count: z.number().optional().describe("Number of images to generate (default: 4)"),
+    numberOfImages: z.number().optional().describe("Number of images to generate (alias for count)"),
+  }).optional().describe("Optional image data for image-to-video generation"),
+  needsImageGeneration: z.boolean().optional().describe("Whether this scene needs image generation"),
+  video: z.string().optional().describe("Pre-existing video URL for this scene"),
+  videoPrompt: z.string().optional().describe("Prompt for video generation"),
 });
 export type SceneInput = z.infer<typeof sceneInput>;
 
@@ -116,6 +130,10 @@ export const renderConfig = z.object({
     .nativeEnum(MusicVolumeEnum)
     .optional()
     .describe("Volume of the music, default is high"),
+  videoSource: z
+    .enum(["pexels", "veo", "leonardo", "both", "ffmpeg"])
+    .optional()
+    .describe("Video source for this specific request"),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 

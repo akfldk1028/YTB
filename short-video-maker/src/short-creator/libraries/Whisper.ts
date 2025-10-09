@@ -54,14 +54,15 @@ export class Whisper {
     
     try {
       // Build whisper command with Korean language and no translation
-      const command = `"${whisperExecutable}" -m "${modelPath}" -l ko -oj -of "${outputJsonPath.replace('.json', '')}" "${audioPath}"`;
+      // Use auto language detection instead of forcing Korean
+      const command = `"${whisperExecutable}" -m "${modelPath}" -l auto -oj -of "${outputJsonPath.replace('.json', '')}" "${audioPath}"`;
       
       logger.debug({ command }, "Executing whisper command");
       
       // Execute whisper.cpp directly
       const output = execSync(command, { 
         encoding: 'utf8',
-        timeout: 60000 // 60 second timeout
+        timeout: 120000 // 120 second timeout (2 minutes)
       });
       
       logger.debug({ output }, "Whisper command completed");
@@ -107,7 +108,7 @@ export class Whisper {
         logger.warn({ cleanupError }, "Failed to cleanup whisper output file");
       }
       
-      logger.debug({ audioPath, captionCount: captions.length }, "Korean captions created successfully");
+      logger.debug({ audioPath, captionCount: captions.length }, "Captions created successfully");
       return captions;
       
     } catch (error) {

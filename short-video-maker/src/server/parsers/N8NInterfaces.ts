@@ -16,8 +16,89 @@ export interface N8NStoryboardRawData {
   storyboard_config: string; // JSON 문자열
 }
 
+// 새로운 N8N RAW 데이터 구조 (format_type 포함)
+export interface N8NNewRawData {
+  category: string;
+  language: string;
+  viral_potential: number;
+  format_type: 'timeline' | 'storyboard';
+  topic_category: string;
+  target_language: string;
+  time_context?: N8NTimelineScenes;
+  timeline?: N8NTimelineScenes;
+  storyboard?: N8NNewStoryboardShot[];
+  title: string;
+  video_config: N8NVideoConfig;
+  elevenlabs_config: N8NElevenLabsConfig;
+  channel_config?: N8NChannelConfig;
+  timestamp?: string;
+}
+
+// Timeline의 scenes 구조
+export interface N8NTimelineScenes {
+  scenes: N8NNewTimelineScene[];
+}
+
+// 새로운 Timeline Scene 구조
+export interface N8NNewTimelineScene {
+  id: string;
+  duration: number;
+  text: string;
+  search_keywords: string[];
+  visual_style?: string;  // VEO3 지원
+  mood?: string;          // VEO3 지원
+  image_prompt?: string;  // VEO3 지원
+  generate_multiple?: boolean;  // 다중 이미지 생성
+  use_consistency?: boolean;    // 일관성 모드
+  image_count?: number;         // 생성할 이미지 수
+}
+
+// 새로운 Storyboard Shot 구조
+export interface N8NNewStoryboardShot {
+  shot: number;
+  duration: number;
+  audio: {
+    narration: string;
+  };
+  search_keywords: string[];
+  visual_style: string;
+  mood: string;
+  image_prompt: string;
+  generate_multiple?: boolean;  // 다중 이미지 생성
+  use_consistency?: boolean;    // 일관성 모드
+  image_count?: number;         // 생성할 이미지 수
+}
+
+// Video Config 구조
+export interface N8NVideoConfig {
+  orientation: 'portrait' | 'landscape';
+  musicVolume: 'low' | 'medium' | 'high';
+  subtitlePosition: 'top' | 'center' | 'bottom';
+  quality: 'standard' | 'high' | 'premium';
+}
+
+// ElevenLabs Config 구조
+export interface N8NElevenLabsConfig {
+  model_id: string;
+  voice_settings: {
+    stability: number;
+    similarity_boost: number;
+    speed: number;
+    style: string;
+  };
+  output_format: string;
+}
+
+// Channel Config 구조
+export interface N8NChannelConfig {
+  voice_preference: string;
+  veo3_priority: boolean;
+  channel_type: string;
+  channel_name: string;
+}
+
 // N8N Raw 데이터 유니온 타입
-export type N8NRawData = N8NTimelineRawData | N8NStoryboardRawData;
+export type N8NRawData = N8NTimelineRawData | N8NStoryboardRawData | N8NNewRawData;
 
 // timeline_json 파싱된 구조
 export interface N8NTimelineData {
@@ -156,6 +237,11 @@ export interface ParsedVideoData {
     totalDuration: number;
     sceneCount: number;
     originalStyle?: string;
+    category?: string;
+    language?: string;
+    channel_type?: string;
+    viral_potential?: number;
+    format_type?: string;
   };
 }
 
@@ -167,6 +253,17 @@ export interface ParsedScene {
   };
   duration?: number;
   videoPrompt?: string;
+  imagePrompt?: string; // For VEO2/3 motion prompt (detailed camera/motion instructions)
+  needsImageGeneration?: boolean;
+  imageData?: {
+    prompt: string;
+    style: string;
+    mood: string;
+    generateMultiple?: boolean;
+    useConsistency?: boolean;
+    count?: number;
+    numberOfImages?: number;
+  };
   textOverlays?: Array<{
     content: string;
     style: string;
@@ -178,8 +275,20 @@ export interface ParsedScene {
 export interface ParsedConfig {
   orientation: 'portrait' | 'landscape';
   musicTag: string;
-  quality?: '720p' | '1080p' | '4k';
+  quality?: '720p' | '1080p' | '4k' | 'standard' | 'high' | 'premium';
   style?: string;
+  subtitlePosition?: 'top' | 'center' | 'bottom';
+  useVeo3?: boolean;
+  elevenlabs?: {
+    model_id: string;
+    voice_settings: {
+      stability: number;
+      similarity_boost: number;
+      speed: number;
+      style: string;
+    };
+    output_format: string;
+  };
   soundtrack?: {
     music: string;
     volume: number;

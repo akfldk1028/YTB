@@ -135,22 +135,29 @@ export async function saveImageSet(
     setName: string;
     category?: string;
     description?: string;
+    videoId?: string; // Add videoId support
   }
 ): Promise<{
   folderPath: string;
   savedImages: Array<{ filename: string; filePath: string; size: number }>;
 }> {
   try {
-    const { setName, category, description } = setOptions;
+    const { setName, category, description, videoId } = setOptions;
     
-    // Create set folder with timestamp
-    const now = new Date();
-    const timestamp = now.toISOString()
-      .replace(/T/, '_')
-      .replace(/:/g, '-')
-      .split('.')[0];
+    // Use videoId for folder name if provided, otherwise use timestamp
+    let folderName: string;
+    if (videoId) {
+      folderName = videoId;
+    } else {
+      const now = new Date();
+      const timestamp = now.toISOString()
+        .replace(/T/, '_')
+        .replace(/:/g, '-')
+        .split('.')[0];
+      folderName = timestamp;
+    }
     
-    let setFolder = path.join(outputDir, timestamp);
+    let setFolder = path.join(outputDir, folderName);
     
     if (category) {
       setFolder = path.join(setFolder, category);
@@ -164,7 +171,9 @@ export async function saveImageSet(
       setName,
       category,
       description,
-      timestamp,
+      videoId: videoId || null,
+      folderName,
+      timestamp: new Date().toISOString(),
       imageCount: images.length,
       images: images.map((img, index) => ({
         filename: img.filename,
@@ -196,6 +205,8 @@ export async function saveImageSet(
       setFolder, 
       setName, 
       category, 
+      videoId,
+      folderName,
       imageCount: images.length 
     }, "Image set saved to organized folder");
     

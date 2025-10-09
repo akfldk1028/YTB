@@ -7,7 +7,7 @@ import fs from "fs-extra";
 import path from "path";
 
 import { validateCreateShortInput } from "../validator";
-import { ShortCreator } from "../../short-creator/ShortCreator";
+import { ShortCreator } from "../../short-creator";
 import { logger } from "../../logger";
 import { Config } from "../../config";
 import { RawDataParser } from "../parsers/N8NDataParser";
@@ -27,6 +27,204 @@ export class APIRouter {
   }
 
   private setupRoutes() {
+    // Mode 1: PEXELS endpoint
+    this.router.post(
+      "/video/pexels",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          logger.info("Mode 1: PEXELS video request");
+          const processedData = RawDataParser.parseRawData(req.body);
+          
+          // Force PEXELS mode
+          processedData.config.videoSource = "pexels";
+          
+          const validationInput = {
+            scenes: processedData.scenes,
+            config: processedData.config
+          };
+          
+          const input = validateCreateShortInput(validationInput);
+          const videoId = this.shortCreator.addToQueue(
+            input.scenes, 
+            input.config, 
+            req.body.webhook_url || req.body.callback_url,
+            { ...processedData.metadata, mode: "pexels" }
+          );
+          
+          res.status(201).json({ videoId });
+        } catch (error: unknown) {
+          logger.error(error, "Error in PEXELS mode");
+          res.status(400).json({
+            error: error instanceof Error ? error.message : "PEXELS mode failed"
+          });
+        }
+      }
+    );
+
+    // Mode 2: NANO BANANA (FFmpeg static video) endpoint
+    this.router.post(
+      "/video/nano-banana",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          logger.info("Mode 2: NANO BANANA (FFmpeg) video request");
+          const processedData = RawDataParser.parseRawData(req.body);
+          
+          // Force NANO BANANA + FFmpeg mode
+          processedData.config.videoSource = "ffmpeg";
+          
+          // Ensure needsImageGeneration is set for all scenes
+          processedData.scenes = processedData.scenes.map((scene: any, index: number) => ({
+            ...scene,
+            needsImageGeneration: true,
+            imageData: scene.imageData || {
+              prompt: `${scene.text} [scene_${index}]`, // Add scene index for unique cache keys
+              style: "cinematic", 
+              mood: "dynamic"
+            }
+          }));
+          
+          const validationInput = {
+            scenes: processedData.scenes,
+            config: processedData.config
+          };
+          
+          const input = validateCreateShortInput(validationInput);
+          const videoId = this.shortCreator.addToQueue(
+            input.scenes, 
+            input.config, 
+            req.body.webhook_url || req.body.callback_url,
+            { ...processedData.metadata, mode: "nano-banana" }
+          );
+          
+          res.status(201).json({ videoId });
+        } catch (error: unknown) {
+          logger.error(error, "Error in NANO BANANA mode");
+          res.status(400).json({
+            error: error instanceof Error ? error.message : "NANO BANANA mode failed"
+          });
+        }
+      }
+    );
+
+    // Mode 3: VEO3 (NANO BANANA → VEO3) endpoint
+    this.router.post(
+      "/video/veo3",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          logger.info("Mode 3: VEO3 (NANO BANANA → VEO3) video request");
+          const processedData = RawDataParser.parseRawData(req.body);
+          
+          // Force VEO3 mode with NANO BANANA workflow
+          processedData.config.videoSource = "veo";
+          
+          // Ensure needsImageGeneration is set for all scenes
+          processedData.scenes = processedData.scenes.map((scene: any, index: number) => ({
+            ...scene,
+            needsImageGeneration: true,
+            imageData: scene.imageData || {
+              prompt: `${scene.text} [scene_${index}]`, // Add scene index for unique cache keys
+              style: "cinematic",
+              mood: "dynamic"
+            },
+            videoPrompt: scene.videoPrompt || scene.text
+          }));
+          
+          const validationInput = {
+            scenes: processedData.scenes,
+            config: processedData.config
+          };
+          
+          const input = validateCreateShortInput(validationInput);
+          const videoId = this.shortCreator.addToQueue(
+            input.scenes, 
+            input.config, 
+            req.body.webhook_url || req.body.callback_url,
+            { ...processedData.metadata, mode: "veo3", veo3_priority: true }
+          );
+          
+          res.status(201).json({ videoId });
+        } catch (error: unknown) {
+          logger.error(error, "Error in VEO3 mode");
+          res.status(400).json({
+            error: error instanceof Error ? error.message : "VEO3 mode failed"
+          });
+        }
+      }
+    );
+
+    // Status endpoints for each mode
+    this.router.get(
+      "/video/:mode/:videoId/status",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        const { mode, videoId } = req.params;
+        if (!videoId) {
+          res.status(400).json({ error: "videoId is required" });
+          return;
+        }
+        
+        try {
+          const status = this.shortCreator.status(videoId);
+          const detailedStatus = this.shortCreator.getDetailedStatus(videoId);
+          
+          res.status(200).json({
+            mode,
+            status,
+            ...detailedStatus
+          });
+        } catch (error: unknown) {
+          logger.error(error, `Error getting ${mode} video status`);
+          res.status(404).json({
+            error: "Video not found",
+            message: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
+      }
+    );
+
+    // Image-to-video generation endpoint
+    this.router.post(
+      "/create-video-from-image",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          logger.info("Received image-to-video request");
+          
+          const { prompt, imageBase64, mimeType, orientation = "portrait" } = req.body;
+          
+          if (!prompt || !imageBase64) {
+            return res.status(400).json({ error: "prompt and imageBase64 are required" });
+          }
+          
+          // Create scene data for image-to-video
+          const sceneData = {
+            text: prompt,
+            searchTerms: prompt.split(" ").slice(0, 5), // Use first 5 words as search terms
+            imageData: {
+              data: imageBase64,
+              mimeType: mimeType || "image/jpeg"
+            }
+          };
+          
+          const input = {
+            scenes: [sceneData],
+            config: { orientation }
+          };
+          
+          const videoId = this.shortCreator.addToQueue(
+            input.scenes,
+            input.config,
+            req.body.webhook_url || req.body.callback_url
+          );
+          
+          logger.info({ videoId }, "Image-to-video request queued");
+          res.json({ videoId });
+          
+        } catch (error: unknown) {
+          logger.error(error, "Error processing image-to-video request");
+          res.status(500).json({ error: (error as Error).message });
+        }
+      }
+    );
+
     // Raw 데이터 엔드포인트 - 모든 타입 받음
     this.router.post(
       "/create-video",
@@ -64,6 +262,78 @@ export class APIRouter {
       },
     );
 
+    // Batch image-to-video generation endpoint
+    this.router.post(
+      "/create-video-from-images",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          logger.info("Received batch image-to-video request");
+          
+          const { images, narrativeTexts, config } = req.body;
+          
+          // Input validation
+          if (!images || !Array.isArray(images) || images.length === 0) {
+            return res.status(400).json({ 
+              error: "images array is required and must not be empty" 
+            });
+          }
+          
+          if (!narrativeTexts || !Array.isArray(narrativeTexts) || narrativeTexts.length !== images.length) {
+            return res.status(400).json({ 
+              error: "narrativeTexts array is required and must match images length" 
+            });
+          }
+          
+          // Validate each image
+          for (let i = 0; i < images.length; i++) {
+            const image = images[i];
+            if (!image.imageBase64 || !image.prompt) {
+              return res.status(400).json({ 
+                error: `Image ${i + 1} missing imageBase64 or prompt` 
+              });
+            }
+          }
+          
+          // Create scenes data for batch processing
+          const scenes = images.map((image: any, index: number) => ({
+            text: narrativeTexts[index],
+            searchTerms: image.prompt.split(" ").slice(0, 5),
+            imageData: {
+              data: image.imageBase64,
+              mimeType: image.mimeType || "image/png"
+            },
+            videoPrompt: image.prompt
+          }));
+          
+          const input = {
+            scenes,
+            config: {
+              orientation: config?.orientation || "landscape",
+              voice: config?.voice || "am_adam",
+              musicVolume: config?.musicVolume || "low",
+              subtitlePosition: config?.subtitlePosition || "bottom",
+              ...config
+            }
+          };
+          
+          const videoId = this.shortCreator.addToQueue(
+            input.scenes,
+            input.config,
+            req.body.webhook_url || req.body.callback_url
+          );
+          
+          logger.info({ videoId, imageCount: images.length }, "Batch image-to-video request queued");
+          res.status(201).json({ videoId });
+          
+        } catch (error: unknown) {
+          logger.error(error, "Error processing batch image-to-video request");
+          res.status(500).json({ 
+            error: error instanceof Error ? error.message : "Batch processing failed" 
+          });
+        }
+      }
+    );
+
     // 기존 엔드포인트 유지 (하위 호환성) - N8N raw 데이터도 지원
     this.router.post(
       "/short-video",
@@ -77,6 +347,7 @@ export class APIRouter {
           let callbackUrl;
           
           try {
+            console.log('🔍 N8N RAW DATA received:', JSON.stringify(req.body, null, 2));
             const rawParseResult = RawDataParser.parseRawData(req.body);
             // ParsedVideoData에서 scenes와 config만 추출해서 validation
             processedData = {
@@ -85,7 +356,8 @@ export class APIRouter {
             };
             metadata = rawParseResult.metadata;
             callbackUrl = req.body.webhook_url || req.body.callback_url;
-          } catch (parseError) {
+          } catch (parseError: unknown) {
+            console.log('❌ N8N parsing failed:', parseError instanceof Error ? parseError.message : 'Unknown error');
             // 파싱 실패시 기존 방식으로 처리
             processedData = req.body;
             callbackUrl = req.body.webhook_url || req.body.callback_url;

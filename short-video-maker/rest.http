@@ -1,4 +1,4 @@
-@host = http://localhost:3123
+@host = http://localhost:3124
 
 # @name create_video
 POST {{host}}/api/short-video HTTP/1.1
@@ -7,18 +7,21 @@ Content-Type: application/json
 {
     "scenes": [
       {
-        "text": "hello world",
-        "searchTerms": ["rain"]
+        "text": "ElevenLabs TTS 테스트입니다. 고품질 AI 음성 합성을 확인해보세요!",
+        "searchTerms": ["technology", "ai"]
+      },
+      {
+        "text": "자막 타이밍 개선도 완료되었습니다. Whisper 기반 정확한 동기화!",
+        "searchTerms": ["perfect", "timing"]
+      },
+      {
+        "text": "폴백 시스템으로 안정성이 보장됩니다. 완벽한 비디오 생성 완료!",
+        "searchTerms": ["success", "quality"]
       }
     ],
     "config": {
-      "paddingBack": 1500,
-      "music": "uneasy",
-      "captionPosition": "center",
-      "captionBackgroundColor": "#ff0000",
-      "voice": "bm_lewis",
-      "orientation": "landscape",
-      "musicVolume": "muted"
+      "orientation": "portrait",
+      "voice": "af_heart"
     }
 }
 

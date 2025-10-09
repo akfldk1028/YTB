@@ -235,3 +235,37 @@ curl -X POST http://localhost:3125/api/images/generate \
 **✅ 모든 문제 해결 완료!** 
 
 이제 사용자는 원하는 모델을 선택하여 여러 이미지를 생성할 때, 모든 이미지가 하나의 체계적으로 정리된 폴더에 저장되는 것을 확인할 수 있습니다.
+
+
+● Bash(curl -X POST http://localhost:3124/api/images/generate \
+        -H "Content-Type: application/json" \…)
+  ⎿ {"success":true,"prompt":"A beautiful sunset over calm ocean waves, warm golden light reflecting on the water      
+    surface, cinematic quality, peaceful and serene atmosphere","model":"Gemini 2.5 Flash Image (Nano Banana)","im     
+    ages":[{"filename":"nano-banana-1758886821002-1.png","url":"/api/images/image/nano-banana-1758886821002-1.png"     
+    … +272 lines (ctrl+r to expand)
+
+
+
+● 좋습니다! Nano Banana 이미지 생성이 성공했습니다! 이제 이 이미지를 사용해서 Veo 2로 비디오를 만들어보겠습니다.       
+
+● 이제 생성된 이미지를 다운로드해서 base64로 변환하고 Veo 2로 비디오를 만들어보겠습니다.
+
+● Bash(curl -s http://localhost:3124/api/images/image/nano-banana-1758886821002-1.png --output /tmp/generated_image.png
+       && echo "Image downloaded successfully")
+  ⎿  Image downloaded successfully
+
+● Bash(base64 -w 0 /tmp/generated_image.png > /tmp/image_base64.txt && echo "Image converted to base64")
+  ⎿  Image converted to base64
+
+● 이제 이미지→비디오 생성 API를 호출해보겠습니다:
+
+● Bash(IMAGE_BASE64=$(cat /tmp/image_base64.txt) && curl -X POST http://localhost:3124/api/create-video-from-image \   
+        -H "Content-Type: application/json" \…)
+  ⎿  {
+       "videoId": "cmg0ruj880002radlc7vn6dy1"
+     }
+     … +4 lines (ctrl+r to expand)
+
+● 비디오 생성이 시작되었습니다! VideoId cmg0ruj880002radlc7vn6dy1로 상태를 확인해보겠습니다:
+
+

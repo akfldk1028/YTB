@@ -2,7 +2,6 @@
 import path from "path";
 import fs from "fs-extra";
 
-import { Kokoro } from "./short-creator/libraries/Kokoro";
 import { GoogleTTS } from "./short-creator/libraries/google-tts";
 import { ElevenLabsTTS } from "./short-creator/libraries/elevenlabs-tts";
 import { TTSProvider } from "./short-creator/libraries/TTSProvider";
@@ -11,8 +10,10 @@ import { FFMpeg } from "./short-creator/libraries/FFmpeg";
 import { PexelsAPI } from "./short-creator/libraries/Pexels";
 import { GoogleVeoAPI } from "./short-creator/libraries/GoogleVeo";
 import { LeonardoAI } from "./short-creator/libraries/LeonardoAI";
+import { ImageGenerationService } from "./image-generation/services/ImageGenerationService";
+import { ImageModelType } from "./image-generation/models/imageModels";
 import { Config } from "./config";
-import { ShortCreator } from "./short-creator/ShortCreator";
+import { ShortCreator } from "./short-creator";
 import { logger } from "./logger";
 import { Server } from "./server/server";
 import { MusicManager } from "./short-creator/music";
@@ -59,15 +60,16 @@ async function main() {
   // Initialize Veo API if configured
   let veoApi: GoogleVeoAPI | null = null;
   if (config.videoSource === "veo" || config.videoSource === "both") {
-    if (config.googleVeoApiKey && config.googleCloudProjectId) {
-      logger.debug("initializing google veo api");
+    if (config.googleGeminiApiKey) {
+      logger.debug("initializing google veo api via gemini");
       veoApi = new GoogleVeoAPI(
-        config.googleVeoApiKey,
-        config.googleCloudProjectId,
-        config.googleCloudRegion
+        config.googleGeminiApiKey,
+        config.googleCloudProjectId || "unused", // Not needed for Gemini API but kept for interface compatibility
+        config.googleCloudRegion,
+        config.veoModel
       );
     } else {
-      logger.warn("Veo API keys not configured, but VIDEO_SOURCE includes 'veo'");
+      logger.warn("Gemini API key not configured, but VIDEO_SOURCE includes 'veo'");
     }
   }
 
@@ -82,6 +84,15 @@ async function main() {
     }
   }
 
+  // Initialize Image Generation service (includes NANO BANANA) if Gemini API key is available
+  let imageGenerationService: ImageGenerationService | null = null;
+  if (config.googleGeminiApiKey) {
+    logger.debug("initializing image generation service with nano banana support");
+    imageGenerationService = new ImageGenerationService(config.googleGeminiApiKey, ImageModelType.NANO_BANANA, config.tempDirPath);
+  } else {
+    logger.warn("Gemini API key not configured, image generation will not be available");
+  }
+
   logger.debug("initializing the short creator");
   const shortCreator = new ShortCreator(
     config,
@@ -92,6 +103,7 @@ async function main() {
     musicManager,
     veoApi || undefined,
     leonardoApi || undefined,
+    imageGenerationService || undefined,
   );
 
   if (!config.runningInDocker) {

@@ -13,7 +13,7 @@ export class ImageGenerationService {
   private nanoBananaService?: NanoBananaService;
   private currentModel: ImageModelType;
 
-  constructor(apiKey: string, defaultModel: ImageModelType = ImageModelType.IMAGEN_4) {
+  constructor(apiKey: string, defaultModel: ImageModelType = ImageModelType.IMAGEN_4, tempDirPath?: string) {
     if (!apiKey) {
       throw new Error("API key is required for Image Generation Service");
     }
@@ -22,7 +22,7 @@ export class ImageGenerationService {
     
     // Initialize available services
     this.imagenService = new ImagenService(apiKey);
-    this.nanoBananaService = new NanoBananaService(apiKey);
+    this.nanoBananaService = new NanoBananaService(apiKey, tempDirPath);
   }
 
   /**
@@ -43,7 +43,7 @@ export class ImageGenerationService {
   /**
    * Generate images using the currently selected model
    */
-  async generateImages(query: ImageGenerationQuery): Promise<ImageGenerationResult> {
+  async generateImages(query: ImageGenerationQuery, videoId?: string, sceneIndex?: number): Promise<ImageGenerationResult> {
     const modelConfig = this.getCurrentModel();
     logger.info({ model: modelConfig.name, prompt: query.prompt.substring(0, 100) }, "Generating images");
 
@@ -59,7 +59,7 @@ export class ImageGenerationService {
           if (!this.nanoBananaService) {
             throw new Error("Nano Banana service not initialized");
           }
-          return await this.nanoBananaService.generateImages(query);
+          return await this.nanoBananaService.generateImages(query, videoId, sceneIndex);
 
         default:
           throw new Error(`Unsupported model type: ${this.currentModel}`);

@@ -38,16 +38,18 @@ export class Config {
   public packageDirPath: string;
   public musicDirPath: string;
   public pexelsApiKey: string;
-  public googleVeoApiKey?: string; // Service account key file path for Veo
+  public googleVeoApiKey?: string; // DEPRECATED: Used for Vertex AI VEO, now using Gemini API
   public googleCloudProjectId?: string;
   public googleCloudRegion: string = "us-central1";
+  public veoModel: "veo-2.0-generate-001" | "veo-3.0-fast-generate-001" = "veo-3.0-fast-generate-001";
   public leonardoApiKey?: string;
-  public googleGeminiApiKey?: string; // For Imagen image generation
+  public googleGeminiApiKey?: string; // For Gemini API (Imagen image generation and VEO video generation)
   public googleTtsApiKey?: string; // For Google Cloud Text-to-Speech
   public googleTtsProjectId?: string; // For Google Cloud TTS project
   public elevenLabsApiKey?: string; // For ElevenLabs Text-to-Speech
   public ttsProvider: "kokoro" | "google" | "elevenlabs" = "kokoro"; // TTS provider selection
   public videoSource: "pexels" | "veo" | "leonardo" | "both" | "ffmpeg" = "pexels";
+  public veo3UseNativeAudio: boolean = false; // false: use TTS audio (숏츠용), true: use VEO3 audio (대화/연기용)
   public logLevel: pino.Level;
   public whisperVerbose: boolean;
   public port: number;
@@ -88,6 +90,7 @@ export class Config {
     this.googleVeoApiKey = process.env.GOOGLE_VEO_API_KEY;
     this.googleCloudProjectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
     this.googleCloudRegion = process.env.GOOGLE_CLOUD_REGION || "us-central1";
+    this.veoModel = (process.env.VEO_MODEL as "veo-2.0-generate-001" | "veo-3.0-fast-generate-001") || "veo-3.0-fast-generate-001";
     this.leonardoApiKey = process.env.LEONARDO_API_KEY;
     this.googleGeminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
     this.googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY;
@@ -95,6 +98,7 @@ export class Config {
     this.elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
     this.ttsProvider = (process.env.TTS_PROVIDER as "kokoro" | "google" | "elevenlabs") || "kokoro";
     this.videoSource = (process.env.VIDEO_SOURCE as "pexels" | "veo" | "leonardo" | "both" | "ffmpeg") || "pexels";
+    this.veo3UseNativeAudio = process.env.VEO3_USE_NATIVE_AUDIO === "true";
     this.logLevel = (process.env.LOG_LEVEL || defaultLogLevel) as pino.Level;
     this.whisperVerbose = process.env.WHISPER_VERBOSE === "true";
     this.port = process.env.PORT ? parseInt(process.env.PORT) : defaultPort;
@@ -130,14 +134,9 @@ export class Config {
     }
     
     if (this.videoSource === "veo" || this.videoSource === "both") {
-      if (!this.googleVeoApiKey) {
+      if (!this.googleGeminiApiKey) {
         throw new Error(
-          "GOOGLE_VEO_API_KEY environment variable is missing. Please provide the path to your Google Cloud service account key file for Vertex AI Veo API.",
-        );
-      }
-      if (!this.googleCloudProjectId) {
-        throw new Error(
-          "GOOGLE_CLOUD_PROJECT_ID environment variable is missing. Please provide your Google Cloud project ID.",
+          "GOOGLE_GEMINI_API_KEY environment variable is missing. Please provide your Gemini API key for VEO video generation.",
         );
       }
     }

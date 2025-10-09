@@ -72,11 +72,16 @@ export class ElevenLabsTTS {
         elevenLabsVoice: elevenLabsVoice.name 
       }, "Generating audio with ElevenLabs TTS");
 
-      // ElevenLabs API 호출 - 다국어 모델 사용
-      const audioStream = await this.client.textToSpeech.convert(elevenLabsVoice.voiceId, {
-        text: text,
-        modelId: "eleven_multilingual_v2" // 다국어 지원 모델
-      });
+      // ElevenLabs API 호출 - 다국어 모델 사용 (타임아웃 설정)
+      const audioStream = await Promise.race([
+        this.client.textToSpeech.convert(elevenLabsVoice.voiceId, {
+          text: text,
+          modelId: "eleven_multilingual_v2" // 다국어 지원 모델
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('ElevenLabs API timeout after 10 seconds')), 10000)
+        )
+      ]) as ReadableStream;
 
       // 스트림을 ArrayBuffer로 변환
       const chunks: Uint8Array[] = [];

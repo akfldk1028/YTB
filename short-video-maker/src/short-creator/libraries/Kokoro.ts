@@ -1,4 +1,5 @@
-import { KokoroTTS, TextSplitterStream } from "kokoro-js";
+// Kokoro is disabled due to phonemizer crash issues
+// import { KokoroTTS, TextSplitterStream } from "kokoro-js";
 import {
   VoiceEnum,
   type kokoroModelPrecision,
@@ -7,7 +8,9 @@ import {
 import { KOKORO_MODEL, logger } from "../../config";
 
 export class Kokoro {
-  constructor(private tts: KokoroTTS) {}
+  constructor(private tts: any) {
+    throw new Error("Kokoro TTS is disabled due to phonemizer issues. Use ElevenLabs or Google TTS instead.");
+  }
 
   async generate(
     text: string,
@@ -16,32 +19,7 @@ export class Kokoro {
     audio: ArrayBuffer;
     audioLength: number;
   }> {
-    const splitter = new TextSplitterStream();
-    const stream = this.tts.stream(splitter, {
-      voice,
-    });
-    splitter.push(text);
-    splitter.close();
-
-    const output = [];
-    for await (const audio of stream) {
-      output.push(audio);
-    }
-
-    const audioBuffers: ArrayBuffer[] = [];
-    let audioLength = 0;
-    for (const audio of output) {
-      audioBuffers.push(audio.audio.toWav());
-      audioLength += audio.audio.audio.length / audio.audio.sampling_rate;
-    }
-
-    const mergedAudioBuffer = Kokoro.concatWavBuffers(audioBuffers);
-    logger.debug({ text, voice, audioLength }, "Audio generated with Kokoro");
-
-    return {
-      audio: mergedAudioBuffer,
-      audioLength: audioLength,
-    };
+    throw new Error("Kokoro TTS is disabled due to phonemizer issues. Use ElevenLabs or Google TTS instead.");
   }
 
   static concatWavBuffers(buffers: ArrayBuffer[]): ArrayBuffer {
@@ -62,12 +40,7 @@ export class Kokoro {
   }
 
   static async init(dtype: kokoroModelPrecision): Promise<Kokoro> {
-    const tts = await KokoroTTS.from_pretrained(KOKORO_MODEL, {
-      dtype,
-      device: "cpu", // only "cpu" is supported in node
-    });
-
-    return new Kokoro(tts);
+    throw new Error("Kokoro TTS is disabled due to phonemizer issues. Use ElevenLabs or Google TTS instead.");
   }
 
   listAvailableVoices(): Voices[] {

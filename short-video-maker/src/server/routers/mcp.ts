@@ -3,7 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import z from "zod";
 
-import { ShortCreator } from "../../short-creator/ShortCreator";
+import { ShortCreator } from "../../short-creator";
 import { logger } from "../../logger";
 import { renderConfig, sceneInput } from "../../types/shorts";
 

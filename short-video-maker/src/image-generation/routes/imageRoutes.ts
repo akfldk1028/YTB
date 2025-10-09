@@ -283,7 +283,7 @@ export class ImageRoutes {
         return;
       }
 
-      const { prompt, numberOfImages = 1, aspectRatio = "1:1", size = "1K", allowPeople = false, model } = req.body;
+      const { prompt, numberOfImages = 1, aspectRatio = "1:1", size = "1K", allowPeople = false, model, videoId } = req.body;
 
       // Set model if specified
       if (model) {
@@ -357,7 +357,8 @@ export class ImageRoutes {
             {
               setName,
               category: 'landscapes',
-              description: `Generated ${result.images.length} landscape images`
+              description: `Generated ${result.images.length} landscape images`,
+              videoId
             }
           );
 

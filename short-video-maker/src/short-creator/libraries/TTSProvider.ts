@@ -1,8 +1,9 @@
-import { Kokoro } from "./Kokoro";
 import { GoogleTTS } from "./google-tts";
 import { ElevenLabsTTS } from "./elevenlabs-tts";
+import { FFMpeg } from "./FFmpeg";
 import { logger } from "../../config";
 import type { Voices } from "../../types/shorts";
+import type { Kokoro } from "./Kokoro";
 
 /**
  * TTS Provider with automatic fallback support
@@ -22,6 +23,13 @@ export class TTSProvider {
     audio: ArrayBuffer;
     audioLength: number;
   }> {
+    // 빈 텍스트 처리: 유효성 검사 후 무음 오디오 반환
+    const trimmedText = text?.trim();
+    if (!trimmedText) {
+      logger.debug("Empty text provided, returning silent audio");
+      return await this.generateSilentAudio(0.1); // 0.1초 무음
+    }
+
     // 1차 시도: Primary provider (ElevenLabs/Google/Kokoro)
     try {
       logger.debug({ 
@@ -61,48 +69,19 @@ export class TTSProvider {
           
           return result;
         } catch (fallbackError) {
-          logger.warn({ 
+          logger.warn({
             error: fallbackError,
             provider: this.getProviderName(this.fallbackProvider)
-          }, "Fallback TTS provider failed, trying secondary fallback");
-          
-          // 3차 시도: Secondary fallback (Kokoro)
-          if (this.secondaryFallback) {
-            try {
-              logger.debug({ 
-                provider: this.getProviderName(this.secondaryFallback),
-                text: text.substring(0, 50)
-              }, "Attempting secondary fallback TTS provider");
-              
-              const result = await this.secondaryFallback.generate(text, voice);
-              
-              logger.info({ 
-                primaryProvider: this.getProviderName(this.primaryProvider),
-                fallbackProvider: this.getProviderName(this.fallbackProvider),
-                secondaryFallback: this.getProviderName(this.secondaryFallback),
-                success: true
-              }, "Secondary fallback TTS provider succeeded");
-              
-              return result;
-            } catch (secondaryError) {
-              logger.error({ 
-                primaryError,
-                fallbackError,
-                secondaryError,
-                text: text.substring(0, 50)
-              }, "All TTS providers failed");
-              
-              throw new Error(`All TTS providers failed. Primary: ${primaryError instanceof Error ? primaryError.message : String(primaryError)}, Fallback: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}, Secondary: ${secondaryError instanceof Error ? secondaryError.message : String(secondaryError)}`);
-            }
-          } else {
-            logger.error({ 
-              primaryError,
-              fallbackError,
-              text: text.substring(0, 50)
-            }, "Primary and fallback TTS providers failed, no secondary fallback available");
-            
-            throw new Error(`Primary and fallback TTS providers failed. Primary: ${primaryError instanceof Error ? primaryError.message : String(primaryError)}, Fallback: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
-          }
+          }, "Fallback TTS provider failed");
+
+          // Kokoro is disabled to avoid phonemizer crash
+          logger.error({
+            primaryError,
+            fallbackError,
+            text: text.substring(0, 50)
+          }, "Primary and fallback TTS providers failed, no secondary fallback available");
+
+          throw new Error(`Primary and fallback TTS providers failed. Primary: ${primaryError instanceof Error ? primaryError.message : String(primaryError)}, Fallback: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
         }
       } else {
         logger.error({ 
@@ -123,8 +102,68 @@ export class TTSProvider {
   private getProviderName(provider: any): string {
     if (provider instanceof ElevenLabsTTS) return 'ElevenLabs';
     if (provider instanceof GoogleTTS) return 'Google TTS';
-    if (provider instanceof Kokoro) return 'Kokoro';
+    // Kokoro check removed to avoid import issues
     return 'Unknown';
+  }
+
+  /**
+   * 빈 텍스트를 위한 무음 오디오 생성 (FFmpeg 사용)
+   */
+  private async generateSilentAudio(duration: number): Promise<{
+    audio: ArrayBuffer;
+    audioLength: number;
+  }> {
+    try {
+      const ffmpeg = await FFMpeg.init();
+      
+      // FFmpeg를 사용해 무음 오디오 생성
+      // anullsrc 필터를 사용해 무음 생성 후 MP3로 인코딩
+      const silentAudioBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        
+        require('fluent-ffmpeg')()
+          .input(`anullsrc=channel_layout=mono:sample_rate=44100`)
+          .inputOptions(['-f', 'lavfi', '-t', duration.toString()])
+          .audioCodec('libmp3lame')
+          .audioBitrate(128)
+          .audioChannels(1)
+          .toFormat('mp3')
+          .on('error', (err: Error) => {
+            logger.warn({ error: err }, "Error generating silent audio with FFmpeg");
+            reject(err);
+          })
+          .pipe()
+          .on('data', (data: Buffer) => {
+            chunks.push(data);
+          })
+          .on('end', () => {
+            const buffer = Buffer.concat(chunks);
+            resolve(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+          })
+          .on('error', (err: Error) => {
+            reject(err);
+          });
+      });
+
+      logger.debug({ 
+        duration, 
+        bytesGenerated: silentAudioBuffer.byteLength 
+      }, "Generated silent audio with FFmpeg");
+
+      return {
+        audio: silentAudioBuffer,
+        audioLength: duration
+      };
+    } catch (error) {
+      logger.warn({ error }, "Failed to generate silent audio with FFmpeg, using minimal fallback");
+      
+      // FFmpeg 실패 시 최소한의 빈 ArrayBuffer 반환 (비상 대응)
+      const emptyBuffer = new ArrayBuffer(0);
+      return {
+        audio: emptyBuffer,
+        audioLength: 0
+      };
+    }
   }
 
   /**
@@ -149,22 +188,25 @@ export class TTSProvider {
         // ElevenLabs → Google TTS → Kokoro fallback chain
         if (configs.googleTtsConfig) {
           fallbackProvider = await GoogleTTS.init(configs.googleTtsConfig);
-          secondaryFallback = await Kokoro.init(configs.kokoroConfig?.kokoroModelPrecision || "fp32");
+          // Lazy load Kokoro only if needed as secondary fallback
+          // Don't initialize yet - will be initialized when actually needed
         } else {
-          fallbackProvider = await Kokoro.init(configs.kokoroConfig?.kokoroModelPrecision || "fp32");
+          // Lazy load Kokoro only if needed as fallback
+          // Don't initialize yet
         }
         break;
-        
+
       case "google":
         primaryProvider = await GoogleTTS.init(configs.googleTtsConfig);
         // Google TTS → Kokoro fallback
-        fallbackProvider = await Kokoro.init(configs.kokoroConfig?.kokoroModelPrecision || "fp32");
+        // Lazy load Kokoro only if needed
         break;
-        
+
       case "kokoro":
       default:
-        primaryProvider = await Kokoro.init(configs.kokoroConfig?.kokoroModelPrecision || "fp32");
-        // Kokoro는 fallback 없음 (가장 안정적)
+        // Kokoro is disabled due to phonemizer crash issues
+        // Use ElevenLabs or Google TTS instead
+        throw new Error("Kokoro TTS is disabled. Please use 'elevenlabs' or 'google' as TTS_PROVIDER.");
         break;
     }
 

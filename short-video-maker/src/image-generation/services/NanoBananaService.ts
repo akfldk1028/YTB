@@ -1,5 +1,8 @@
 import { logger } from "../../config";
 import { ImageGenerationResult, ImageGenerationQuery } from "../types/imagen";
+import fs from "fs-extra";
+import path from "path";
+import { saveImageSet } from "../utils/imageUtils";
 
 /**
  * Nano Banana (Gemini 2.5 Flash Image) Service
@@ -9,36 +12,52 @@ export class NanoBananaService {
   private apiKey: string;
   private baseUrl = "https://generativelanguage.googleapis.com/v1beta";
   private modelId = "gemini-2.5-flash-image-preview";
+  private tempDirPath: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, tempDirPath?: string) {
     if (!apiKey) {
       throw new Error("Google Gemini API key is required for Nano Banana service");
     }
     this.apiKey = apiKey;
+    // Use provided tempDirPath or default to a cross-platform temp directory
+    this.tempDirPath = tempDirPath || path.join(process.cwd(), "temp");
+    
+    // Ensure temp directory exists
+    fs.ensureDirSync(this.tempDirPath);
   }
 
   /**
    * Generate images using Nano Banana (Gemini 2.5 Flash Image)
    */
-  async generateImages(query: ImageGenerationQuery): Promise<ImageGenerationResult> {
+  async generateImages(query: ImageGenerationQuery, videoId?: string, sceneIndex?: number): Promise<ImageGenerationResult> {
     try {
-      logger.debug({ query }, "Generating images with Nano Banana API");
+      logger.info({
+        prompt: query.prompt.substring(0, 200),
+        numberOfImages: query.numberOfImages || 1,
+        apiKey: this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'missing',
+        tempDirPath: this.tempDirPath,
+        modelId: this.modelId
+      }, "Starting NANO BANANA image generation");
 
       const numberOfImages = query.numberOfImages || 1;
       const images = [];
-      
+
       // Generate images sequentially (Nano Banana doesn't support batch generation)
       for (let i = 0; i < numberOfImages; i++) {
         logger.debug({ imageIndex: i + 1, totalImages: numberOfImages }, "Generating image");
-        
+
         const request = this.buildNanoBananaRequest(query);
         const response = await this.callNanoBananaAPI(request);
 
         if (!response.candidates || response.candidates.length === 0) {
-          logger.warn(`No images generated in response for image ${i + 1}`);
+          logger.error({
+            response,
+            imageIndex: i + 1
+          }, "NANO BANANA API returned no candidates");
           continue;
         }
 
+        let foundImage = false;
         for (let candidateIndex = 0; candidateIndex < response.candidates.length; candidateIndex++) {
           const candidate = response.candidates[candidateIndex];
           if (candidate.content && candidate.content.parts) {
@@ -46,14 +65,27 @@ export class NanoBananaService {
               const part = candidate.content.parts[partIndex];
               if (part.inlineData && part.inlineData.data) {
                 const imageData = Buffer.from(part.inlineData.data, "base64");
+                const filename = videoId && sceneIndex !== undefined 
+                  ? `scene_${sceneIndex + 1}_${videoId}.png`
+                  : `nano-banana-${Date.now()}-${i + 1}.png`;
+
                 images.push({
                   data: imageData,
-                  filename: `nano-banana-${Date.now()}-${i + 1}.png`,
+                  filename: filename,
                   mimeType: part.inlineData.mimeType || "image/png",
                 });
+                foundImage = true;
+                logger.debug({ filename, size: imageData.length }, "Image generated successfully");
               }
             }
           }
+        }
+
+        if (!foundImage) {
+          logger.error({
+            response: JSON.stringify(response).substring(0, 500),
+            imageIndex: i + 1
+          }, "NANO BANANA API returned candidates but no image data");
         }
 
         // Add delay between requests to avoid rate limiting (except for last request)
@@ -67,13 +99,16 @@ export class NanoBananaService {
         throw new Error("No valid images found in any response");
       }
 
+      // NO SAVING IN SERVICE - Let caller handle saving
       logger.debug(
         { 
           promptLength: query.prompt.length,
           imageCount: images.length,
-          totalSize: images.reduce((acc, img) => acc + img.data.length, 0)
+          totalSize: images.reduce((acc, img) => acc + img.data.length, 0),
+          videoId,
+          sceneIndex
         },
-        "Images generated successfully with Nano Banana"
+        "Images generated successfully with Nano Banana (no saving in service)"
       );
 
       return {
