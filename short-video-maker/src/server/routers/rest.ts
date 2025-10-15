@@ -71,7 +71,8 @@ export class APIRouter {
           
           // Force NANO BANANA + FFmpeg mode
           processedData.config.videoSource = "ffmpeg";
-          
+          processedData.config.imageModel = "nano-banana";
+
           // Ensure needsImageGeneration is set for all scenes
           processedData.scenes = processedData.scenes.map((scene: any, index: number) => ({
             ...scene,
@@ -113,10 +114,11 @@ export class APIRouter {
         try {
           logger.info("Mode 3: VEO3 (NANO BANANA → VEO3) video request");
           const processedData = RawDataParser.parseRawData(req.body);
-          
+
           // Force VEO3 mode with NANO BANANA workflow
           processedData.config.videoSource = "veo";
-          
+          processedData.config.imageModel = "nano-banana";
+
           // Ensure needsImageGeneration is set for all scenes
           processedData.scenes = processedData.scenes.map((scene: any, index: number) => ({
             ...scene,
@@ -128,25 +130,118 @@ export class APIRouter {
             },
             videoPrompt: scene.videoPrompt || scene.text
           }));
-          
+
           const validationInput = {
             scenes: processedData.scenes,
             config: processedData.config
           };
-          
+
           const input = validateCreateShortInput(validationInput);
           const videoId = this.shortCreator.addToQueue(
-            input.scenes, 
-            input.config, 
+            input.scenes,
+            input.config,
             req.body.webhook_url || req.body.callback_url,
             { ...processedData.metadata, mode: "veo3", veo3_priority: true }
           );
-          
+
           res.status(201).json({ videoId });
         } catch (error: unknown) {
           logger.error(error, "Error in VEO3 mode");
           res.status(400).json({
             error: error instanceof Error ? error.message : "VEO3 mode failed"
+          });
+        }
+      }
+    );
+
+    // Mode 4: GPT Image (FFmpeg static video) endpoint
+    this.router.post(
+      "/video/gpt-image",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          logger.info("Mode 4: GPT Image (FFmpeg) video request");
+          const processedData = RawDataParser.parseRawData(req.body);
+
+          // Force GPT Image + FFmpeg mode
+          processedData.config.videoSource = "ffmpeg";
+          processedData.config.imageModel = "gpt-image";
+
+          // Ensure needsImageGeneration is set for all scenes
+          processedData.scenes = processedData.scenes.map((scene: any, index: number) => ({
+            ...scene,
+            needsImageGeneration: true,
+            imageData: scene.imageData || {
+              prompt: `${scene.text} [scene_${index}]`, // Add scene index for unique cache keys
+              style: "cinematic",
+              mood: "dynamic"
+            }
+          }));
+
+          const validationInput = {
+            scenes: processedData.scenes,
+            config: processedData.config
+          };
+
+          const input = validateCreateShortInput(validationInput);
+          const videoId = this.shortCreator.addToQueue(
+            input.scenes,
+            input.config,
+            req.body.webhook_url || req.body.callback_url,
+            { ...processedData.metadata, mode: "gpt-image" }
+          );
+
+          res.status(201).json({ videoId });
+        } catch (error: unknown) {
+          logger.error(error, "Error in GPT Image mode");
+          res.status(400).json({
+            error: error instanceof Error ? error.message : "GPT Image mode failed"
+          });
+        }
+      }
+    );
+
+    // Mode 5: VEO3 with GPT Image (GPT Image → VEO3) endpoint
+    this.router.post(
+      "/video/veo3-gpt",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          logger.info("Mode 5: VEO3 with GPT Image (GPT Image → VEO3) video request");
+          const processedData = RawDataParser.parseRawData(req.body);
+
+          // Force VEO3 mode with GPT Image
+          processedData.config.videoSource = "veo";
+          processedData.config.imageModel = "gpt-image";
+
+          // Ensure needsImageGeneration is set for all scenes
+          processedData.scenes = processedData.scenes.map((scene: any, index: number) => ({
+            ...scene,
+            needsImageGeneration: true,
+            imageData: scene.imageData || {
+              prompt: `${scene.text} [scene_${index}]`,
+              style: "cinematic",
+              mood: "dynamic"
+            },
+            videoPrompt: scene.videoPrompt || scene.text
+          }));
+
+          const validationInput = {
+            scenes: processedData.scenes,
+            config: processedData.config
+          };
+
+          const input = validateCreateShortInput(validationInput);
+          const videoId = this.shortCreator.addToQueue(
+            input.scenes,
+            input.config,
+            req.body.webhook_url || req.body.callback_url,
+            { ...processedData.metadata, mode: "veo3-gpt", veo3_priority: true }
+          );
+
+          res.status(201).json({ videoId });
+        } catch (error: unknown) {
+          logger.error(error, "Error in VEO3 with GPT Image mode");
+          res.status(400).json({
+            error: error instanceof Error ? error.message : "VEO3 with GPT Image mode failed"
           });
         }
       }
