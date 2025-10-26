@@ -16,6 +16,17 @@ export interface N8NStoryboardRawData {
   storyboard_config: string; // JSON 문자열
 }
 
+// YouTube 업로드 설정 구조
+export interface N8NYouTubeUploadConfig {
+  enabled: boolean;
+  channelName: string;
+  title?: string;  // "{{auto}}" for auto-generation from metadata
+  description?: string;
+  tags?: string[];
+  privacy?: 'private' | 'unlisted' | 'public';
+  categoryId?: string;
+}
+
 // 새로운 N8N RAW 데이터 구조 (format_type 포함)
 export interface N8NNewRawData {
   category: string;
@@ -31,6 +42,7 @@ export interface N8NNewRawData {
   video_config: N8NVideoConfig;
   elevenlabs_config: N8NElevenLabsConfig;
   channel_config?: N8NChannelConfig;
+  youtube_upload?: N8NYouTubeUploadConfig;
   timestamp?: string;
 }
 
@@ -242,6 +254,7 @@ export interface ParsedVideoData {
     channel_type?: string;
     viral_potential?: number;
     format_type?: string;
+    youtubeUpload?: N8NYouTubeUploadConfig;
   };
 }
 

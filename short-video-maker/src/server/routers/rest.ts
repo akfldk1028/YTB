@@ -34,23 +34,27 @@ export class APIRouter {
         try {
           logger.info("Mode 1: PEXELS video request");
           const processedData = RawDataParser.parseRawData(req.body);
-          
+
           // Force PEXELS mode
           processedData.config.videoSource = "pexels";
-          
+
           const validationInput = {
             scenes: processedData.scenes,
             config: processedData.config
           };
-          
+
           const input = validateCreateShortInput(validationInput);
+
+          // Extract YouTube upload config from request body or parsed data
+          const youtubeUpload = req.body.youtubeUpload || processedData.metadata?.youtubeUpload;
+
           const videoId = this.shortCreator.addToQueue(
-            input.scenes, 
-            input.config, 
+            input.scenes,
+            input.config,
             req.body.webhook_url || req.body.callback_url,
-            { ...processedData.metadata, mode: "pexels" }
+            { ...processedData.metadata, mode: "pexels", youtubeUpload }
           );
-          
+
           res.status(201).json({ videoId });
         } catch (error: unknown) {
           logger.error(error, "Error in PEXELS mode");
@@ -68,7 +72,7 @@ export class APIRouter {
         try {
           logger.info("Mode 2: NANO BANANA (FFmpeg) video request");
           const processedData = RawDataParser.parseRawData(req.body);
-          
+
           // Force NANO BANANA + FFmpeg mode
           processedData.config.videoSource = "ffmpeg";
           processedData.config.imageModel = "nano-banana";
@@ -79,24 +83,28 @@ export class APIRouter {
             needsImageGeneration: true,
             imageData: scene.imageData || {
               prompt: `${scene.text} [scene_${index}]`, // Add scene index for unique cache keys
-              style: "cinematic", 
+              style: "cinematic",
               mood: "dynamic"
             }
           }));
-          
+
           const validationInput = {
             scenes: processedData.scenes,
             config: processedData.config
           };
-          
+
           const input = validateCreateShortInput(validationInput);
+
+          // Extract YouTube upload config
+          const youtubeUpload = req.body.youtubeUpload || processedData.metadata?.youtubeUpload;
+
           const videoId = this.shortCreator.addToQueue(
-            input.scenes, 
-            input.config, 
+            input.scenes,
+            input.config,
             req.body.webhook_url || req.body.callback_url,
-            { ...processedData.metadata, mode: "nano-banana" }
+            { ...processedData.metadata, mode: "nano-banana", youtubeUpload }
           );
-          
+
           res.status(201).json({ videoId });
         } catch (error: unknown) {
           logger.error(error, "Error in NANO BANANA mode");
@@ -137,11 +145,15 @@ export class APIRouter {
           };
 
           const input = validateCreateShortInput(validationInput);
+
+          // Extract YouTube upload config
+          const youtubeUpload = req.body.youtubeUpload || processedData.metadata?.youtubeUpload;
+
           const videoId = this.shortCreator.addToQueue(
             input.scenes,
             input.config,
             req.body.webhook_url || req.body.callback_url,
-            { ...processedData.metadata, mode: "veo3", veo3_priority: true }
+            { ...processedData.metadata, mode: "veo3", veo3_priority: true, youtubeUpload }
           );
 
           res.status(201).json({ videoId });
@@ -183,11 +195,15 @@ export class APIRouter {
           };
 
           const input = validateCreateShortInput(validationInput);
+
+          // Extract YouTube upload config
+          const youtubeUpload = req.body.youtubeUpload || processedData.metadata?.youtubeUpload;
+
           const videoId = this.shortCreator.addToQueue(
             input.scenes,
             input.config,
             req.body.webhook_url || req.body.callback_url,
-            { ...processedData.metadata, mode: "gpt-image" }
+            { ...processedData.metadata, mode: "gpt-image", youtubeUpload }
           );
 
           res.status(201).json({ videoId });
@@ -230,11 +246,15 @@ export class APIRouter {
           };
 
           const input = validateCreateShortInput(validationInput);
+
+          // Extract YouTube upload config
+          const youtubeUpload = req.body.youtubeUpload || processedData.metadata?.youtubeUpload;
+
           const videoId = this.shortCreator.addToQueue(
             input.scenes,
             input.config,
             req.body.webhook_url || req.body.callback_url,
-            { ...processedData.metadata, mode: "veo3-gpt", veo3_priority: true }
+            { ...processedData.metadata, mode: "veo3-gpt", veo3_priority: true, youtubeUpload }
           );
 
           res.status(201).json({ videoId });

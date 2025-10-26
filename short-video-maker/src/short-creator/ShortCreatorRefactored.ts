@@ -32,6 +32,12 @@ import { CallbackManager } from "./managers/CallbackManager";
 import { FileManager } from "./managers/FileManager";
 import { ErrorHandler } from "./utils/ErrorHandler";
 import { DEFAULT_VOICE } from "./utils/Constants";
+import type { WorkflowManager } from "../workflow/WorkflowManager";
+import type { WebhookManager } from "../workflow/WebhookManager";
+import { VideoWorkflowState } from "../workflow/types";
+import type { YouTubeUploader } from "../youtube-upload/services/YouTubeUploader";
+import type { N8NYouTubeUploadConfig } from "../server/parsers/N8NInterfaces";
+import crypto from "crypto";
 
 import type {
   SceneInput,
@@ -68,6 +74,11 @@ export class ShortCreatorRefactored {
   // Image cache for sharing generated images across scenes
   private imageCache: Map<string, any[]> = new Map();
 
+  // Workflow managers (optional - only available if server provides them)
+  private workflowManager?: WorkflowManager;
+  private webhookManager?: WebhookManager;
+  private youtubeUploader?: YouTubeUploader;
+
   constructor(
     private config: Config,
     private ttsProvider: GoogleTTS | ElevenLabsTTS | TTSProvider,
@@ -78,7 +89,13 @@ export class ShortCreatorRefactored {
     private googleVeoApi?: GoogleVeoAPI,
     private leonardoApi?: LeonardoAI,
     private imageGenerationService?: ImageGenerationService,
+    workflowManager?: WorkflowManager,
+    webhookManager?: WebhookManager,
+    youtubeUploader?: YouTubeUploader
   ) {
+    this.workflowManager = workflowManager;
+    this.webhookManager = webhookManager;
+    this.youtubeUploader = youtubeUploader;
     this.initializeComponents();
   }
 
@@ -139,12 +156,28 @@ export class ShortCreatorRefactored {
   }
 
   public addToQueue(
-    sceneInput: SceneInput[], 
-    config: RenderConfig, 
-    callbackUrl?: string, 
+    sceneInput: SceneInput[],
+    config: RenderConfig,
+    callbackUrl?: string,
     metadata?: any
   ): string {
-    return this.videoQueue.addToQueue(sceneInput, config, callbackUrl, metadata);
+    const videoId = this.videoQueue.addToQueue(sceneInput, config, callbackUrl, metadata);
+
+    // Auto-register webhook for N8N integration
+    if (callbackUrl && this.webhookManager) {
+      try {
+        this.webhookManager.registerWebhook(
+          callbackUrl,
+          ['video.completed', 'video.failed'],
+          'n8n-auto-registered'
+        );
+        logger.info({ videoId, callbackUrl }, '🔔 Webhook auto-registered for video');
+      } catch (error) {
+        logger.warn({ videoId, callbackUrl, error }, '⚠️ Failed to auto-register webhook');
+      }
+    }
+
+    return videoId;
   }
 
   public getDetailedStatus(videoId: string): any {
@@ -183,7 +216,7 @@ export class ShortCreatorRefactored {
     try {
       await this.createShort(item.id, item.sceneInput, item.config, item.metadata);
       logger.debug({ id: item.id }, "Video created successfully");
-      
+
       // Send success callback
       if (item.callbackUrl) {
         await this.callbackManager.sendCompletionCallback(item.callbackUrl, {
@@ -194,9 +227,40 @@ export class ShortCreatorRefactored {
           status: 'completed'
         });
       }
+
+      // YouTube auto-upload if enabled
+      const youtubeUpload = item.metadata?.youtubeUpload as N8NYouTubeUploadConfig | undefined;
+      if (youtubeUpload?.enabled && this.youtubeUploader) {
+        await this.handleYouTubeUpload(item.id, youtubeUpload, item.metadata);
+      }
     } catch (error: unknown) {
       logger.error(error, "Error creating video");
-      
+
+      // Update workflow: Failed
+      if (this.workflowManager) {
+        this.workflowManager.updateWorkflowState(item.id, VideoWorkflowState.FAILED, {
+          error: {
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined
+          }
+        });
+
+        // Trigger failure webhook
+        if (this.webhookManager) {
+          await this.webhookManager.triggerWebhook({
+            eventId: `evt_${crypto.randomBytes(16).toString('hex')}`,
+            eventType: 'video.failed',
+            timestamp: new Date().toISOString(),
+            data: {
+              videoId: item.id,
+              error: {
+                message: error instanceof Error ? error.message : String(error)
+              }
+            }
+          });
+        }
+      }
+
       // Send error callback
       if (item.callbackUrl) {
         const errorType = ErrorHandler.categorizeError(error);
@@ -222,6 +286,16 @@ export class ShortCreatorRefactored {
   ): Promise<string> {
     logger.debug({ inputScenes, config }, "Creating short video");
 
+    // Create workflow tracking
+    if (this.workflowManager) {
+      this.workflowManager.createWorkflow(videoId, {
+        videoSource: config?.videoSource || this.config.videoSource,
+        ttsProvider: this.config.ttsProvider,
+        orientation: config.orientation,
+        sceneCount: inputScenes.length
+      });
+    }
+
     const scenes: Scene[] = [];
     const excludeVideoIds: string[] = [];
     const tempFiles: string[] = [];
@@ -235,11 +309,35 @@ export class ShortCreatorRefactored {
     for (let index = 0; index < inputScenes.length; index++) {
       const scene = inputScenes[index];
 
+      // Update workflow: Generating TTS
+      if (this.workflowManager) {
+        this.workflowManager.updateWorkflowState(videoId, VideoWorkflowState.GENERATING_TTS, {
+          progress: Math.round((index / inputScenes.length) * 15),
+          details: `Generating TTS for scene ${index + 1}/${inputScenes.length}`
+        });
+      }
+
       // Always generate TTS audio first (for controlled narration)
       const audioResult = await this.audioProcessor.generateTTSAudio(
         scene.text,
         config.voice ?? DEFAULT_VOICE
       );
+
+      // Update workflow: Transcribing
+      if (this.workflowManager) {
+        this.workflowManager.updateWorkflowState(videoId, VideoWorkflowState.TRANSCRIBING, {
+          progress: Math.round((index / inputScenes.length) * 30),
+          details: `Transcribing audio for scene ${index + 1}/${inputScenes.length}`
+        });
+      }
+
+      // Update workflow: Searching video
+      if (this.workflowManager) {
+        this.workflowManager.updateWorkflowState(videoId, VideoWorkflowState.SEARCHING_VIDEO, {
+          progress: Math.round(((index / inputScenes.length) * 45) + 30),
+          details: `Searching video for scene ${index + 1}/${inputScenes.length}`
+        });
+      }
 
       // Determine video source and generate video
       const video = await this.generateVideoForScene(
@@ -252,6 +350,14 @@ export class ShortCreatorRefactored {
         videoId,
         index
       );
+
+      // Update workflow: Generating video
+      if (this.workflowManager) {
+        this.workflowManager.updateWorkflowState(videoId, VideoWorkflowState.GENERATING_VIDEO, {
+          progress: Math.round(((index / inputScenes.length) * 60) + 40),
+          details: `Generating video for scene ${index + 1}/${inputScenes.length}`
+        });
+      }
 
       // NANO BANANA static mode: Add scene without video download
       if (video.url.startsWith('nano-banana://')) {
@@ -299,6 +405,14 @@ export class ShortCreatorRefactored {
       excludeVideoIds.push(video.id);
     }
 
+    // Update workflow: Processing video
+    if (this.workflowManager) {
+      this.workflowManager.updateWorkflowState(videoId, VideoWorkflowState.PROCESSING_VIDEO, {
+        progress: 80,
+        details: 'Processing final video with FFmpeg'
+      });
+    }
+
     // Choose appropriate workflow
     const workflowContext = {
       videoId,
@@ -324,6 +438,36 @@ export class ShortCreatorRefactored {
     // Cleanup temp files
     // await this.fileManager.cleanupFiles(tempFiles);
     logger.debug({ tempFiles, count: tempFiles.length }, "✅ Temp files preserved for verification");
+
+    // Update workflow: Completed
+    if (this.workflowManager) {
+      this.workflowManager.updateWorkflowState(videoId, VideoWorkflowState.COMPLETED, {
+        progress: 100,
+        details: 'Video generation completed successfully'
+      });
+
+      // Move to history
+      this.workflowManager.completeWorkflow(videoId);
+
+      // Trigger webhook
+      if (this.webhookManager) {
+        const videoPath = this.getVideoPath(videoId);
+        await this.webhookManager.triggerWebhook({
+          eventId: `evt_${crypto.randomBytes(16).toString('hex')}`,
+          eventType: 'video.completed',
+          timestamp: new Date().toISOString(),
+          data: {
+            videoId,
+            videoPath,
+            metadata: {
+              sceneCount: inputScenes.length,
+              orientation: config.orientation,
+              videoSource: config?.videoSource || this.config.videoSource
+            }
+          }
+        });
+      }
+    }
 
     return videoId;
   }
@@ -543,5 +687,161 @@ export class ShortCreatorRefactored {
       return true;
     });
     return musicFiles[Math.floor(Math.random() * musicFiles.length)];
+  }
+
+  /**
+   * Handle YouTube upload with auto-title generation
+   */
+  private async handleYouTubeUpload(
+    videoId: string,
+    youtubeUpload: N8NYouTubeUploadConfig,
+    metadata?: any
+  ): Promise<void> {
+    try {
+      if (!this.youtubeUploader) {
+        logger.warn({ videoId }, 'YouTube uploader not available, skipping auto-upload');
+        return;
+      }
+
+      // Check if channel is authenticated
+      if (!this.youtubeUploader.isChannelAuthenticated(youtubeUpload.channelName)) {
+        logger.warn(
+          { videoId, channelName: youtubeUpload.channelName },
+          'Channel not authenticated, skipping auto-upload'
+        );
+
+        // Trigger webhook: youtube.failed
+        if (this.webhookManager) {
+          await this.webhookManager.triggerWebhook({
+            eventId: `evt_${crypto.randomBytes(16).toString('hex')}`,
+            eventType: 'youtube.failed',
+            timestamp: new Date().toISOString(),
+            data: {
+              videoId,
+              channelName: youtubeUpload.channelName,
+              error: {
+                message: 'Channel not authenticated'
+              }
+            }
+          });
+        }
+        return;
+      }
+
+      logger.info(
+        { videoId, channelName: youtubeUpload.channelName },
+        '📤 Starting YouTube auto-upload'
+      );
+
+      // Generate title if "{{auto}}" or not provided
+      let title = youtubeUpload.title || '{{auto}}';
+      if (title === '{{auto}}') {
+        title = metadata?.title || `Video ${videoId}`;
+      }
+
+      // Prepare metadata
+      const uploadMetadata = {
+        title,
+        description: youtubeUpload.description || '',
+        tags: youtubeUpload.tags || [],
+        privacyStatus: (youtubeUpload.privacy || 'private') as 'private' | 'unlisted' | 'public',
+        categoryId: youtubeUpload.categoryId || '22'
+      };
+
+      // Update workflow: YouTube uploading
+      if (this.workflowManager) {
+        this.workflowManager.createYouTubeUpload(videoId, youtubeUpload.channelName);
+        this.workflowManager.updateYouTubeUploadState(
+          videoId,
+          youtubeUpload.channelName,
+          'uploading' as any
+        );
+      }
+
+      // Upload to YouTube
+      const youtubeVideoId = await this.youtubeUploader.uploadVideo(
+        videoId,
+        youtubeUpload.channelName,
+        uploadMetadata,
+        false // notifySubscribers
+      );
+
+      const videoUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;
+
+      logger.info(
+        { videoId, youtubeVideoId, videoUrl },
+        '✅ YouTube upload completed successfully'
+      );
+
+      // Update workflow: YouTube uploaded
+      if (this.workflowManager) {
+        this.workflowManager.updateYouTubeUploadState(
+          videoId,
+          youtubeUpload.channelName,
+          'uploaded' as any,
+          {
+            youtubeVideoId,
+            youtubeUrl: videoUrl
+          }
+        );
+      }
+
+      // Trigger webhook: youtube.uploaded
+      if (this.webhookManager) {
+        await this.webhookManager.triggerWebhook({
+          eventId: `evt_${crypto.randomBytes(16).toString('hex')}`,
+          eventType: 'youtube.uploaded',
+          timestamp: new Date().toISOString(),
+          data: {
+            videoId,
+            youtubeVideoId,
+            youtubeUrl: videoUrl,
+            channelName: youtubeUpload.channelName,
+            metadata: {
+              title: uploadMetadata.title
+            }
+          }
+        });
+      }
+    } catch (error: unknown) {
+      logger.error(
+        { error, videoId, channelName: youtubeUpload.channelName },
+        '❌ YouTube upload failed'
+      );
+
+      // Update workflow: YouTube failed
+      if (this.workflowManager) {
+        this.workflowManager.updateYouTubeUploadState(
+          videoId,
+          youtubeUpload.channelName,
+          'failed' as any,
+          {
+            error: {
+              message: error instanceof Error ? error.message : String(error),
+              retryable: false
+            }
+          }
+        );
+      }
+
+      // Trigger webhook: youtube.failed
+      if (this.webhookManager) {
+        await this.webhookManager.triggerWebhook({
+          eventId: `evt_${crypto.randomBytes(16).toString('hex')}`,
+          eventType: 'youtube.failed',
+          timestamp: new Date().toISOString(),
+          data: {
+            videoId,
+            channelName: youtubeUpload.channelName,
+            error: {
+              message: error instanceof Error ? error.message : String(error)
+            }
+          }
+        });
+      }
+
+      // Note: We don't throw the error here because video creation was successful
+      // YouTube upload failure should not mark the entire job as failed
+    }
   }
 }

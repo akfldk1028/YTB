@@ -23,8 +23,8 @@ export class GPTImageHelper {
   ): Promise<Array<{ imagePath: string; duration: number; sceneText: string }>> {
     logger.info({ sceneCount: scenes.length, orientation }, "🎬 Starting GPT Image generation");
 
-    // Force GPT Image model
-    imageGenerationService.setModel(ImageModelType.GPT_IMAGE);
+    // Force IMAGEN_4 model (previously called GPT_IMAGE)
+    imageGenerationService.setModel(ImageModelType.IMAGEN_4);
 
     const imageDataList = [];
 

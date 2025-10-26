@@ -27,7 +27,7 @@ export const logger = pino({
 });
 
 export class Config {
-  private dataDirPath: string;
+  public dataDirPath: string;
   private libsDirPath: string;
   private staticDirPath: string;
 
@@ -41,7 +41,7 @@ export class Config {
   public googleVeoApiKey?: string; // DEPRECATED: Used for Vertex AI VEO, now using Gemini API
   public googleCloudProjectId?: string;
   public googleCloudRegion: string = "us-central1";
-  public veoModel: "veo-2.0-generate-001" | "veo-3.0-fast-generate-001" = "veo-3.0-fast-generate-001";
+  public veoModel: "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001" = "veo-3.0-fast-generate-001";
   public leonardoApiKey?: string;
   public googleGeminiApiKey?: string; // For Gemini API (Imagen image generation and VEO video generation)
   public googleTtsApiKey?: string; // For Google Cloud Text-to-Speech
@@ -50,6 +50,17 @@ export class Config {
   public ttsProvider: "kokoro" | "google" | "elevenlabs" = "kokoro"; // TTS provider selection
   public videoSource: "pexels" | "veo" | "leonardo" | "both" | "ffmpeg" = "pexels";
   public veo3UseNativeAudio: boolean = false; // false: use TTS audio (숏츠용), true: use VEO3 audio (대화/연기용)
+  public youtubeClientSecretPath: string; // Path to YouTube OAuth client secret JSON file
+
+  // Google Cloud Storage Configuration
+  public gcsBucketName?: string;
+  public gcsServiceAccountPath?: string;
+  public gcsRegion: string = "us-central1";
+  public gcsStorageClass: "STANDARD" | "NEARLINE" | "COLDLINE" | "ARCHIVE" = "STANDARD";
+  public gcsAutoDeleteLocalAfterDays: number = 0; // 0 = never delete, 7 = delete after 7 days, etc.
+  public gcsAutoDeleteDays: number = 30; // GCS lifecycle: delete from cloud after 30 days
+  public gcsSignedUrlExpiryHours: number = 24;
+
   public logLevel: pino.Level;
   public whisperVerbose: boolean;
   public port: number;
@@ -90,7 +101,7 @@ export class Config {
     this.googleVeoApiKey = process.env.GOOGLE_VEO_API_KEY;
     this.googleCloudProjectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
     this.googleCloudRegion = process.env.GOOGLE_CLOUD_REGION || "us-central1";
-    this.veoModel = (process.env.VEO_MODEL as "veo-2.0-generate-001" | "veo-3.0-fast-generate-001") || "veo-3.0-fast-generate-001";
+    this.veoModel = (process.env.VEO_MODEL as "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001") || "veo-3.0-fast-generate-001";
     this.leonardoApiKey = process.env.LEONARDO_API_KEY;
     this.googleGeminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
     this.googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY;
@@ -99,6 +110,17 @@ export class Config {
     this.ttsProvider = (process.env.TTS_PROVIDER as "kokoro" | "google" | "elevenlabs") || "kokoro";
     this.videoSource = (process.env.VIDEO_SOURCE as "pexels" | "veo" | "leonardo" | "both" | "ffmpeg") || "pexels";
     this.veo3UseNativeAudio = process.env.VEO3_USE_NATIVE_AUDIO === "true";
+    this.youtubeClientSecretPath = process.env.YOUTUBE_CLIENT_SECRET_PATH || path.join(this.dataDirPath, "client_secret.json");
+
+    // GCS Configuration
+    this.gcsBucketName = process.env.GCS_BUCKET_NAME;
+    this.gcsServiceAccountPath = process.env.GCS_SERVICE_ACCOUNT_PATH;
+    this.gcsRegion = process.env.GCS_REGION || "us-central1";
+    this.gcsStorageClass = (process.env.GCS_STORAGE_CLASS as "STANDARD" | "NEARLINE" | "COLDLINE" | "ARCHIVE") || "STANDARD";
+    this.gcsAutoDeleteLocalAfterDays = parseInt(process.env.GCS_AUTO_DELETE_LOCAL_AFTER_DAYS || "0"); // 0 = never delete locally
+    this.gcsAutoDeleteDays = parseInt(process.env.GCS_AUTO_DELETE_DAYS || "30");
+    this.gcsSignedUrlExpiryHours = parseInt(process.env.GCS_SIGNED_URL_EXPIRY_HOURS || "24");
+
     this.logLevel = (process.env.LOG_LEVEL || defaultLogLevel) as pino.Level;
     this.whisperVerbose = process.env.WHISPER_VERBOSE === "true";
     this.port = process.env.PORT ? parseInt(process.env.PORT) : defaultPort;
@@ -148,6 +170,13 @@ export class Config {
         );
       }
     }
+  }
+
+  /**
+   * Get data directory path
+   */
+  public getDataDirPath(): string {
+    return this.dataDirPath;
   }
 }
 

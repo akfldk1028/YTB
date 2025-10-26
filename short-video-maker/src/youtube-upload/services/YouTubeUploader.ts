@@ -10,6 +10,7 @@ import {
   YouTubeTokens,
 } from '../types/youtube';
 import { YouTubeChannelManager } from './YouTubeChannelManager';
+import { GoogleCloudStorageService } from '../../storage/GoogleCloudStorageService';
 
 /**
  * YouTube Uploader Service
@@ -20,12 +21,23 @@ export class YouTubeUploader {
   private channelManager: YouTubeChannelManager;
   private clientSecrets: any;
   private uploadStatuses: Map<string, YouTubeUploadStatus>;
+  private gcsService?: GoogleCloudStorageService;
 
   constructor(config: Config) {
     this.config = config;
     this.channelManager = new YouTubeChannelManager(config);
     this.uploadStatuses = new Map();
     this.clientSecrets = this.loadClientSecrets();
+
+    // Initialize GCS service if configured
+    if (config.gcsBucketName && config.gcsServiceAccountPath) {
+      try {
+        this.gcsService = new GoogleCloudStorageService(config);
+        logger.info('Google Cloud Storage service initialized for YouTube uploads');
+      } catch (error) {
+        logger.warn({ error }, 'GCS service not initialized - uploads will be skipped');
+      }
+    }
 
     logger.info('YouTube Uploader initialized with multi-channel support');
   }
@@ -215,6 +227,50 @@ export class YouTubeUploader {
 
       const youtubeVideoId = response.data.id!;
       const videoUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;
+
+      // Upload to GCS after successful YouTube upload
+      if (this.gcsService) {
+        logger.info({ videoId }, 'Uploading video to GCS after successful YouTube upload');
+
+        const gcsResult = await this.gcsService.uploadVideo(
+          videoId,
+          videoPath,
+          (progress) => {
+            logger.debug(
+              {
+                videoId,
+                percentComplete: progress.percentComplete,
+                bytesWritten: progress.bytesWritten,
+                totalBytes: progress.totalBytes,
+              },
+              'GCS upload progress'
+            );
+          }
+        );
+
+        if (gcsResult.success) {
+          logger.info(
+            {
+              videoId,
+              gcsPath: gcsResult.gcsPath,
+              signedUrl: gcsResult.signedUrl,
+              autoDeleteAfterDays: this.config.gcsAutoDeleteLocalAfterDays,
+            },
+            'Video uploaded to GCS successfully - local file retained for review'
+          );
+
+          // Note: Local file is NOT deleted immediately
+          // Local file cleanup happens based on GCS_AUTO_DELETE_LOCAL_AFTER_DAYS setting
+          // - 0 = never delete (default)
+          // - 7 = delete after 7 days
+          // - etc.
+        } else {
+          logger.error(
+            { videoId, error: gcsResult.error },
+            'Failed to upload video to GCS - local file retained'
+          );
+        }
+      }
 
       // Update status to completed
       this.updateStatus(videoId, channelName, 'completed', 100, youtubeVideoId, videoUrl);

@@ -112,7 +112,8 @@ export class FFMpeg {
         .input(videoPath)
         .input(audioPath)
         .videoCodec('libx264')
-        .audioCodec('aac');
+        .audioCodec('aac')
+        .fps(30); // Normalize to 30fps to ensure consistent frame rate for concatenation
 
       // Add subtitle filter for captions if available (unless skipped for multi-scene)
       if (!skipSubtitles && captions && captions.length > 0) {

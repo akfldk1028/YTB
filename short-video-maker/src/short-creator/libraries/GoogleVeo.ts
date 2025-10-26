@@ -17,19 +17,20 @@ export class GoogleVeoAPI {
     private geminiApiKey: string, // Gemini API key
     projectId: string, // Not used in Gemini API, but kept for interface compatibility
     region: string = "us-central1", // Not used in Gemini API, but kept for interface compatibility
-    veoModel: "veo-2.0-generate-001" | "veo-3.0-fast-generate-001" = "veo-2.0-generate-001"
+    veoModel: "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001" = "veo-2.0-generate-001"
   ) {
     this.veoModel = veoModel;
     this.ai = new GoogleGenAI({ apiKey: this.geminiApiKey });
   }
-  
+
   private getGeminiVeoModel(): string {
     // Map internal model names to Gemini API model names
     const modelMapping = {
       "veo-2.0-generate-001": "veo-2.0-generate-001",
-      "veo-3.0-fast-generate-001": "veo-3.0-fast-generate-preview"
+      "veo-3.0-generate-001": "veo-3.0-generate-001", // Standard VEO 3
+      "veo-3.0-fast-generate-001": "veo-3.0-fast-generate-001" // VEO 3 Fast
     };
-    
+
     return modelMapping[this.veoModel as keyof typeof modelMapping] || this.veoModel;
   }
 
@@ -54,10 +55,15 @@ export class GoogleVeoAPI {
     }, `🎬 Starting ${modelName} video generation`);
 
     const aspectRatio = orientation === OrientationEnum.portrait ? "9:16" : "16:9";
-    // VEO 3 Fast supports 4, 6, or 8 seconds, VEO 2 supports 5-8 seconds
-    const duration = isVeo3
-      ? (minDurationSeconds <= 4 ? 4 : minDurationSeconds <= 6 ? 6 : 8)
-      : Math.min(Math.max(minDurationSeconds, 5), 8);
+    // Both VEO 3 and VEO 2 support 5-8 seconds per API error message
+    // VEO 3 officially supports 4, 6, 8 but API rejects 4, so use 6 or 8 only
+    // Auto-adjust duration to fit within valid range (5-8 seconds)
+    let duration = Math.min(Math.max(minDurationSeconds, 5), 8);
+
+    // For VEO3: round to nearest valid value (6 or 8) to be safe
+    if (isVeo3) {
+      duration = minDurationSeconds <= 6 ? 6 : 8;
+    }
 
     const geminiModel = this.getGeminiVeoModel();
 
@@ -79,19 +85,25 @@ export class GoogleVeoAPI {
         imageProvided: !!initialImage
       }, `🚀 Calling ${modelName} API`);
       
-      // VEO 3.0 Fast vs VEO 2.0 parameter differences
+      // VEO 3.0 vs VEO 2.0 parameter differences
       const config: any = {
         aspectRatio: aspectRatio,
+        durationSeconds: duration, // Both VEO 2 and VEO 3 require this (5-8 seconds)
       };
-      
+
       if (isVeo3) {
-        // VEO 3.0 Fast parameters - minimal config only
-        // Many parameters from documentation are not actually supported yet
-        // Keep only aspectRatio which is confirmed to work
+        // VEO 3.0 parameters
+        // For image-to-video: only "allow_adult" is supported
+        // For text-to-video: only "allow_all" is supported
+        if (initialImage) {
+          config.personGeneration = "allow_adult"; // Required for image-to-video in VEO 3
+        } else {
+          config.personGeneration = "allow_all"; // Required for text-to-video in VEO 3
+        }
       } else {
         // VEO 2.0 parameters
-        config.durationSeconds = duration;
-        config.personGeneration = "dont_allow";
+        // VEO 2.0 image-to-video supports "allow_adult" or "dont_allow"
+        config.personGeneration = initialImage ? "allow_adult" : "dont_allow";
       }
       
       // Prepare generateVideos parameters

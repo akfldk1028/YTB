@@ -207,7 +207,8 @@ export class RawDataParser {
         viral_potential: data.viral_potential,
         format_type: data.format_type,
         totalDuration: scenes.reduce((sum, scene) => sum + (scene.duration || 0), 0),
-        sceneCount: scenes.length
+        sceneCount: scenes.length,
+        youtubeUpload: data.youtube_upload
       }
     };
   }
