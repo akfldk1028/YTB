@@ -12,6 +12,7 @@ import { ImageRoutes } from "../image-generation/routes/imageRoutes";
 import { PexelsAPIRouter } from "./api/pexels";
 import { NanoBananaAPIRouter } from "./api/nano-banana";
 import { VEO3APIRouter } from "./api/veo3";
+import { ConsistentShortsAPIRouter } from "./api/consistent-shorts";
 import { logger } from "../logger";
 import { Config } from "../config";
 
@@ -36,15 +37,17 @@ export class Server {
     const pexelsAPIRouter = new PexelsAPIRouter(config, shortCreator);
     const nanoBananaAPIRouter = new NanoBananaAPIRouter(config, shortCreator);
     const veo3APIRouter = new VEO3APIRouter(config, shortCreator);
-    
+    const consistentShortsAPIRouter = new ConsistentShortsAPIRouter(config, shortCreator);
+
     this.app.use("/api", apiRouter.router);
     this.app.use("/mcp", mcpRouter.router);
     this.app.use("/api/images", imageRoutes.router);
-    
+
     // Mount mode-specific API endpoints
     this.app.use("/api/video/pexels", pexelsAPIRouter.router);
     this.app.use("/api/video/nano-banana", nanoBananaAPIRouter.router);
     this.app.use("/api/video/veo3", veo3APIRouter.router);
+    this.app.use("/api/video/consistent-shorts", consistentShortsAPIRouter.router);
 
     // Serve static files from the UI build
     this.app.use(express.static(path.join(__dirname, "../../dist/ui")));
