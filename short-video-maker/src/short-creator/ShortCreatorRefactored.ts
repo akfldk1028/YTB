@@ -27,6 +27,7 @@ import { VideoProcessor } from "./processors/VideoProcessor";
 import { SingleSceneWorkflow } from "./workflows/SingleSceneWorkflow";
 import { MultiSceneWorkflow } from "./workflows/MultiSceneWorkflow";
 import { NanoBananaStaticWorkflow } from "./workflows/NanoBananaStaticWorkflow";
+import { ConsistentShortsWorkflow } from "./workflows/ConsistentShortsWorkflow";
 import { StatusManager } from "./managers/StatusManager";
 import { CallbackManager } from "./managers/CallbackManager";
 import { FileManager } from "./managers/FileManager";
@@ -70,6 +71,7 @@ export class ShortCreatorRefactored {
   private singleSceneWorkflow!: SingleSceneWorkflow;
   private multiSceneWorkflow!: MultiSceneWorkflow;
   private nanoBananaStaticWorkflow?: NanoBananaStaticWorkflow;
+  private consistentShortsWorkflow?: ConsistentShortsWorkflow;
 
   // Image cache for sharing generated images across scenes
   private imageCache: Map<string, any[]> = new Map();
@@ -146,6 +148,19 @@ export class ShortCreatorRefactored {
       this.nanoBananaStaticWorkflow = new NanoBananaStaticWorkflow(
         this.videoProcessor,
         this.nanoBananaVideoSource,
+        this.imageGenerationService
+      );
+    }
+    if (this.imageGenerationService && this.googleVeoApi) {
+      this.consistentShortsWorkflow = new ConsistentShortsWorkflow(
+        this.videoProcessor,
+        this.imageGenerationService,
+        this.googleVeoApi
+      );
+    } else if (this.imageGenerationService) {
+      // Can work without VEO3 too (for static videos)
+      this.consistentShortsWorkflow = new ConsistentShortsWorkflow(
+        this.videoProcessor,
         this.imageGenerationService
       );
     }
@@ -423,7 +438,14 @@ export class ShortCreatorRefactored {
     };
 
     let result;
-    if (this.shouldUseNanoBananaStaticWorkflow(config, metadata, inputScenes)) {
+    if (this.shouldUseConsistentShortsWorkflow(config, metadata, inputScenes)) {
+      // ✨ CONSISTENT SHORTS MODE: Character consistency across scenes
+      if (!this.consistentShortsWorkflow) {
+        throw new Error("Consistent Shorts workflow not available");
+      }
+      logger.info({ videoId, mode: "consistent-shorts" }, "🎨 Using CONSISTENT SHORTS workflow");
+      result = await this.consistentShortsWorkflow.process(scenes, inputScenes, workflowContext);
+    } else if (this.shouldUseNanoBananaStaticWorkflow(config, metadata, inputScenes)) {
       if (!this.nanoBananaStaticWorkflow) {
         throw new Error("NANO BANANA static workflow not available");
       }
@@ -668,15 +690,44 @@ export class ShortCreatorRefactored {
       metadataMode: metadata?.mode,
       metadata
     }, "🔍 DEBUGGING shouldUseNanoBananaStaticWorkflow");
-    
+
     if (!inputScenes) {
       logger.info("❌ No input scenes, returning false");
       return false;
     }
-    
+
     const result = NanoBananaStaticVideoHelper.isNanoBananaStaticVideo(config, metadata, inputScenes);
     logger.info({ result }, "🔍 NanoBananaStaticVideoHelper.isNanoBananaStaticVideo returned");
     return result;
+  }
+
+  private shouldUseConsistentShortsWorkflow(
+    config: RenderConfig,
+    metadata?: any,
+    inputScenes?: SceneInput[]
+  ): boolean {
+    logger.info({
+      hasInputScenes: !!inputScenes,
+      sceneCount: inputScenes?.length || 0,
+      metadataMode: metadata?.mode,
+      metadata
+    }, "🔍 DEBUGGING shouldUseConsistentShortsWorkflow");
+
+    if (!inputScenes) {
+      logger.info("❌ No input scenes, returning false");
+      return false;
+    }
+
+    // Check if metadata explicitly requests consistent-shorts mode
+    const isConsistentShortsMode = metadata?.mode === "consistent-shorts";
+
+    logger.info({
+      isConsistentShortsMode,
+      metadataMode: metadata?.mode,
+      hasWorkflow: !!this.consistentShortsWorkflow
+    }, "🔍 Consistent Shorts workflow detection");
+
+    return isConsistentShortsMode;
   }
 
   private findMusic(videoDuration: number, tag?: MusicMoodEnum): MusicForVideo {
