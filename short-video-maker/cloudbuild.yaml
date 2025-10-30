@@ -1,0 +1,102 @@
+# ============================================================================
+# Google Cloud Build Configuration
+# ============================================================================
+# This file automates building and deploying to Google Cloud Run
+# ============================================================================
+
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'gcp.Dockerfile'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/short-video-maker:$SHORT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/short-video-maker:latest'
+      - '.'
+    timeout: '1800s'
+
+  # Step 2: Push the Docker image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/short-video-maker:$SHORT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/short-video-maker:latest'
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'short-video-maker'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/short-video-maker:$SHORT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '4Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '3600'
+      - '--concurrency'
+      - '80'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '10'
+      - '--port'
+      - '3123'
+      - '--set-env-vars'
+      - 'DOCKER=true,LOG_LEVEL=info,CONCURRENCY=1,VIDEO_CACHE_SIZE_IN_BYTES=2097152000,WHISPER_MODEL=base.en,TTS_PROVIDER=kokoro,VIDEO_SOURCE=pexels,VEO3_USE_NATIVE_AUDIO=false,VEO_MODEL=veo-3.0-fast-generate-001'
+      - '--set-secrets'
+      - 'PEXELS_API_KEY=PEXELS_API_KEY:latest,GOOGLE_GEMINI_API_KEY=GOOGLE_GEMINI_API_KEY:latest,GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest'
+
+# Build configuration
+timeout: '3600s'
+options:
+  machineType: 'E2_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+
+# Images to push to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/short-video-maker:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/short-video-maker:latest'
+
+# ============================================================================
+# Usage Instructions:
+# ============================================================================
+# 1. Enable required APIs:
+#    gcloud services enable cloudbuild.googleapis.com
+#    gcloud services enable run.googleapis.com
+#    gcloud services enable secretmanager.googleapis.com
+#
+# 2. Create secrets in Secret Manager:
+#    echo -n "YOUR_PEXELS_API_KEY" | gcloud secrets create PEXELS_API_KEY --data-file=-
+#    echo -n "YOUR_GEMINI_API_KEY" | gcloud secrets create GOOGLE_GEMINI_API_KEY --data-file=-
+#    echo -n "YOUR_PROJECT_ID" | gcloud secrets create GOOGLE_CLOUD_PROJECT_ID --data-file=-
+#
+# 3. Grant Secret Manager access to Cloud Run service account:
+#    gcloud projects add-iam-policy-binding PROJECT_ID \
+#      --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+#      --role="roles/secretmanager.secretAccessor"
+#
+# 4. Submit build:
+#    gcloud builds submit --config cloudbuild.yaml
+#
+# 5. Or set up automatic builds from GitHub:
+#    - Go to Cloud Build > Triggers
+#    - Connect your GitHub repository
+#    - Create trigger pointing to this cloudbuild.yaml
+# ============================================================================

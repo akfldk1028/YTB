@@ -1,14 +1,115 @@
-version: "3"
+version: '3.8'
 
 services:
-  short-creator:
+  short-video-maker:
     build:
       context: .
-      dockerfile: main.Dockerfile
-    env_file:
-      - .env
-    environment:
-      - DEV=false
+      dockerfile: gcp.Dockerfile
+    image: short-video-maker:local
+    container_name: short-video-maker
     ports:
       - "3123:3123"
-    entrypoint: ["node", "dist/index.js"]
+    environment:
+      # Core Configuration
+      - PORT=3123
+      - LOG_LEVEL=info
+      - DOCKER=true
+      - DATA_DIR_PATH=/app/data
+
+      # Performance Settings
+      - CONCURRENCY=1
+      - VIDEO_CACHE_SIZE_IN_BYTES=2097152000
+
+      # Whisper Configuration
+      - WHISPER_MODEL=base.en
+      - WHISPER_VERBOSE=false
+
+      # TTS Provider (kokoro/google/elevenlabs)
+      - TTS_PROVIDER=kokoro
+
+      # Video Source (pexels/veo/leonardo/ffmpeg/both)
+      - VIDEO_SOURCE=pexels
+
+      # VEO3 Configuration
+      - VEO3_USE_NATIVE_AUDIO=false
+      - VEO_MODEL=veo-3.0-fast-generate-001
+
+      # API Keys - Load from .env file
+      - PEXELS_API_KEY=${PEXELS_API_KEY}
+      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
+      - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID}
+      - GOOGLE_CLOUD_REGION=${GOOGLE_CLOUD_REGION:-us-central1}
+
+      # Optional API Keys
+      - LEONARDO_API_KEY=${LEONARDO_API_KEY:-}
+      - GOOGLE_TTS_PROJECT_ID=${GOOGLE_TTS_PROJECT_ID:-}
+      - GOOGLE_TTS_API_KEY=${GOOGLE_TTS_API_KEY:-}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+
+      # YouTube Upload (optional)
+      - YOUTUBE_CLIENT_SECRET_PATH=${YOUTUBE_CLIENT_SECRET_PATH:-}
+
+      # Google Cloud Storage (optional)
+      - GCS_BUCKET_NAME=${GCS_BUCKET_NAME:-}
+      - GCS_SERVICE_ACCOUNT_PATH=${GCS_SERVICE_ACCOUNT_PATH:-}
+      - GCS_REGION=${GCS_REGION:-us-central1}
+      - GCS_STORAGE_CLASS=${GCS_STORAGE_CLASS:-STANDARD}
+      - GCS_AUTO_DELETE_LOCAL_AFTER_DAYS=${GCS_AUTO_DELETE_LOCAL_AFTER_DAYS:-0}
+      - GCS_AUTO_DELETE_DAYS=${GCS_AUTO_DELETE_DAYS:-30}
+      - GCS_SIGNED_URL_EXPIRY_HOURS=${GCS_SIGNED_URL_EXPIRY_HOURS:-24}
+
+    volumes:
+      # Persist generated videos and data
+      - ./data:/app/data
+      - ./videos:/app/data/videos
+
+      # Optional: Mount service account keys
+      # - ./service-account-key.json:/app/service-account-key.json:ro
+      # - ./youtube-client-secret.json:/app/youtube-client-secret.json:ro
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3123/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+# Volumes for persistent data
+volumes:
+  data:
+  videos:
+
+# ============================================================================
+# Usage Instructions:
+# ============================================================================
+# 1. Create a .env file with your API keys:
+#    cp .env.example .env
+#    # Edit .env with your actual API keys
+#
+# 2. Build and start the service:
+#    docker-compose up -d
+#
+# 3. Check logs:
+#    docker-compose logs -f
+#
+# 4. Access the API:
+#    curl http://localhost:3123/health
+#
+# 5. Stop the service:
+#    docker-compose down
+#
+# 6. Rebuild after code changes:
+#    docker-compose up -d --build
+# ============================================================================
