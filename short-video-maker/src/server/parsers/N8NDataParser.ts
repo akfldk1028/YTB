@@ -56,12 +56,18 @@ export class RawDataParser {
       return this.parseN8NStoryboardData(rawData);
     }
 
-    // 4. 이미 올바른 형식
+    // 6. 간단한 API 형식 (text, imagePrompt, voiceId 포함)
+    if (this.isSimpleAPIFormat(rawData)) {
+      console.log('✅ Detected simple API format, parsing...');
+      return this.parseSimpleAPIData(rawData);
+    }
+
+    // 7. 이미 올바른 형식
     if (this.isValidAPIFormat(rawData)) {
       return rawData;
     }
 
-    // 5. 그 외는 에러
+    // 8. 그 외는 에러
     throw new Error('Unsupported data format');
   }
 
@@ -334,12 +340,62 @@ export class RawDataParser {
   }
 
   /**
+   * 간단한 API 형식인지 확인 (단일 씬, text/imagePrompt/voiceId)
+   */
+  private static isSimpleAPIFormat(data: any): boolean {
+    return data &&
+           typeof data === 'object' &&
+           'text' in data &&
+           !Array.isArray(data) &&
+           !('scenes' in data) &&
+           !('timeline_json' in data) &&
+           !('storyboard_json' in data) &&
+           !('format_type' in data);
+  }
+
+  /**
+   * 간단한 API 데이터 파싱 (text, imagePrompt, voiceId → ParsedVideoData)
+   */
+  private static parseSimpleAPIData(rawData: any): ParsedVideoData {
+    const scene: ParsedScene = {
+      text: rawData.text || '',
+      searchTerms: rawData.searchTerms || rawData.query?.split(' ') || [],
+      duration: rawData.duration || 5,
+      voiceConfig: {
+        voice: rawData.voiceId || rawData.voice || "af_heart"
+      },
+      videoPrompt: rawData.imagePrompt || rawData.videoPrompt || rawData.prompt,
+      needsImageGeneration: !!(rawData.imagePrompt || rawData.videoPrompt || rawData.prompt),
+      imageData: (rawData.imagePrompt || rawData.videoPrompt || rawData.prompt) ? {
+        prompt: rawData.imagePrompt || rawData.videoPrompt || rawData.prompt,
+        style: rawData.style || 'cinematic',
+        mood: rawData.mood || 'dynamic'
+      } : undefined
+    };
+
+    const config: ParsedConfig = {
+      orientation: rawData.orientation || 'portrait',
+      musicTag: rawData.musicTag || 'happy'
+    };
+
+    return {
+      scenes: [scene],
+      config,
+      metadata: {
+        title: rawData.title || 'Simple API Video',
+        totalDuration: scene.duration || 5,
+        sceneCount: 1
+      }
+    };
+  }
+
+  /**
    * 이미 올바른 API 형식인지 확인
    */
   private static isValidAPIFormat(data: any): boolean {
-    return data && 
-           typeof data === 'object' && 
-           'scenes' in data && 
+    return data &&
+           typeof data === 'object' &&
+           'scenes' in data &&
            Array.isArray(data.scenes) &&
            'config' in data;
   }
