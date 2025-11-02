@@ -12,6 +12,7 @@ import { GoogleVeoAPI } from "./short-creator/libraries/GoogleVeo";
 import { LeonardoAI } from "./short-creator/libraries/LeonardoAI";
 import { ImageGenerationService } from "./image-generation/services/ImageGenerationService";
 import { ImageModelType } from "./image-generation/models/imageModels";
+import { GoogleCloudStorageService } from "./storage/GoogleCloudStorageService";
 import { Config } from "./config";
 import { ShortCreator } from "./short-creator";
 import { logger } from "./logger";
@@ -93,6 +94,20 @@ async function main() {
     logger.warn("Gemini API key not configured, image generation will not be available");
   }
 
+  // Initialize Google Cloud Storage service if bucket name is configured
+  let gcsService: GoogleCloudStorageService | null = null;
+  if (config.gcsBucketName) {
+    try {
+      logger.debug("initializing google cloud storage service");
+      gcsService = new GoogleCloudStorageService(config);
+      logger.info({ bucket: config.gcsBucketName }, "GCS service initialized successfully");
+    } catch (error: unknown) {
+      logger.error(error, "Failed to initialize GCS service");
+    }
+  } else {
+    logger.info("GCS_BUCKET_NAME not configured, videos will be stored locally only");
+  }
+
   logger.debug("initializing the short creator");
   const shortCreator = new ShortCreator(
     config,
@@ -104,6 +119,7 @@ async function main() {
     veoApi || undefined,
     leonardoApi || undefined,
     imageGenerationService || undefined,
+    gcsService || undefined,
   );
 
   if (!config.runningInDocker) {

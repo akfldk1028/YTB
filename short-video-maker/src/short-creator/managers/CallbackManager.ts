@@ -1,6 +1,7 @@
 import fs from "fs-extra";
 import { logger } from "../../logger";
 import { ErrorHandler } from "../utils/ErrorHandler";
+import { GoogleCloudStorageService } from "../../storage/GoogleCloudStorageService";
 import type { SceneInput, RenderConfig } from "../../types/shorts";
 
 export interface CallbackData {
@@ -24,7 +25,10 @@ export interface CallbackConfig {
 }
 
 export class CallbackManager {
-  constructor(private config: CallbackConfig) {}
+  constructor(
+    private config: CallbackConfig,
+    private gcsService?: GoogleCloudStorageService
+  ) {}
 
   async sendCompletionCallback(
     callbackUrl: string,
@@ -33,8 +37,24 @@ export class CallbackManager {
     try {
       const videoPath = this.getVideoPath(data.videoId);
       const videoStats = fs.existsSync(videoPath) ? fs.statSync(videoPath) : null;
-      
-      const result = this.buildCallbackPayload(data, videoStats);
+
+      // Upload to GCS if service is available and video completed successfully
+      let gcsUrl: string | undefined;
+      let gcsSignedUrl: string | undefined;
+      if (this.gcsService && data.status === 'completed' && fs.existsSync(videoPath)) {
+        logger.info({ videoId: data.videoId }, "Uploading video to Google Cloud Storage");
+        const uploadResult = await this.gcsService.uploadVideo(data.videoId, videoPath);
+
+        if (uploadResult.success) {
+          gcsUrl = uploadResult.publicUrl;
+          gcsSignedUrl = uploadResult.signedUrl;
+          logger.info({ videoId: data.videoId, gcsUrl }, "Video uploaded to GCS successfully");
+        } else {
+          logger.error({ videoId: data.videoId, error: uploadResult.error }, "Failed to upload video to GCS");
+        }
+      }
+
+      const result = this.buildCallbackPayload(data, videoStats, gcsUrl, gcsSignedUrl);
 
       logger.info({ callbackUrl, result }, "Sending completion callback to N8N");
 
@@ -56,7 +76,12 @@ export class CallbackManager {
     }
   }
 
-  private buildCallbackPayload(data: CallbackData, videoStats: fs.Stats | null): any {
+  private buildCallbackPayload(
+    data: CallbackData,
+    videoStats: fs.Stats | null,
+    gcsUrl?: string,
+    gcsSignedUrl?: string
+  ): any {
     const usedParameters = {
       videoId: data.videoId,
       scenes: data.sceneInput.map((scene, index) => ({
@@ -110,6 +135,8 @@ export class CallbackManager {
       videoUrl: data.status === 'completed' ? `${this.getBaseUrl()}/api/short-video/${data.videoId}` : null,
       filePath: data.status === 'completed' ? this.getVideoPath(data.videoId) : null,
       fileSize: videoStats?.size || 0,
+      gcsUrl: gcsUrl || null,
+      gcsSignedUrl: gcsSignedUrl || null,
       createdAt: new Date().toISOString(),
       parameters: usedParameters,
       metadata: data.originalMetadata,
@@ -124,7 +151,8 @@ export class CallbackManager {
         video_storage_path: this.config.videosDirPath,
         temp_path: this.config.tempDirPath,
         video_source: this.config.videoSource,
-        tts_provider: this.config.ttsProvider
+        tts_provider: this.config.ttsProvider,
+        gcs_enabled: !!this.gcsService
       }
     };
   }

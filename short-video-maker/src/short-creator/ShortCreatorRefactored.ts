@@ -10,6 +10,7 @@ import { GoogleVeoAPI } from "./libraries/GoogleVeo";
 import { LeonardoAI } from "./libraries/LeonardoAI";
 import { ImageGenerationService } from "../image-generation/services/ImageGenerationService";
 import { ImageModelType } from "../image-generation/models/imageModels";
+import { GoogleCloudStorageService } from "../storage/GoogleCloudStorageService";
 import { NanoBananaStaticVideoHelper } from "./nanoBananaStaticVideo";
 import { Config } from "../config";
 import { logger } from "../logger";
@@ -91,6 +92,7 @@ export class ShortCreatorRefactored {
     private googleVeoApi?: GoogleVeoAPI,
     private leonardoApi?: LeonardoAI,
     private imageGenerationService?: ImageGenerationService,
+    private gcsService?: GoogleCloudStorageService,
     workflowManager?: WorkflowManager,
     webhookManager?: WebhookManager,
     youtubeUploader?: YouTubeUploader
@@ -104,7 +106,7 @@ export class ShortCreatorRefactored {
   private initializeComponents(): void {
     // Initialize managers
     this.fileManager = new FileManager(this.config.tempDirPath);
-    this.callbackManager = new CallbackManager(this.config);
+    this.callbackManager = new CallbackManager(this.config, this.gcsService);
 
     // Initialize queue
     this.videoQueue = new VideoQueue(this.processVideo.bind(this));

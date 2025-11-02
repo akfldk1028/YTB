@@ -40,19 +40,31 @@ export class GoogleCloudStorageService {
       throw new Error('GCS_BUCKET_NAME is required in environment variables');
     }
 
-    if (!config.gcsServiceAccountPath) {
-      throw new Error('GCS_SERVICE_ACCOUNT_PATH is required in environment variables');
+    // Service account key file is optional
+    // Cloud Run uses Application Default Credentials (ADC) automatically
+    const useServiceAccountKey =
+      config.gcsServiceAccountPath &&
+      fs.existsSync(config.gcsServiceAccountPath);
+
+    if (config.gcsServiceAccountPath && !useServiceAccountKey) {
+      logger.warn(
+        { path: config.gcsServiceAccountPath },
+        'Service account file specified but not found, using default credentials'
+      );
     }
 
-    if (!fs.existsSync(config.gcsServiceAccountPath)) {
-      throw new Error(`Service account file not found: ${config.gcsServiceAccountPath}`);
-    }
-
-    // Initialize Storage client with service account
-    this.storage = new Storage({
-      keyFilename: config.gcsServiceAccountPath,
-      projectId: config.googleCloudProjectId,
-    });
+    // Initialize Storage client
+    // If service account key exists, use it; otherwise use ADC (Cloud Run default)
+    this.storage = new Storage(
+      useServiceAccountKey
+        ? {
+            keyFilename: config.gcsServiceAccountPath,
+            projectId: config.googleCloudProjectId,
+          }
+        : {
+            projectId: config.googleCloudProjectId,
+          }
+    );
 
     this.bucket = this.storage.bucket(config.gcsBucketName);
 
@@ -61,6 +73,7 @@ export class GoogleCloudStorageService {
         bucket: config.gcsBucketName,
         region: config.gcsRegion,
         storageClass: config.gcsStorageClass,
+        authMethod: useServiceAccountKey ? 'service-account-key' : 'default-credentials',
       },
       'Google Cloud Storage service initialized'
     );
