@@ -115,6 +115,15 @@ docker build -f gcp.Dockerfile -t "$IMAGE_FULL" -t "$IMAGE_LATEST" .
 
 log_success "Docker image built: $IMAGE_FULL"
 
+# ============================================================================
+# Configure Docker Authentication
+# ============================================================================
+
+log_info "Configuring Docker authentication for GCR..."
+gcloud auth configure-docker gcr.io --quiet
+
+log_success "Docker authentication configured"
+
 log_info "Pushing Docker image to GCR..."
 docker push "$IMAGE_FULL"
 docker push "$IMAGE_LATEST"
