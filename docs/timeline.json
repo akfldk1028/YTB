@@ -1,0 +1,78 @@
+[
+  {
+    "format_type": "timeline",
+    "selected_category": "Business Success (비즈니스 성공)",
+    "target_language": "english",
+    "voice_preference": "21m00Tcm4TlvDq8ikWAM",
+    "content_style": "engaging",
+    "channel_name": "Global Success Hub",
+    "channel_type": "english_global",
+    "veo3_priority": false,
+    "time_slot": "morning",
+    "hour": 11,
+    "is_weekend": false,
+    "optimization_hint": "morning_english_engaging_timeline",
+    "timestamp": "2025-10-27T11:55:59.054Z",
+    "target_scenes_count": 6,
+    "target_total_duration": 30,
+    "individual_scene_durations": [
+      4,
+      6,
+      6,
+      6,
+      6,
+      6
+    ],
+    "veo3_compliance": true,
+    "llm_instructions": {
+      "scenes_instruction": "Generate exactly 6 scenes/shots",
+      "duration_instruction": "Each scene duration: 4s, 6s, 6s, 6s, 6s, 6s respectively",
+      "total_duration_instruction": "Total video duration: 30 seconds",
+      "format_instruction": "Use timeline format"
+    },
+    "config_generated_at": "2025-10-27T11:55:59.070Z",
+    "user_config_applied": {
+      "target_duration": 30,
+      "scenes_count": 6,
+      "veo2_duration_range": [
+        5,
+        8
+      ],
+      "veo3_duration_options": [
+        4,
+        6,
+        8
+      ],
+      "force_veo3_compliance": true,
+      "min_scene_duration": 3,
+      "prefer_even_distribution": true,
+      "channel_overrides": {
+        "korean_business": {
+          "scenes_count": 3,
+          "target_duration": 15
+        },
+        "english_global": {
+          "scenes_count": 6,
+          "target_duration": 30
+        },
+        "japanese_premium": {
+          "scenes_count": 4,
+          "target_duration": 24
+        },
+        "chinese_volume": {
+          "scenes_count": 5,
+          "target_duration": 25
+        },
+        "spanish_latino": {
+          "scenes_count": 5,
+          "target_duration": 25
+        }
+      }
+    },
+    "debug_info": {
+      "original_channel": "english_global",
+      "scenes_changed_from_default": true,
+      "duration_changed_from_default": true
+    }
+  }
+]

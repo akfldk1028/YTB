@@ -1,0 +1,88 @@
+Create VIRAL, HIGH-QUALITY content for:
+CATEGORY: {{ $json.selected_category }}
+LANGUAGE: {{ $json.target_language }}
+TIME CONTEXT: {{ $json.time_slot }} ({{ $json.hour }}시)
+FORMAT: {{ $json.format_type }}
+AUDIENCE: {{ $json.target_language === 'korean' ? '한국 시청자' : 'Global English audience' }}
+
+🎯 DYNAMIC SCENE CONFIGURATION (MANDATORY):
+- EXACT SCENES COUNT: {{ $json.target_scenes_count }}
+- TOTAL DURATION: {{ $json.target_total_duration }}s
+- INDIVIDUAL DURATIONS: {{ $json.individual_scene_durations.join('s, ') }}s respectively
+- {{ $json.llm_instructions.scenes_instruction }}
+- {{ $json.llm_instructions.duration_instruction }}
+
+🎬 PROFESSIONAL QUALITY REQUIREMENTS:
+✅ Rich, detailed narration with emotional markers: (excited), (confident), (whispered)
+✅ Complete VEO3 image prompts with cinematography terms
+✅ Professional visual descriptions: extreme close-up, tracking shot, shallow depth of field
+✅ ENGLISH-only search_keywords for PEXELS compatibility
+✅ Specific, actionable content (no generic placeholders)
+
+📝 CONTENT EXAMPLES:
+
+FOR TIMELINE FORMAT:
+CRITICAL: Must include "timeline" object with "scenes" array
+Structure:
+{
+  "format_type": "timeline",
+  "timeline": {
+    "scenes": [
+      {
+        "id": "scene_1",
+        "duration": 4,
+        "text": "(excited) narration content — 비주얼: detailed shot description, camera movement, lighting. 감정 트리거: (emotion) action phrase. 이미지 프롬프트(VEO3용): complete technical prompt",
+        "search_keywords": ["english keyword 1", "english keyword 2"],
+        "visual_style": "extreme close-up of..., 85mm lens, tracking shot...",
+        "mood": "urgent energy with dramatic chiaroscuro lighting...",
+        "image_prompt": "Create an extreme close-up of..."
+      }
+    ]
+  },
+  "title": "Video Title Here",
+  ...other required fields
+}
+
+FOR STORYBOARD FORMAT:
+CRITICAL: Must include "storyboard" array at root level
+Structure:
+{
+  "format_type": "storyboard",
+  "storyboard": [
+    {
+      "shot": 1,
+      "duration": 4,
+      "audio": {
+        "narration": "(excited) detailed narration with emotional markers"
+      },
+      "search_keywords": ["english keyword 1", "english keyword 2"],
+      "visual_style": "extreme close-up of..., 85mm lens, tracking shot...",
+      "mood": "urgent energy with dramatic chiaroscuro lighting...",
+      "image_prompt": "Create an extreme close-up of..."
+    }
+  ],
+  "title": "Video Title Here",
+  ...other required fields
+}
+
+🎯 CRITICAL REQUIREMENTS:
+- Generate EXACTLY {{ $json.target_scenes_count }} scenes/shots
+- Use exact durations: {{ $json.individual_scene_durations.join(', ') }} seconds
+- Professional cinematography for each scene
+- Rich, detailed content (not generic placeholders)
+
+📝 OUTPUT FORMAT:
+Generate complete JSON with:
+- format_type: {{ $json.format_type }}
+- topic_category: {{ $json.selected_category }}
+- target_language: {{ $json.target_language }}
+- time_context: {{ $json.time_slot }}
+- Either timeline OR storyboard (based on format_type)
+- title, category, language, viral_potential
+- video_config and elevenlabs_config
+
+EXAMPLE QUALITY STANDARDS:
+- Timeline text: (excited) 믿기 힘들어도 사실입니다 — 전자레인지의 고착된 기름때가 90초 만에 거의 사라집니다! 비주얼: extreme close-up으로 레몬을 손에 쥐고 있는 장면, tracking shot으로 전자레인지 내부의 기름 얼룩. 이미지 프롬프트(VEO3용): extreme close-up of hand holding a halved lemon above a microwave interior with visible grease stains, tracking shot, shallow depth of field, cinematic urgent lighting
+- Storyboard narration: (긴장) 지금 오후 2시, 당신의 심장이 조용히 위험 신호를 보낼 수 있습니다. 30초만 투자하세요 — 초간단 자가 검사, 바로 보여드릴게요.
+
+OUTPUT: Complete JSON only, no explanations or markdown.

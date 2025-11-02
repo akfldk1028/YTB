@@ -1,0 +1,212 @@
+{
+  "type": "object",
+  "properties": {
+    "format_type": {
+      "type": "string",
+      "enum": ["timeline", "storyboard"],
+      "description": "The format of the video content"
+    },
+    "topic_category": {
+      "type": "string",
+      "description": "The category of the content"
+    },
+    "target_language": {
+      "type": "string",
+      "enum": ["korean", "english", "japanese", "chinese", "spanish"],
+      "description": "The target language for the content"
+    },
+    "time_context": {
+      "type": "string",
+      "enum": ["morning", "afternoon", "evening", "night"],
+      "description": "The time context for the content"
+    },
+    "timeline": {
+      "type": "object",
+      "description": "Timeline format scenes (ONLY include if format_type is 'timeline')",
+      "properties": {
+        "scenes": {
+          "type": "array",
+          "description": "Array of timeline scenes",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique scene identifier like 'scene_1'"
+              },
+              "duration": {
+                "type": "number",
+                "description": "Duration in seconds"
+              },
+              "text": {
+                "type": "string",
+                "description": "Rich narration with visual description and VEO3 prompt"
+              },
+              "search_keywords": {
+                "type": "array",
+                "description": "English keywords for Pexels search",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 2
+              },
+              "visual_style": {
+                "type": "string",
+                "description": "Complete cinematography description"
+              },
+              "mood": {
+                "type": "string",
+                "description": "Lighting and emotional tone"
+              },
+              "image_prompt": {
+                "type": "string",
+                "description": "Complete VEO3 image generation prompt"
+              }
+            },
+            "required": ["id", "duration", "text", "search_keywords", "visual_style", "mood", "image_prompt"]
+          }
+        }
+      },
+      "required": ["scenes"]
+    },
+    "storyboard": {
+      "type": "array",
+      "description": "Storyboard format shots (ONLY include if format_type is 'storyboard')",
+      "items": {
+        "type": "object",
+        "properties": {
+          "shot": {
+            "type": "number",
+            "description": "Shot number starting from 1"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Duration in seconds"
+          },
+          "audio": {
+            "type": "object",
+            "properties": {
+              "narration": {
+                "type": "string",
+                "description": "Detailed narration with emotional markers"
+              }
+            },
+            "required": ["narration"]
+          },
+          "search_keywords": {
+            "type": "array",
+            "description": "English keywords for Pexels search",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2,
+            "maxItems": 5
+          },
+          "visual_style": {
+            "type": "string",
+            "description": "Complete cinematography description"
+          },
+          "mood": {
+            "type": "string",
+            "description": "Lighting and emotional tone"
+          },
+          "image_prompt": {
+            "type": "string",
+            "description": "Complete VEO3 image generation prompt"
+          }
+        },
+        "required": ["shot", "duration", "audio", "search_keywords", "visual_style", "mood", "image_prompt"]
+      }
+    },
+    "title": {
+      "type": "string",
+      "description": "Engaging video title"
+    },
+    "category": {
+      "type": "string",
+      "description": "Content category"
+    },
+    "language": {
+      "type": "string",
+      "description": "Content language"
+    },
+    "viral_potential": {
+      "type": "number",
+      "description": "Viral potential score from 1-10",
+      "minimum": 1,
+      "maximum": 10
+    },
+    "video_config": {
+      "type": "object",
+      "description": "Video configuration settings",
+      "properties": {
+        "orientation": {
+          "type": "string",
+          "enum": ["portrait", "landscape"],
+          "description": "Video orientation"
+        },
+        "musicVolume": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Background music volume"
+        },
+        "subtitlePosition": {
+          "type": "string",
+          "enum": ["top", "center", "bottom"],
+          "description": "Subtitle position"
+        },
+        "quality": {
+          "type": "string",
+          "enum": ["standard", "high", "premium"],
+          "description": "Video quality"
+        }
+      },
+      "required": ["orientation"]
+    },
+    "elevenlabs_config": {
+      "type": "object",
+      "description": "ElevenLabs TTS configuration",
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "enum": ["eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_turbo_v2_5"],
+          "description": "TTS model to use"
+        },
+        "voice_settings": {
+          "type": "object",
+          "properties": {
+            "stability": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Voice stability"
+            },
+            "similarity_boost": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Voice similarity boost"
+            },
+            "speed": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 2.0,
+              "description": "Speech speed"
+            },
+            "style": {
+              "type": "string",
+              "enum": ["default", "narration", "chat"],
+              "description": "Speaking style"
+            }
+          }
+        },
+        "output_format": {
+          "type": "string",
+          "enum": ["mp3", "pcm", "opus"],
+          "description": "Audio output format"
+        }
+      }
+    }
+  },
+  "required": ["format_type", "target_language", "title", "time_context", "topic_category", "video_config", "elevenlabs_config"]
+}

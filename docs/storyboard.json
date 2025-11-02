@@ -1,0 +1,121 @@
+[
+  {
+    "category": "Learning Methods (학습법)",
+    "language": "english",
+    "viral_potential": 9.2,
+    "format_type": "storyboard",
+    "topic_category": "Learning Methods (학습법)",
+    "target_language": "english",
+    "storyboard": [
+      {
+        "shot": 1,
+        "duration": 4,
+        "audio": {
+          "narration": "(excited) It's 2AM — you can triple how much you remember with one focused 20-minute ritual. (audio: soft keyboard typing, low bass pad)"
+        },
+        "search_keywords": [
+          "night study",
+          "close up notebook"
+        ],
+        "visual_style": "extreme close-up of eyes over an open notebook, 85mm portrait lens, push-in micro-tracking, shallow depth of field with strong bokeh, handheld slight shake for urgency, crisp high-resolution skin and paper texture",
+        "mood": "urgent energy meets intimate warmth; dramatic chiaroscuro from a warm desk lamp against cool city-blue window lights, cinematic warmth grading, subtle film grain",
+        "image_prompt": "visual_style: extreme close-up of a student's eyes and an open notebook at a desk, 85mm portrait lens, handheld push-in micro-tracking, shallow DoF with strong bokeh. mood: urgent energy + intimate warmth with dramatic chiaroscuro lighting from a warm desk lamp and cool blue city lights outside, cinematic warmth color grade, subtle film grain, high-resolution detail. image_prompt: \"Create an extreme close-up of a student's eyes and open notebook beside a warm desk lamp and cool city lights outside, 85mm portrait lens, handheld push-in micro-tracking movement, shallow depth of field, prominent bokeh, dramatic chiaroscuro lighting, cinematic warmth grading, high-resolution texture on skin and paper, professional aesthetic.\""
+      },
+      {
+        "shot": 2,
+        "duration": 6,
+        "audio": {
+          "narration": "(confident) Tip 1 — use a condensed Pomodoro: 20 minutes focused, 5 minutes break. Set a visible timer, close tabs, silence notifications. (audio: soft timer beep, soft keyboard typing)"
+        },
+        "search_keywords": [
+          "pomodoro timer",
+          "desk workspace"
+        ],
+        "visual_style": "extreme close-up of a mechanical timer and hand starting it, 50mm macro lens, rack focus from timer to focused handwriting, shallow DoF, tracking shot across a tidy desk with sticky notes, crisp paper texture",
+        "mood": "professional calm with a purposeful edge; warm key light with a harder fill, cinematic cool accents, high contrast to emphasize focus",
+        "image_prompt": "visual_style: extreme close-up of a hand starting a pomodoro timer on a desk, 50mm macro lens, rack focus from timer to handwriting, shallow depth of field. mood: professional calm with warm key light and hard-edge fill, cinematic cool accents and high contrast. image_prompt: \"Create an extreme close-up of a hand pressing a mechanical timer on a desk next to a notebook and pen, 50mm macro lens, rack focus from timer to handwriting, shallow DoF, tracking movement across the desk, warm desk lamp key light with hard-edge fill, cinematic cool accents, high-resolution detail, professional aesthetic, film grain.\""
+      },
+      {
+        "shot": 3,
+        "duration": 6,
+        "audio": {
+          "narration": "(confident) Tip 2 — active recall wins. Close the book and speak the answer aloud. Use tiny flashcard intervals: review after 1 hour, then 24h, day 3, day 7. (audio: soft page turn, gentle alarm bell)"
+        },
+        "search_keywords": [
+          "flashcards",
+          "student studying"
+        ],
+        "visual_style": "close-up overhead tracking shot of hands shuffling flashcards on a wooden table, 50mm lens with shallow DoF for the top card, subtle tilt and rack focus to reveal written questions and answers, natural texture detail",
+        "mood": "confident, high-clarity learning vibe; soft key light with cool rim light from a window, cinematic neutral grade, crisp contrast to highlight text",
+        "image_prompt": "visual_style: overhead close-up tracking shot of hands shuffling and flipping flashcards on a wooden table, 50mm lens, shallow DoF on the top card, rack focus to reveal question then answer. mood: confident, high-clarity study atmosphere with soft key light and cool rim light, neutral cinematic grade, crisp contrast. image_prompt: \"Create an overhead close-up tracking shot of hands shuffling flashcards on a wooden table, 50mm lens, shallow depth of field with rack focus between cards, clear legible handwriting on cards, soft key light and cool rim light from a window, high-resolution detail, professional study aesthetic.\""
+      },
+      {
+        "shot": 4,
+        "duration": 6,
+        "audio": {
+          "narration": "(confident) Tip 3 — use the Feynman technique: teach the idea in 60 seconds. If you can't explain it simply, you don't fully know it. Record yourself and listen back. (audio: soft voice recorder click)"
+        },
+        "search_keywords": [
+          "recording voice",
+          "student presenting"
+        ],
+        "visual_style": "medium-close handheld shot of a student speaking into a smartphone camera on a tripod, 35mm lens, push-in slowly while they gesture, shallow DoF on the face with blurred background whiteboard, subtle handheld micro movement",
+        "mood": "encouraging, intimate teaching tone; soft warm key light with a cooler fill, filmic warmth, gentle lens flare for authenticity",
+        "image_prompt": "visual_style: medium-close handheld shot of a student explaining to a smartphone camera on a tripod, 35mm lens, slow push-in, shallow depth of field with blurred whiteboard behind. mood: encouraging and intimate with soft warm key light and cool fill, gentle lens flare, cinematic warmth. image_prompt: \"Create a medium-close handheld shot of a student teaching to their smartphone camera, 35mm lens, slow push-in, shallow DoF with blurred whiteboard background, natural gestures, warm key light and cool fill, subtle lens flare, high-resolution skin texture, professional education aesthetic.\""
+      },
+      {
+        "shot": 5,
+        "duration": 6,
+        "audio": {
+          "narration": "(whispered) Tip 4 — sleep consolidates memory. If you're at 2AM, prefer a 20–90 minute nap or prioritize getting 90+ minutes of sleep soon after studying. Turn off caffeine now. (audio: low ambient pad, soft exhale)"
+        },
+        "search_keywords": [
+          "nighttime sleep",
+          "student sleeping"
+        ],
+        "visual_style": "gentle drone overhead tilt-down to a student closing their notebook and turning off a desk lamp, 135mm telephoto compressed perspective, slow pull-out, deep but soft focus on the figure, cinematic film grain",
+        "mood": "reassuring, hushed intimacy; soft rim light from city window, deep shadows, cool-blue grade with warm bedside lamp accent, low contrast for calm",
+        "image_prompt": "visual_style: gentle overhead tilt-down to a student closing a notebook and switching off a desk lamp, 135mm telephoto for compressed perspective, slow pull-out, soft deep focus. mood: reassuring and hushed with cool-blue grade and warm lamp accent, soft rim light, cinematic calm. image_prompt: \"Create a gentle overhead tilt-down to a student closing a notebook and turning off a desk lamp, 135mm telephoto, slow pull-out movement, soft deep focus, cool-blue color grading with warm lamp accent, subtle film grain, high-resolution detail, professional calm aesthetic.\""
+      },
+      {
+        "shot": 6,
+        "duration": 6,
+        "audio": {
+          "narration": "(excited) Try this tonight: 20-minute focus, active recall, one-minute Feynman. Comment what you tested and I'll reply with tweaks. Follow for a 2AM study hack video tomorrow. (audio: upbeat chime, soft keyboard)"
+        },
+        "search_keywords": [
+          "subscribe button",
+          "phone screen"
+        ],
+        "visual_style": "wide tracking-out shot of hands tapping a phone screen to hit subscribe, 24mm wide-angle lens, whip-pan to a sticky note checklist, high depth detail on icons, dynamic lens flare, shallow-to-deep focus shift",
+        "mood": "high-energy call-to-action; vibrant saturation, golden rim light, cinematic punch with subtle film grain and high contrast",
+        "image_prompt": "visual_style: wide tracking-out shot of hands tapping a phone screen to press subscribe, 24mm wide-angle lens, whip-pan to a sticky-note checklist, shallow-to-deep focus shift. mood: high-energy CTA with vibrant saturation, golden rim light and cinematic punch, subtle film grain. image_prompt: \"Create a dynamic wide tracking-out shot of hands tapping a phone screen to press subscribe, 24mm wide-angle lens, whip-pan to a nearby sticky-note checklist with '20/5, recall, Feynman' visible, golden rim light, vibrant color grading, lens flare, high-resolution detail, professional social media CTA aesthetic.\""
+      }
+    ],
+    "title": "2AM Study Routine: 4 Simple Science-Backed Hacks to Remember More",
+    "video_config": {
+      "orientation": "portrait",
+      "musicVolume": "medium",
+      "subtitlePosition": "bottom",
+      "quality": "premium"
+    },
+    "elevenlabs_config": {
+      "model_id": "eleven_multilingual_v2",
+      "voice_settings": {
+        "stability": 0.7,
+        "similarity_boost": 0.8,
+        "speed": 1,
+        "style": "narration"
+      },
+      "output_format": "mp3"
+    },
+    "timeline_id": "1LWbwq8bDoBQbjxc6aRlbvtwguMs8U5lB3dJOKcnL1Xc",
+    "channel_config": {
+      "voice_preference": "21m00Tcm4TlvDq8ikWAM",
+      "veo3_priority": false,
+      "channel_type": "english_global",
+      "channel_name": "Global Success Hub"
+    },
+    "timestamp": "2025-10-16T02:01:19.946Z"
+  }
+]

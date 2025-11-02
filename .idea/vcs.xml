@@ -2,6 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/RAW/short-video-maker" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/short-video-maker" vcs="Git" />
   </component>
 </project>

@@ -1,0 +1,137 @@
+{
+  "type": "object",
+  "oneOf": [
+    {
+      "properties": {
+        "format_type": {"const": "timeline"},
+        "topic_category": {"type": "string"},
+        "target_language": {"type": "string", "enum": ["korean", "english", "japanese", "chinese", "spanish"]},
+        "time_context": {"type": "string", "enum": ["morning", "afternoon", "evening", "night"]},
+        "timeline": {
+          "type": "object",
+          "properties": {
+            "scenes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {"type": "string"},
+                  "duration": {"type": "number"},
+                  "text": {"type": "string"},
+                  "search_keywords": {"type": "array", "items": {"type": "string"}, "minItems": 2},
+                  "visual_style": {"type": "string", "description": "Specific visual description for VEO3 image generation"},
+                  "mood": {"type": "string", "description": "Emotional tone for cinematography"},
+                  "image_prompt": {"type": "string", "description": "Complete prompt for VEO3 image generation"}
+                },
+                "required": ["id", "duration", "text", "search_keywords", "visual_style", "mood", "image_prompt"],
+                "additionalProperties": false
+              },
+              "minItems": 2,
+              "maxItems": 10
+            }
+          },
+          "required": ["scenes"],
+          "additionalProperties": false
+        },
+        "title": {"type": "string"},
+        "category": {"type": "string"},
+        "language": {"type": "string"},
+        "viral_potential": {"type": "number", "minimum": 1, "maximum": 10},
+        "video_config": {
+          "type": "object",
+          "properties": {
+            "orientation": {"type": "string", "enum": ["portrait", "landscape"]},
+            "musicVolume": {"type": "string", "enum": ["low", "medium", "high"]},
+            "subtitlePosition": {"type": "string", "enum": ["top", "center", "bottom"]},
+            "quality": {"type": "string", "enum": ["standard", "high", "premium"]}
+          },
+          "required": ["orientation"]
+        },
+        "elevenlabs_config": {
+          "type": "object",
+          "properties": {
+            "model_id": {"type": "string", "enum": ["eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_turbo_v2_5"]},
+            "voice_settings": {
+              "type": "object",
+              "properties": {
+                "stability": {"type": "number", "minimum": 0, "maximum": 1},
+                "similarity_boost": {"type": "number", "minimum": 0, "maximum": 1},
+                "speed": {"type": "number", "minimum": 0.5, "maximum": 2.0},
+                "style": {"type": "string", "enum": ["default", "narration", "chat"]}
+              }
+            },
+            "output_format": {"type": "string", "enum": ["mp3", "pcm", "opus"]}
+          }
+        }
+      },
+      "required": ["format_type", "timeline", "target_language", "title", "time_context", "topic_category", "video_config", "elevenlabs_config"],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "format_type": {"const": "storyboard"},
+        "topic_category": {"type": "string"},
+        "target_language": {"type": "string", "enum": ["korean", "english", "japanese", "chinese", "spanish"]},
+        "time_context": {"type": "string", "enum": ["morning", "afternoon", "evening", "night"]},
+        "storyboard": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "shot": {"type": "number"},
+              "duration": {"type": "number"},
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "narration": {"type": "string"}
+                },
+                "required": ["narration"],
+                "additionalProperties": false
+              },
+              "search_keywords": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 5},
+              "visual_style": {"type": "string", "description": "Specific visual description for VEO3 image generation"},
+              "mood": {"type": "string", "description": "Emotional tone for cinematography"},
+              "image_prompt": {"type": "string", "description": "Complete prompt for VEO3 image generation"}
+            },
+            "required": ["shot", "duration", "audio", "search_keywords", "visual_style", "mood", "image_prompt"],
+            "additionalProperties": false
+          },
+          "minItems": 2,
+          "maxItems": 10
+        },
+        "title": {"type": "string"},
+        "category": {"type": "string"},
+        "language": {"type": "string"},
+        "viral_potential": {"type": "number", "minimum": 1, "maximum": 10},
+        "video_config": {
+          "type": "object",
+          "properties": {
+            "orientation": {"type": "string", "enum": ["portrait", "landscape"]},
+            "musicVolume": {"type": "string", "enum": ["low", "medium", "high"]},
+            "subtitlePosition": {"type": "string", "enum": ["top", "center", "bottom"]},
+            "quality": {"type": "string", "enum": ["standard", "high", "premium"]}
+          },
+          "required": ["orientation"]
+        },
+        "elevenlabs_config": {
+          "type": "object",
+          "properties": {
+            "model_id": {"type": "string", "enum": ["eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_turbo_v2_5"]},
+            "voice_settings": {
+              "type": "object",
+              "properties": {
+                "stability": {"type": "number", "minimum": 0, "maximum": 1},
+                "similarity_boost": {"type": "number", "minimum": 0, "maximum": 1},
+                "speed": {"type": "number", "minimum": 0.5, "maximum": 2.0},
+                "style": {"type": "string", "enum": ["default", "narration", "chat"]}
+              }
+            },
+            "output_format": {"type": "string", "enum": ["mp3", "pcm", "opus"]}
+          }
+        }
+      },
+      "required": ["format_type", "storyboard", "target_language", "title", "time_context", "topic_category", "video_config", "elevenlabs_config"],
+      "additionalProperties": false
+    }
+  ]
+}

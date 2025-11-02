@@ -1,5 +1,5 @@
 import { google, youtube_v3 } from 'googleapis';
-import type { OAuth2Client } from 'googleapis-common';
+import type { OAuth2Client } from 'google-auth-library';
 import fs from 'fs-extra';
 import path from 'path';
 import { logger } from '../../logger';

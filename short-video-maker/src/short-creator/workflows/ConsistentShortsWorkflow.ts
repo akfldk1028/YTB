@@ -203,13 +203,16 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
             // VEO3 I2V generation
             const videoPrompt = scene.videoPrompt || scene.text || `Scene ${i + 1}`;
+            const duration = imageData.duration || scenes[i]?.audio?.duration || 8;
 
             const video = await this.veoAPI.findVideo(
               [videoPrompt],
-              imageData.duration,
-              [],
-              context.orientation,
-              {
+              duration,          // minDurationSeconds (number)
+              [],                // excludeIds
+              context.orientation, // orientation
+              300000,            // timeout (5 minutes)
+              0,                 // retryCounter
+              {                  // initialImage for I2V
                 data: imageBase64,
                 mimeType: "image/png"
               }
@@ -251,10 +254,13 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             finalVideoPath
           );
 
+          // Calculate total duration
+          const totalDuration = this.calculateTotalDuration(scenes);
+
           return {
-            success: true,
-            videoPath: finalVideoPath,
-            mode: "consistent-shorts-veo3"
+            outputPath: finalVideoPath,
+            duration: totalDuration,
+            scenes
           };
 
         } else {
@@ -292,10 +298,13 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             finalVideoPath
           );
 
+          // Calculate total duration
+          const totalDuration = this.calculateTotalDuration(scenes);
+
           return {
-            success: true,
-            videoPath: finalVideoPath,
-            mode: "consistent-shorts-static"
+            outputPath: finalVideoPath,
+            duration: totalDuration,
+            scenes
           };
         }
 
@@ -306,10 +315,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
     } catch (error) {
       logger.error({ error }, "Failed to process Consistent Shorts workflow");
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
-      };
+      throw error;
     }
   }
 }

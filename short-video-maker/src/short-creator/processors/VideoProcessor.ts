@@ -349,4 +349,102 @@ export class VideoProcessor {
   createVideoTempDir(videoId: string): string {
     return path.join(this.config.tempDirPath, videoId);
   }
+
+  getConfig(): VideoProcessingConfig {
+    return this.config;
+  }
+
+  async downloadVideo(url: string, outputPath: string): Promise<void> {
+    try {
+      logger.debug({ url, outputPath }, "Downloading video from URL");
+
+      const https = await import('https');
+      const http = await import('http');
+
+      return new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(outputPath);
+        const protocol = url.startsWith('https') ? https : http;
+
+        protocol.get(url, (response) => {
+          if (response.statusCode !== 200) {
+            reject(new Error(`Failed to download video: ${response.statusCode}`));
+            return;
+          }
+
+          response.pipe(file);
+
+          file.on('finish', () => {
+            file.close();
+            logger.info({ outputPath }, "✅ Video downloaded successfully");
+            resolve();
+          });
+
+          file.on('error', (err) => {
+            fs.unlink(outputPath, () => {});
+            reject(err);
+          });
+        }).on('error', (err) => {
+          fs.unlink(outputPath, () => {});
+          reject(err);
+        });
+      });
+    } catch (error) {
+      logger.error(error, "Failed to download video");
+      throw new Error(`Video download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async combineVideoClips(videoPaths: string[], outputPath: string): Promise<void> {
+    try {
+      logger.debug({ videoPaths, outputPath }, "Combining video clips");
+      await this.ffmpeg.concatVideos(videoPaths, outputPath);
+      logger.info({ outputPath }, "✅ Video clips combined successfully");
+    } catch (error) {
+      logger.error(error, "Failed to combine video clips");
+      throw new Error(`Video clips combination failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async combineVideoWithAudio(
+    videoPath: string,
+    audioPaths: string[],
+    outputPath: string
+  ): Promise<void> {
+    try {
+      logger.debug({ videoPath, audioPaths, outputPath }, "Combining video with audio");
+
+      // First concatenate all audio files if there are multiple
+      let finalAudioPath: string;
+      if (audioPaths.length === 0) {
+        throw new Error("No audio files provided");
+      } else if (audioPaths.length === 1) {
+        finalAudioPath = audioPaths[0];
+      } else {
+        const tempAudioPath = path.join(
+          this.config.tempDirPath,
+          `temp_audio_${cuid()}.mp3`
+        );
+        await this.ffmpeg.concatAudios(audioPaths, tempAudioPath);
+        finalAudioPath = tempAudioPath;
+      }
+
+      // Combine video with the final audio
+      await this.ffmpeg.replaceVideoAudio(
+        videoPath,
+        finalAudioPath,
+        outputPath,
+        0 // Duration will be auto-detected
+      );
+
+      logger.info({ outputPath }, "✅ Video combined with audio successfully");
+
+      // Clean up temp audio file if created
+      if (audioPaths.length > 1) {
+        fs.unlinkSync(finalAudioPath);
+      }
+    } catch (error) {
+      logger.error(error, "Failed to combine video with audio");
+      throw new Error(`Video-audio combination failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
