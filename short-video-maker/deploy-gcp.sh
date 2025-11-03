@@ -89,6 +89,7 @@ REQUIRED_APIS=(
     "run.googleapis.com"
     "secretmanager.googleapis.com"
     "containerregistry.googleapis.com"
+    "storage.googleapis.com"
 )
 
 for api in "${REQUIRED_APIS[@]}"; do
@@ -129,6 +130,38 @@ docker push "$IMAGE_FULL"
 docker push "$IMAGE_LATEST"
 
 log_success "Docker image pushed to GCR"
+
+# ============================================================================
+# Setup GCS Bucket and Permissions
+# ============================================================================
+
+log_info "Setting up GCS bucket and permissions..."
+
+GCS_BUCKET_NAME="dkdk-474008-short-videos"
+
+# Check if bucket exists, create if not
+if ! gsutil ls -b "gs://$GCS_BUCKET_NAME" &>/dev/null; then
+    log_warning "GCS bucket $GCS_BUCKET_NAME does not exist, creating..."
+    gsutil mb -p "$PROJECT_ID" -c STANDARD -l "$REGION" "gs://$GCS_BUCKET_NAME"
+    log_success "GCS bucket created: $GCS_BUCKET_NAME"
+else
+    log_success "GCS bucket $GCS_BUCKET_NAME already exists"
+fi
+
+# Get the default Cloud Run service account
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+SERVICE_ACCOUNT="$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+
+log_info "Granting Storage Object Admin permissions to $SERVICE_ACCOUNT..."
+
+# Grant Storage Object Admin role to the service account for the bucket
+gsutil iam ch "serviceAccount:$SERVICE_ACCOUNT:roles/storage.objectAdmin" "gs://$GCS_BUCKET_NAME" 2>/dev/null || \
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$SERVICE_ACCOUNT" \
+    --role="roles/storage.objectAdmin" \
+    --condition=None
+
+log_success "GCS permissions configured"
 
 # ============================================================================
 # Check Secrets
