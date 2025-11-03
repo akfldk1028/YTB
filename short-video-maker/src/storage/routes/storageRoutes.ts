@@ -11,7 +11,7 @@ export function createStorageRoutes(config: Config): express.Router {
   const router = express.Router();
 
   // Only initialize GCS service if configured
-  if (!config.gcsBucketName || !config.gcsServiceAccountPath) {
+  if (!config.gcsBucketName) {
     logger.warn('GCS not configured - storage routes will return errors');
 
     router.use((req: ExpressRequest, res: ExpressResponse) => {
