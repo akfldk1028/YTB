@@ -12,6 +12,8 @@ export interface CallbackData {
   status: 'completed' | 'failed' | 'processing';
   error?: unknown;
   errorType?: string;
+  gcsUrl?: string;
+  gcsSignedUrl?: string;
 }
 
 export interface CallbackConfig {
@@ -38,21 +40,9 @@ export class CallbackManager {
       const videoPath = this.getVideoPath(data.videoId);
       const videoStats = fs.existsSync(videoPath) ? fs.statSync(videoPath) : null;
 
-      // Upload to GCS if service is available and video completed successfully
-      let gcsUrl: string | undefined;
-      let gcsSignedUrl: string | undefined;
-      if (this.gcsService && data.status === 'completed' && fs.existsSync(videoPath)) {
-        logger.info({ videoId: data.videoId }, "Uploading video to Google Cloud Storage");
-        const uploadResult = await this.gcsService.uploadVideo(data.videoId, videoPath);
-
-        if (uploadResult.success) {
-          gcsUrl = uploadResult.publicUrl;
-          gcsSignedUrl = uploadResult.signedUrl;
-          logger.info({ videoId: data.videoId, gcsUrl }, "Video uploaded to GCS successfully");
-        } else {
-          logger.error({ videoId: data.videoId, error: uploadResult.error }, "Failed to upload video to GCS");
-        }
-      }
+      // GCS URLs are now passed from processVideo method via CallbackData
+      const gcsUrl = data.gcsUrl;
+      const gcsSignedUrl = data.gcsSignedUrl;
 
       const result = this.buildCallbackPayload(data, videoStats, gcsUrl, gcsSignedUrl);
 

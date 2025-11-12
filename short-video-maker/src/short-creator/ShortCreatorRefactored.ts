@@ -230,18 +230,42 @@ export class ShortCreatorRefactored {
   }
 
   private async processVideo(item: QueueItem): Promise<void> {
+    // Declare GCS URLs at method level so they're accessible in catch block
+    let gcsUrl: string | undefined;
+    let gcsSignedUrl: string | undefined;
+
     try {
       await this.createShort(item.id, item.sceneInput, item.config, item.metadata);
       logger.debug({ id: item.id }, "Video created successfully");
 
-      // Send success callback
+      // Always upload to GCS if service is available (independent of callback)
+      if (this.gcsService) {
+        const videoPath = this.statusManager.getVideoPath(item.id);
+        try {
+          logger.info({ videoId: item.id }, "Uploading video to Google Cloud Storage");
+          const uploadResult = await this.gcsService.uploadVideo(item.id, videoPath);
+          if (uploadResult.success) {
+            gcsUrl = uploadResult.publicUrl;
+            gcsSignedUrl = uploadResult.signedUrl;
+            logger.info({ videoId: item.id, gcsUrl, gcsSignedUrl }, "✅ Video uploaded to GCS successfully");
+          } else {
+            logger.error({ videoId: item.id, error: uploadResult.error }, "❌ Failed to upload video to GCS");
+          }
+        } catch (gcsError: unknown) {
+          logger.error({ videoId: item.id, error: gcsError }, "❌ GCS upload error");
+        }
+      }
+
+      // Send success callback if URL provided
       if (item.callbackUrl) {
         await this.callbackManager.sendCompletionCallback(item.callbackUrl, {
           videoId: item.id,
           sceneInput: item.sceneInput,
           config: item.config,
           originalMetadata: item.metadata,
-          status: 'completed'
+          status: 'completed',
+          gcsUrl,
+          gcsSignedUrl
         });
       }
 
@@ -288,7 +312,9 @@ export class ShortCreatorRefactored {
           originalMetadata: item.metadata,
           status: 'failed',
           error,
-          errorType
+          errorType,
+          gcsUrl,
+          gcsSignedUrl
         });
       }
       throw error; // Re-throw for queue handling

@@ -1,0 +1,45 @@
+# Ignore node_modules but include everything else needed for build
+node_modules/
+.pnpm-store/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build outputs (will be generated)
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Env files
+.env.local
+.env.*.local
+
+# Test files
+coverage/
+.nyc_output/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+.cache/
+
+# Data directories
+data/
+videos/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -4,5 +4,5 @@
     "outDir": "./dist"
   },
   "include": ["src/**/*"],
-  "exclude": ["**/*.test.ts", "src/ui", "src/short-creator/deprecated"]
+  "exclude": ["**/*.test.ts", "src/ui", "src/components", "src/short-creator/deprecated"]
 }
