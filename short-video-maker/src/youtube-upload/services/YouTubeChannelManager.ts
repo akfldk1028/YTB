@@ -9,6 +9,7 @@ import {
   YouTubeChannelConfig,
   YouTubeTokens,
 } from '../types/youtube';
+import { YouTubeSecretManager } from './YouTubeSecretManager';
 
 /**
  * YouTube Channel Manager
@@ -18,6 +19,7 @@ export class YouTubeChannelManager {
   private config: Config;
   private channelsConfigPath: string;
   private channelsConfig: YouTubeChannelConfig;
+  private secretManager: YouTubeSecretManager;
 
   constructor(config: Config) {
     this.config = config;
@@ -26,6 +28,7 @@ export class YouTubeChannelManager {
       'youtube-channels.json'
     );
     this.channelsConfig = this.loadChannelsConfig();
+    this.secretManager = new YouTubeSecretManager(config);
   }
 
   /**
@@ -219,7 +222,7 @@ export class YouTubeChannelManager {
   /**
    * Save tokens for a specific channel
    */
-  public saveTokens(channelName: string, tokens: YouTubeTokens): void {
+  public async saveTokens(channelName: string, tokens: YouTubeTokens): Promise<void> {
     try {
       const tokensPath = this.getTokensPath(channelName);
       fs.writeJsonSync(tokensPath, tokens, { spaces: 2 });
@@ -230,6 +233,14 @@ export class YouTubeChannelManager {
       if (channel) {
         channel.authenticated = true;
         this.saveChannelsConfig();
+      }
+
+      // Backup tokens to Secret Manager (Cloud Run only)
+      if (this.secretManager.isEnabled()) {
+        // Run in background to avoid blocking
+        this.secretManager.updateYouTubeDataSecret().catch(error => {
+          logger.warn({ error, channelName }, 'Secret Manager backup failed (non-fatal)');
+        });
       }
     } catch (error) {
       logger.error({ error, channelName }, 'Failed to save channel tokens');

@@ -49,6 +49,7 @@
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@google-cloud/secret-manager": "^6.1.1",
     "@google-cloud/storage": "^7.17.2",
     "@google-cloud/text-to-speech": "^6.3.0",
     "@google/genai": "^1.21.0",
