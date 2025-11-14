@@ -56,7 +56,11 @@ export class PexelsAPIRouter {
             input.scenes,
             input.config,
             callbackUrl,
-            { ...processedData.metadata, mode: "pexels" }
+            {
+              ...processedData.metadata,
+              mode: "pexels",
+              youtubeUpload: req.body.youtubeUpload || processedData.metadata?.youtubeUpload
+            }
           );
           
           logger.info({ videoId, mode: "pexels" }, "PEXELS-only video queued");

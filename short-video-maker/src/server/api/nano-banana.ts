@@ -63,7 +63,11 @@ export class NanoBananaAPIRouter {
             input.scenes,
             input.config,
             callbackUrl,
-            { ...processedData.metadata, mode: "nano-banana" }
+            {
+              ...processedData.metadata,
+              mode: "nano-banana",
+              youtubeUpload: req.body.youtubeUpload || processedData.metadata?.youtubeUpload
+            }
           );
           
           logger.info({ videoId, mode: "nano-banana" }, "NANO BANANA-only video queued");
@@ -145,7 +149,11 @@ export class NanoBananaAPIRouter {
             input.scenes,
             input.config,
             callbackUrl,
-            { ...processedData.metadata, mode: "nano-banana-to-veo3" }
+            {
+              ...processedData.metadata,
+              mode: "nano-banana-to-veo3",
+              youtubeUpload: req.body.youtubeUpload || processedData.metadata?.youtubeUpload
+            }
           );
 
           logger.info({ videoId, mode: "nano-banana-to-veo3" }, "NANO BANANA → VEO3 video queued");

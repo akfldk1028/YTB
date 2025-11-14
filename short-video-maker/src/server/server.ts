@@ -13,6 +13,8 @@ import { PexelsAPIRouter } from "./api/pexels";
 import { NanoBananaAPIRouter } from "./api/nano-banana";
 import { VEO3APIRouter } from "./api/veo3";
 import { ConsistentShortsAPIRouter } from "./api/consistent-shorts";
+import { YouTubeRoutes } from "../youtube-upload/routes/youtubeRoutes";
+import { YouTubeUploader } from "../youtube-upload/services/YouTubeUploader";
 import { logger } from "../logger";
 import { Config } from "../config";
 
@@ -20,7 +22,7 @@ export class Server {
   private app: express.Application;
   private config: Config;
 
-  constructor(config: Config, shortCreator: ShortCreator) {
+  constructor(config: Config, shortCreator: ShortCreator, youtubeUploader?: YouTubeUploader) {
     this.config = config;
     this.app = express();
 
@@ -32,7 +34,7 @@ export class Server {
     const apiRouter = new APIRouter(config, shortCreator);
     const mcpRouter = new MCPRouter(shortCreator);
     const imageRoutes = new ImageRoutes(config);
-    
+
     // Mode-specific API routers
     const pexelsAPIRouter = new PexelsAPIRouter(config, shortCreator);
     const nanoBananaAPIRouter = new NanoBananaAPIRouter(config, shortCreator);
@@ -48,6 +50,15 @@ export class Server {
     this.app.use("/api/video/nano-banana", nanoBananaAPIRouter.router);
     this.app.use("/api/video/veo3", veo3APIRouter.router);
     this.app.use("/api/video/consistent-shorts", consistentShortsAPIRouter.router);
+
+    // Mount YouTube upload routes if uploader is available
+    if (youtubeUploader) {
+      const youtubeRoutes = new YouTubeRoutes(config, youtubeUploader);
+      this.app.use("/api/youtube", youtubeRoutes.router);
+      logger.info("YouTube upload routes mounted at /api/youtube");
+    } else {
+      logger.warn("YouTube uploader not available - upload routes not mounted");
+    }
 
     // Serve static files from the UI build
     this.app.use(express.static(path.join(__dirname, "../../dist/ui")));

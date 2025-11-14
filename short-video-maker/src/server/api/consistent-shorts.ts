@@ -145,7 +145,8 @@ export class ConsistentShortsAPIRouter {
               characterDescription: character.description,
               characterStyle: character.style,
               useReferenceSet: config?.useReferenceSet || false,
-              generateVideos: config?.generateVideos || false
+              generateVideos: config?.generateVideos || false,
+              youtubeUpload: req.body.youtubeUpload
             }
           );
 

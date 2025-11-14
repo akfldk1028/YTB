@@ -57,6 +57,7 @@ export class VEO3APIRouter {
           const metadata = {
             ...processedData.metadata,
             mode: "veo3",
+            youtubeUpload: req.body.youtubeUpload || processedData.metadata?.youtubeUpload,
             channel_config: {
               ...processedData.metadata?.channel_config,
               veo3_priority: true // Force VEO3 priority

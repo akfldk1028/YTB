@@ -13,6 +13,7 @@ import { LeonardoAI } from "./short-creator/libraries/LeonardoAI";
 import { ImageGenerationService } from "./image-generation/services/ImageGenerationService";
 import { ImageModelType } from "./image-generation/models/imageModels";
 import { GoogleCloudStorageService } from "./storage/GoogleCloudStorageService";
+import { YouTubeUploader } from "./youtube-upload/services/YouTubeUploader";
 import { Config } from "./config";
 import { ShortCreator } from "./short-creator";
 import { logger } from "./logger";
@@ -26,6 +27,28 @@ async function main() {
   } catch (err: unknown) {
     logger.error(err, "Error in config");
     process.exit(1);
+  }
+
+  // Cloud Run: Write YouTube secrets from environment variables to files
+  if (process.env.DOCKER === "true") {
+    try {
+      if (process.env.YOUTUBE_CLIENT_SECRET && !fs.existsSync(config.youtubeClientSecretPath)) {
+        logger.debug("Writing YouTube client secret from environment variable to file");
+        fs.ensureDirSync(path.dirname(config.youtubeClientSecretPath));
+        fs.writeFileSync(config.youtubeClientSecretPath, process.env.YOUTUBE_CLIENT_SECRET);
+        logger.info({ path: config.youtubeClientSecretPath }, "YouTube client secret written");
+      }
+
+      const youtubeChannelsPath = path.join(config.dataDirPath, "youtube-channels.json");
+      if (process.env.YOUTUBE_CHANNELS_TOKEN && !fs.existsSync(youtubeChannelsPath)) {
+        logger.debug("Writing YouTube channels token from environment variable to file");
+        fs.ensureDirSync(path.dirname(youtubeChannelsPath));
+        fs.writeFileSync(youtubeChannelsPath, process.env.YOUTUBE_CHANNELS_TOKEN);
+        logger.info({ path: youtubeChannelsPath }, "YouTube channels token written");
+      }
+    } catch (err: unknown) {
+      logger.warn(err, "Error writing YouTube secrets to files, YouTube upload may not work");
+    }
   }
 
   const musicManager = new MusicManager(config);
@@ -108,6 +131,16 @@ async function main() {
     logger.info("GCS_BUCKET_NAME not configured, videos will be stored locally only");
   }
 
+  // Initialize YouTube Uploader service
+  let youtubeUploader: YouTubeUploader | null = null;
+  try {
+    logger.debug("initializing youtube uploader service");
+    youtubeUploader = new YouTubeUploader(config);
+    logger.info("YouTube uploader service initialized successfully");
+  } catch (error: unknown) {
+    logger.warn(error, "YouTube uploader service not initialized - check YOUTUBE_CLIENT_SECRET_PATH configuration");
+  }
+
   logger.debug("initializing the short creator");
   const shortCreator = new ShortCreator(
     config,
@@ -120,6 +153,9 @@ async function main() {
     leonardoApi || undefined,
     imageGenerationService || undefined,
     gcsService || undefined,
+    undefined, // workflowManager
+    undefined, // webhookManager
+    youtubeUploader || undefined
   );
 
   if (!config.runningInDocker) {
@@ -150,7 +186,7 @@ async function main() {
   }
 
   logger.debug("initializing the server");
-  const server = new Server(config, shortCreator);
+  const server = new Server(config, shortCreator, youtubeUploader || undefined);
   const app = server.start();
 
   // todo add shutdown handler
