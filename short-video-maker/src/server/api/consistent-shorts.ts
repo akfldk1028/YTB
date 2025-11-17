@@ -127,8 +127,10 @@ export class ConsistentShortsAPIRouter {
               musicVolume: config?.musicVolume || "low",
               subtitlePosition: config?.subtitlePosition || "bottom",
 
-              // Video source: VEO3 if generateVideos=true, else static ffmpeg
-              videoSource: config?.generateVideos ? "veo" : "ffmpeg",
+              // IMPORTANT: Always use "ffmpeg" for consistent shorts
+              // The ConsistentShortsWorkflow handles NANO BANANA image generation internally
+              // and optionally converts to VEO3 if metadata.generateVideos=true
+              videoSource: "ffmpeg",
 
               ...config
             }

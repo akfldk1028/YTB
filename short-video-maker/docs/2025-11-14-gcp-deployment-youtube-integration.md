@@ -92,37 +92,39 @@ Created version [1] of the secret [YOUTUBE_CLIENT_SECRET].
 
 ---
 
-### 1-2. YouTube Channels Token 생성
+### 1-2. YouTube Data Archive 생성
 
-**파일 위치:** `/home/akfldk1028/.ai-agents-az-video-generator/youtube-channels.json`
+**필요 파일들:**
+- `/home/akfldk1028/.ai-agents-az-video-generator/youtube-channels.json` - 채널 설정
+- `/home/akfldk1028/.ai-agents-az-video-generator/youtube-tokens-main_channel.json` - main_channel 토큰
+- `/home/akfldk1028/.ai-agents-az-video-generator/youtube-tokens-att_channel.json` - att_channel 토큰
+
+**중요:** YouTube 인증 시스템은 개별 채널마다 별도의 토큰 파일(`youtube-tokens-{channelName}.json`)을 요구합니다.
 
 ```bash
-# Secret Manager에 YouTube channels token 생성
-gcloud secrets create YOUTUBE_CHANNELS_TOKEN \
-  --data-file=/home/akfldk1028/.ai-agents-az-video-generator/youtube-channels.json \
+# 1. YouTube 파일들을 tar.gz로 압축
+cd ~/.ai-agents-az-video-generator && \
+tar czf /tmp/youtube-data.tar.gz youtube-channels.json youtube-tokens-*.json
+
+# 2. base64로 인코딩 (Cloud Run 환경 변수는 UTF-8만 지원)
+base64 /tmp/youtube-data.tar.gz > /tmp/youtube-data-base64.txt
+
+# 3. Secret Manager에 YouTube data 생성
+gcloud secrets create YOUTUBE_DATA \
+  --data-file=/tmp/youtube-data-base64.txt \
   --project=dkdk-474008
 ```
 
 **출력:**
 ```
-Created version [1] of the secret [YOUTUBE_CHANNELS_TOKEN].
+Created version [1] of the secret [YOUTUBE_DATA].
 ```
 
 **설명:**
-- 인증된 YouTube 채널의 OAuth2 access token과 refresh token이 포함된 파일
-- 로컬에서 `POST /api/youtube/auth/callback`으로 인증 완료 후 생성된 파일
-- 채널 정보 예시:
-  ```json
-  {
-    "MainChannel": {
-      "access_token": "ya29.a0...",
-      "refresh_token": "1//0g...",
-      "scope": "https://www.googleapis.com/auth/youtube.upload",
-      "token_type": "Bearer",
-      "expiry_date": 1731589943585
-    }
-  }
-  ```
+- `youtube-channels.json`: 채널 메타데이터 및 인증 상태
+- `youtube-tokens-{channelName}.json`: 각 채널별 OAuth2 토큰 (access_token, refresh_token)
+- Cloud Run에서 base64 디코딩 후 tar.gz 추출하여 모든 파일 복원
+- 채널 예시: `main_channel`, `att_channel` (언더스코어 사용)
 
 ---
 
@@ -136,13 +138,17 @@ gcloud secrets list --project=dkdk-474008 | grep -i youtube
 **출력:**
 ```
 YOUTUBE_CLIENT_SECRET    1       2025-11-14T13:22:15
-YOUTUBE_CHANNELS_TOKEN   1       2025-11-14T13:23:08
+YOUTUBE_DATA             1       2025-11-14T21:00:05
 ```
 
 **기존 secrets:**
 - `PEXELS_API_KEY` - Pexels 영상 검색용
 - `GOOGLE_GEMINI_API_KEY` - NANO BANANA 이미지 생성 및 VEO3 영상 생성용
 - `GOOGLE_CLOUD_PROJECT_ID` - GCP 프로젝트 ID
+
+**신규 secrets:**
+- `YOUTUBE_CLIENT_SECRET` - YouTube OAuth2 client secret
+- `YOUTUBE_DATA` - YouTube 채널 데이터 아카이브 (channels.json + tokens)
 
 ---
 
@@ -160,7 +166,7 @@ YOUTUBE_CHANNELS_TOKEN   1       2025-11-14T13:23:08
 
 **변경 후:**
 ```bash
---set-secrets "PEXELS_API_KEY=PEXELS_API_KEY:latest,GOOGLE_GEMINI_API_KEY=GOOGLE_GEMINI_API_KEY:latest,GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest,YOUTUBE_CHANNELS_TOKEN=YOUTUBE_CHANNELS_TOKEN:latest" \
+--set-secrets "PEXELS_API_KEY=PEXELS_API_KEY:latest,GOOGLE_GEMINI_API_KEY=GOOGLE_GEMINI_API_KEY:latest,GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest,YOUTUBE_DATA=YOUTUBE_DATA:latest" \
 ```
 
 **변경 명령어:**
@@ -187,7 +193,7 @@ nano deploy-gcp.sh
 
 **변경 후:**
 ```yaml
-- 'PEXELS_API_KEY=PEXELS_API_KEY:latest,GOOGLE_GEMINI_API_KEY=GOOGLE_GEMINI_API_KEY:latest,GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest,YOUTUBE_CHANNELS_TOKEN=YOUTUBE_CHANNELS_TOKEN:latest'
+- 'PEXELS_API_KEY=PEXELS_API_KEY:latest,GOOGLE_GEMINI_API_KEY=GOOGLE_GEMINI_API_KEY:latest,GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest,YOUTUBE_DATA=YOUTUBE_DATA:latest'
 ```
 
 **변경 명령어:**

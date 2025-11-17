@@ -32,6 +32,7 @@ async function main() {
   // Cloud Run: Write YouTube secrets from environment variables to files
   if (process.env.DOCKER === "true") {
     try {
+      // 1. Write YouTube client secret
       if (process.env.YOUTUBE_CLIENT_SECRET && !fs.existsSync(config.youtubeClientSecretPath)) {
         logger.debug("Writing YouTube client secret from environment variable to file");
         fs.ensureDirSync(path.dirname(config.youtubeClientSecretPath));
@@ -39,12 +40,26 @@ async function main() {
         logger.info({ path: config.youtubeClientSecretPath }, "YouTube client secret written");
       }
 
-      const youtubeChannelsPath = path.join(config.dataDirPath, "youtube-channels.json");
-      if (process.env.YOUTUBE_CHANNELS_TOKEN && !fs.existsSync(youtubeChannelsPath)) {
-        logger.debug("Writing YouTube channels token from environment variable to file");
-        fs.ensureDirSync(path.dirname(youtubeChannelsPath));
-        fs.writeFileSync(youtubeChannelsPath, process.env.YOUTUBE_CHANNELS_TOKEN);
-        logger.info({ path: youtubeChannelsPath }, "YouTube channels token written");
+      // 2. Extract YouTube data archive (channels.json + tokens-*.json)
+      if (process.env.YOUTUBE_DATA) {
+        const youtubeChannelsPath = path.join(config.dataDirPath, "youtube-channels.json");
+        if (!fs.existsSync(youtubeChannelsPath)) {
+          logger.debug("Extracting YouTube data archive");
+          const { execSync } = require("child_process");
+          const tarPath = "/tmp/youtube-data.tar.gz";
+
+          // Write tar.gz to temp file
+          fs.writeFileSync(tarPath, Buffer.from(process.env.YOUTUBE_DATA, "base64"));
+
+          // Extract to data directory
+          fs.ensureDirSync(config.dataDirPath);
+          execSync(`tar xzf ${tarPath} -C ${config.dataDirPath}`);
+
+          logger.info({ path: config.dataDirPath }, "YouTube data extracted from archive");
+
+          // Clean up
+          fs.unlinkSync(tarPath);
+        }
       }
     } catch (err: unknown) {
       logger.warn(err, "Error writing YouTube secrets to files, YouTube upload may not work");
