@@ -58,7 +58,9 @@ export class SingleSceneWorkflow extends BaseWorkflow {
           scene.video,
           scene.audio.url,
           finalDuration,
-          outputPath
+          outputPath,
+          scene.captions || [],
+          context.orientation
         );
         return {
           outputPath: result.outputPath,

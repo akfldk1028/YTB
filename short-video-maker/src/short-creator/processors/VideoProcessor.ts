@@ -101,10 +101,12 @@ export class VideoProcessor {
     videoUrl: string,
     audioUrl: string,
     audioDuration: number,
-    outputPath: string
+    outputPath: string,
+    captions: any[] = [],
+    orientation?: OrientationEnum
   ): Promise<VideoProcessingResult> {
     try {
-      logger.info({ videoUrl, audioUrl, outputPath }, "Replacing VEO3 audio with TTS audio");
+      logger.info({ videoUrl, audioUrl, outputPath, captionCount: captions.length }, "Replacing VEO3 audio with TTS audio");
 
       // Extract file names from URLs
       const videoFileName = videoUrl.split('/').pop();
@@ -121,15 +123,50 @@ export class VideoProcessor {
         throw new Error(`Temp audio file not found: ${tempAudioPath}`);
       }
 
-      // Strip VEO3 audio and add TTS audio
-      await this.ffmpeg.replaceVideoAudio(
-        tempVideoPath,
-        tempAudioPath,
-        outputPath,
-        audioDuration
-      );
+      // If captions are provided, we need a 2-step process:
+      // 1. Replace audio → temp file
+      // 2. Add captions → final output
+      if (captions && captions.length > 0 && orientation) {
+        logger.info({ captionCount: captions.length }, "Adding captions to VEO3 video with replaced audio");
 
-      logger.info({ outputPath }, "✅ VEO3 video audio replaced with TTS");
+        // Create temp file for audio replacement
+        const tempOutputPath = path.join(this.config.tempDirPath, `veo3_audio_replaced_${Date.now()}.mp4`);
+
+        // Step 1: Replace audio
+        await this.ffmpeg.replaceVideoAudio(
+          tempVideoPath,
+          tempAudioPath,
+          tempOutputPath,
+          audioDuration
+        );
+
+        // Step 2: Add captions
+        await this.ffmpeg.addSubtitlesToVideo(
+          tempOutputPath,
+          outputPath,
+          captions,
+          orientation
+        );
+
+        // Clean up temp file
+        try {
+          fs.unlinkSync(tempOutputPath);
+        } catch (cleanupError) {
+          logger.warn({ cleanupError }, "Failed to cleanup temp video file");
+        }
+
+        logger.info({ outputPath }, "✅ VEO3 video audio replaced with TTS and captions added");
+      } else {
+        // No captions: simple audio replacement
+        await this.ffmpeg.replaceVideoAudio(
+          tempVideoPath,
+          tempAudioPath,
+          outputPath,
+          audioDuration
+        );
+
+        logger.info({ outputPath }, "✅ VEO3 video audio replaced with TTS");
+      }
 
       return {
         outputPath,
