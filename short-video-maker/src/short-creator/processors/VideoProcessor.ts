@@ -391,9 +391,9 @@ export class VideoProcessor {
     return this.config;
   }
 
-  async downloadVideo(url: string, outputPath: string): Promise<void> {
+  async downloadVideo(url: string, outputPath: string, maxRedirects = 5): Promise<void> {
     try {
-      logger.debug({ url, outputPath }, "Downloading video from URL");
+      logger.debug({ url, outputPath, maxRedirects }, "Downloading video from URL");
 
       const https = await import('https');
       const http = await import('http');
@@ -403,6 +403,29 @@ export class VideoProcessor {
         const protocol = url.startsWith('https') ? https : http;
 
         protocol.get(url, (response) => {
+          // Handle redirects (301, 302, 303, 307, 308)
+          if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+            if (maxRedirects === 0) {
+              reject(new Error(`Too many redirects while downloading video`));
+              return;
+            }
+
+            file.close();
+            fs.unlink(outputPath, () => {});
+
+            logger.debug({
+              statusCode: response.statusCode,
+              location: response.headers.location,
+              remainingRedirects: maxRedirects - 1
+            }, "Following redirect");
+
+            // Follow redirect recursively
+            this.downloadVideo(response.headers.location, outputPath, maxRedirects - 1)
+              .then(resolve)
+              .catch(reject);
+            return;
+          }
+
           if (response.statusCode !== 200) {
             reject(new Error(`Failed to download video: ${response.statusCode}`));
             return;
