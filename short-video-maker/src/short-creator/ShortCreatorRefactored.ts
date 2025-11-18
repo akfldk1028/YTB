@@ -159,12 +159,17 @@ export class ShortCreatorRefactored {
         this.imageGenerationService,
         this.googleVeoApi
       );
+      logger.info({ hasVeoApi: true }, "ConsistentShortsWorkflow initialized WITH VeoAPI");
     } else if (this.imageGenerationService) {
       // Can work without VEO3 too (for static videos)
       this.consistentShortsWorkflow = new ConsistentShortsWorkflow(
         this.videoProcessor,
         this.imageGenerationService
       );
+      logger.warn({
+        hasImageGen: !!this.imageGenerationService,
+        hasVeoApi: !!this.googleVeoApi
+      }, "ConsistentShortsWorkflow initialized WITHOUT VeoAPI (VEO3 I2V will be skipped)");
     }
   }
 

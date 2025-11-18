@@ -112,6 +112,14 @@ async function main() {
     }
   }
 
+  // Debug logging for VeoAPI initialization
+  logger.info({
+    videoSource: config.videoSource,
+    hasGeminiKey: !!config.googleGeminiApiKey,
+    geminiKeyLength: config.googleGeminiApiKey?.length || 0,
+    veoApiInitialized: !!veoApi
+  }, "VeoAPI initialization status");
+
   // Initialize Leonardo.AI API if configured
   let leonardoApi: LeonardoAI | null = null;
   if (config.videoSource === "leonardo" || config.videoSource === "both") {

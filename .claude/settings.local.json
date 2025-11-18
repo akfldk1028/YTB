@@ -119,7 +119,8 @@
       "Bash(gcloud run revisions describe:*)",
       "Bash(ps:*)",
       "Bash(strace:*)",
-      "Bash(env)"
+      "Bash(env)",
+      "Bash(SHA=43da89e)"
     ],
     "deny": [],
     "ask": [],
