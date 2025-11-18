@@ -247,18 +247,30 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             }
           }
 
-          const finalVideoPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
+          const tempFinalPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
           await this.videoProcessor.combineVideoWithAudio(
             tempVideoPath,
             audioFiles,
-            finalVideoPath
+            tempFinalPath
           );
+
+          // Copy final video to standard location for GCS upload
+          const standardVideoPath = path.join(
+            this.videoProcessor.getConfig().videosDirPath,
+            `${context.videoId}.mp4`
+          );
+
+          await fs.promises.copyFile(tempFinalPath, standardVideoPath);
+          logger.info({
+            from: tempFinalPath,
+            to: standardVideoPath
+          }, "✅ Final video copied to standard location for GCS upload");
 
           // Calculate total duration
           const totalDuration = this.calculateTotalDuration(scenes);
 
           return {
-            outputPath: finalVideoPath,
+            outputPath: standardVideoPath,
             duration: totalDuration,
             scenes
           };
@@ -291,18 +303,30 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             }
           }
 
-          const finalVideoPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
+          const tempFinalPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
           await this.videoProcessor.combineVideoWithAudio(
             tempVideoPath,
             audioFiles,
-            finalVideoPath
+            tempFinalPath
           );
+
+          // Copy final video to standard location for GCS upload
+          const standardVideoPath = path.join(
+            this.videoProcessor.getConfig().videosDirPath,
+            `${context.videoId}.mp4`
+          );
+
+          await fs.promises.copyFile(tempFinalPath, standardVideoPath);
+          logger.info({
+            from: tempFinalPath,
+            to: standardVideoPath
+          }, "✅ Final video copied to standard location for GCS upload");
 
           // Calculate total duration
           const totalDuration = this.calculateTotalDuration(scenes);
 
           return {
-            outputPath: finalVideoPath,
+            outputPath: standardVideoPath,
             duration: totalDuration,
             scenes
           };
