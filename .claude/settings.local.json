@@ -120,7 +120,14 @@
       "Bash(ps:*)",
       "Bash(strace:*)",
       "Bash(env)",
-      "Bash(SHA=43da89e)"
+      "Bash(SHA=43da89e)",
+      "Bash(SHA=520701a gcloud builds submit:*)",
+      "Bash(SHA=c3117b0)",
+      "Bash(gcloud run revisions list:*)",
+      "Bash(gcloud storage buckets list:*)",
+      "Bash(gcloud run services:*)",
+      "Bash(python:*)",
+      "Bash(gsutil cp:*)"
     ],
     "deny": [],
     "ask": [],

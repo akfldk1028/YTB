@@ -231,10 +231,18 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
           }
 
           // Combine VEO3 clips
+          logger.info({
+            clipCount: videoClips.length,
+            clips: videoClips
+          }, "🎬 Combining VEO3 video clips");
+
           const tempVideoPath = path.join(videoTempDir, `veo3_combined_${context.videoId}.mp4`);
           await this.videoProcessor.combineVideoClips(videoClips, tempVideoPath);
 
-          logger.info("✅ VEO3 videos combined");
+          logger.info({
+            clipCount: videoClips.length,
+            outputPath: tempVideoPath
+          }, "✅ VEO3 videos combined");
 
           // Step 3B: Combine with audio
           const audioFiles: string[] = [];
