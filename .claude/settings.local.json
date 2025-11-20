@@ -127,7 +127,8 @@
       "Bash(gcloud storage buckets list:*)",
       "Bash(gcloud run services:*)",
       "Bash(python:*)",
-      "Bash(gsutil cp:*)"
+      "Bash(gsutil cp:*)",
+      "Bash(GCP_REGION=asia-northeast3 MEMORY=8Gi CPU=2 MAX_INSTANCES=3 ./deploy-gcp.sh:*)"
     ],
     "deny": [],
     "ask": [],

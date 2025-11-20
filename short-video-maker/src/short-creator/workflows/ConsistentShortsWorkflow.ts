@@ -184,6 +184,13 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         }
 
         // Step 3A: VEO3 I2V conversion (if enabled)
+        logger.info({
+          hasGenerateVideosFlag: !!context.metadata?.generateVideos,
+          generateVideosValue: context.metadata?.generateVideos,
+          hasVeoAPI: !!this.veoAPI,
+          willUseVEO3: !!(context.metadata?.generateVideos && this.veoAPI)
+        }, "🔍 Checking VEO3 I2V condition");
+
         if (context.metadata?.generateVideos && this.veoAPI) {
           logger.info("🎬 Converting consistent images to videos with VEO3 I2V");
 
