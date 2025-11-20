@@ -353,6 +353,9 @@ export class ShortCreatorRefactored {
 
     const orientation: OrientationEnum = config.orientation || OrientationEnum.portrait;
 
+    // Check if we're in Consistent Shorts mode BEFORE processing scenes
+    const isConsistentShortsMode = this.shouldUseConsistentShortsWorkflow(config, metadata, inputScenes);
+
     // Process each scene
     for (let index = 0; index < inputScenes.length; index++) {
       const scene = inputScenes[index];
@@ -379,6 +382,25 @@ export class ShortCreatorRefactored {
         });
       }
 
+      // CONSISTENT SHORTS MODE: Skip video generation, only collect TTS audio
+      // The ConsistentShortsWorkflow will handle NANO BANANA image generation and optional VEO3 I2V
+      if (isConsistentShortsMode) {
+        logger.info({
+          sceneIndex: index + 1,
+          videoId,
+          duration: audioResult.duration
+        }, "🎨 Consistent Shorts mode: TTS generated, skipping video search");
+
+        // Add scene with only audio (no video yet - ConsistentShortsWorkflow will generate images/videos)
+        scenes.push({
+          captions: audioResult.captions || [],
+          video: '', // Will be handled by ConsistentShortsWorkflow
+          audio: audioResult,
+        });
+
+        continue; // Skip to next scene
+      }
+
       // Update workflow: Searching video
       if (this.workflowManager) {
         this.workflowManager.updateWorkflowState(videoId, VideoWorkflowState.SEARCHING_VIDEO, {
@@ -387,7 +409,7 @@ export class ShortCreatorRefactored {
         });
       }
 
-      // Determine video source and generate video
+      // Determine video source and generate video (for non-Consistent Shorts modes)
       const video = await this.generateVideoForScene(
         scene,
         audioResult.duration,

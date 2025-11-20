@@ -101,34 +101,39 @@ for api in "${REQUIRED_APIS[@]}"; do
 done
 
 # ============================================================================
-# Build and Push Docker Image
+# Build and Push Docker Image using Cloud Build
 # ============================================================================
 
-log_info "Building Docker image..."
+log_info "Building Docker image using Cloud Build..."
 
 IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
 IMAGE_TAG=$(date +%Y%m%d-%H%M%S)
 IMAGE_FULL="$IMAGE_NAME:$IMAGE_TAG"
 IMAGE_LATEST="$IMAGE_NAME:latest"
 
-docker build -f gcp.Dockerfile -t "$IMAGE_FULL" -t "$IMAGE_LATEST" .
+# Create a temporary cloudbuild.yaml for this deployment
+cat > /tmp/cloudbuild-deploy.yaml <<EOF
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['buildx', 'build', '-f', 'gcp.Dockerfile', '-t', '$IMAGE_FULL', '-t', '$IMAGE_LATEST', '--push', '.']
+    env:
+      - 'DOCKER_BUILDKIT=1'
+images:
+  - '$IMAGE_FULL'
+  - '$IMAGE_LATEST'
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100
+timeout: '600s'
+EOF
 
-log_success "Docker image built: $IMAGE_FULL"
+# Use Cloud Build to build and push the image
+gcloud builds submit \
+    --config=/tmp/cloudbuild-deploy.yaml \
+    --project="$PROJECT_ID" \
+    .
 
-# ============================================================================
-# Configure Docker Authentication
-# ============================================================================
-
-log_info "Configuring Docker authentication for GCR..."
-gcloud auth configure-docker gcr.io --quiet
-
-log_success "Docker authentication configured"
-
-log_info "Pushing Docker image to GCR..."
-docker push "$IMAGE_FULL"
-docker push "$IMAGE_LATEST"
-
-log_success "Docker image pushed to GCR"
+log_success "Docker image built and pushed: $IMAGE_FULL and $IMAGE_LATEST"
 
 # ============================================================================
 # Check Secrets
