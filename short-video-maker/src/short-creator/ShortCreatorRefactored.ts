@@ -839,8 +839,11 @@ export class ShortCreatorRefactored {
         '📤 Starting YouTube auto-upload'
       );
 
+      // Extract metadata from youtubeUpload.metadata or fallback to top-level properties
+      const ytMetadata = (youtubeUpload as any).metadata || youtubeUpload;
+
       // Generate title if "{{auto}}" or not provided
-      let title = youtubeUpload.title || '{{auto}}';
+      let title = ytMetadata.title || youtubeUpload.title || '{{auto}}';
       if (title === '{{auto}}') {
         title = metadata?.title || `Video ${videoId}`;
       }
@@ -848,10 +851,10 @@ export class ShortCreatorRefactored {
       // Prepare metadata
       const uploadMetadata = {
         title,
-        description: youtubeUpload.description || '',
-        tags: youtubeUpload.tags || [],
-        privacyStatus: (youtubeUpload.privacy || 'private') as 'private' | 'unlisted' | 'public',
-        categoryId: youtubeUpload.categoryId || '22'
+        description: ytMetadata.description || youtubeUpload.description || '',
+        tags: ytMetadata.tags || youtubeUpload.tags || [],
+        privacyStatus: (ytMetadata.privacyStatus || youtubeUpload.privacy || 'private') as 'private' | 'unlisted' | 'public',
+        categoryId: ytMetadata.categoryId || youtubeUpload.categoryId || '22'
       };
 
       // Update workflow: YouTube uploading

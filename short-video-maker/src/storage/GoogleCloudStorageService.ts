@@ -235,6 +235,56 @@ export class GoogleCloudStorageService {
   }
 
   /**
+   * Download video file from GCS to local filesystem
+   */
+  async downloadVideo(
+    videoId: string,
+    localFilePath: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const fileName = `videos/${videoId}.mp4`;
+      const file = this.bucket.file(fileName);
+
+      // Check if file exists in GCS
+      const [exists] = await file.exists();
+      if (!exists) {
+        logger.warn({ videoId, fileName }, 'Video file does not exist in GCS');
+        return {
+          success: false,
+          error: `Video file not found in GCS: ${fileName}`,
+        };
+      }
+
+      // Ensure parent directory exists
+      await fs.ensureDir(localFilePath.substring(0, localFilePath.lastIndexOf('/')));
+
+      logger.info({ videoId, fileName, localFilePath }, 'Downloading video from GCS');
+
+      // Download file
+      await file.download({ destination: localFilePath });
+
+      const fileStats = fs.statSync(localFilePath);
+      logger.info(
+        {
+          videoId,
+          localFilePath,
+          fileSize: fileStats.size,
+          fileSizeMB: (fileStats.size / 1024 / 1024).toFixed(2),
+        },
+        'Video downloaded from GCS successfully'
+      );
+
+      return { success: true };
+    } catch (error) {
+      logger.error({ error, videoId, localFilePath }, 'Failed to download video from GCS');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
    * Generate signed URL for temporary access
    */
   async generateSignedUrl(

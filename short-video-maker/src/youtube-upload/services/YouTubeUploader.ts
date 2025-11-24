@@ -30,7 +30,7 @@ export class YouTubeUploader {
     this.clientSecrets = this.loadClientSecrets();
 
     // Initialize GCS service if configured
-    if (config.gcsBucketName && config.gcsServiceAccountPath) {
+    if (config.gcsBucketName) {
       try {
         this.gcsService = new GoogleCloudStorageService(config);
         logger.info('Google Cloud Storage service initialized for YouTube uploads');
@@ -43,16 +43,31 @@ export class YouTubeUploader {
   }
 
   /**
-   * Load client secrets from JSON file
+   * Load client secrets from JSON file or environment variable
+   * Supports both local dev (file) and Cloud Run (env var)
    */
   private loadClientSecrets(): any {
     try {
+      // Cloud Run / Docker: Check for YOUTUBE_CLIENT_SECRET environment variable first
+      const envSecret = process.env.YOUTUBE_CLIENT_SECRET;
+      if (envSecret) {
+        try {
+          const secrets = JSON.parse(envSecret);
+          logger.info('YouTube client secrets loaded from environment variable');
+          return secrets;
+        } catch (parseError) {
+          logger.error({ parseError }, 'Failed to parse YOUTUBE_CLIENT_SECRET environment variable as JSON');
+          throw new Error('Invalid YOUTUBE_CLIENT_SECRET format - must be valid JSON');
+        }
+      }
+
+      // Local dev: Fallback to file-based secrets
       const secretPath = this.config.youtubeClientSecretPath;
       if (!fs.existsSync(secretPath)) {
         throw new Error(`Client secret file not found at: ${secretPath}`);
       }
       const secrets = fs.readJsonSync(secretPath);
-      logger.info('YouTube client secrets loaded');
+      logger.info('YouTube client secrets loaded from file');
       return secrets;
     } catch (error) {
       logger.error(error, 'Failed to load YouTube client secrets');
@@ -189,12 +204,28 @@ export class YouTubeUploader {
       // Get video file path
       const videoPath = path.join(this.config.videosDirPath, `${videoId}.mp4`);
 
+      // Track if we downloaded from GCS (for cleanup later)
+      let downloadedFromGCS = false;
+
+      // Try to download from GCS if file doesn't exist locally
       if (!fs.existsSync(videoPath)) {
-        throw new Error(`Video file not found: ${videoPath}`);
+        if (this.gcsService) {
+          logger.info({ videoId }, 'Video not found locally, attempting download from GCS');
+          const downloadResult = await this.gcsService.downloadVideo(videoId, videoPath);
+
+          if (!downloadResult.success) {
+            throw new Error(`Video file not found locally or in GCS: ${videoPath}. GCS error: ${downloadResult.error}`);
+          }
+
+          downloadedFromGCS = true;
+          logger.info({ videoId, videoPath }, 'Video downloaded from GCS successfully');
+        } else {
+          throw new Error(`Video file not found: ${videoPath}`);
+        }
       }
 
       const fileSize = fs.statSync(videoPath).size;
-      logger.info({ videoId, channelName, videoPath, fileSize }, 'Starting YouTube upload');
+      logger.info({ videoId, channelName, videoPath, fileSize, downloadedFromGCS }, 'Starting YouTube upload');
 
       // Create OAuth2 client for this channel
       const oauth2Client = this.createOAuth2Client(channelName);
@@ -228,8 +259,8 @@ export class YouTubeUploader {
       const youtubeVideoId = response.data.id!;
       const videoUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;
 
-      // Upload to GCS after successful YouTube upload
-      if (this.gcsService) {
+      // Upload to GCS after successful YouTube upload (skip if we downloaded from GCS)
+      if (this.gcsService && !downloadedFromGCS) {
         logger.info({ videoId }, 'Uploading video to GCS after successful YouTube upload');
 
         const gcsResult = await this.gcsService.uploadVideo(
@@ -274,6 +305,19 @@ export class YouTubeUploader {
 
       // Update status to completed
       this.updateStatus(videoId, channelName, 'completed', 100, youtubeVideoId, videoUrl);
+
+      // Clean up temporary downloaded file if we downloaded from GCS
+      if (downloadedFromGCS && fs.existsSync(videoPath)) {
+        try {
+          await fs.remove(videoPath);
+          logger.info({ videoId, videoPath }, 'Cleaned up temporary video file after YouTube upload');
+        } catch (cleanupError) {
+          logger.warn(
+            { error: cleanupError, videoId, videoPath },
+            'Failed to clean up temporary video file (non-critical)'
+          );
+        }
+      }
 
       logger.info(
         { videoId, channelName, youtubeVideoId, videoUrl },

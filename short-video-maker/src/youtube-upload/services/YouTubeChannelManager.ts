@@ -33,22 +33,29 @@ export class YouTubeChannelManager {
 
   /**
    * Load channels configuration from file
+   * Note: In Cloud Run, YOUTUBE_DATA is a tar.gz archive extracted by index.ts before this runs
    */
   private loadChannelsConfig(): YouTubeChannelConfig {
     try {
+      // Load from file (works for both local dev and Cloud Run after extraction)
       if (fs.existsSync(this.channelsConfigPath)) {
         const config = fs.readJsonSync(this.channelsConfigPath);
         logger.info(
           { channelCount: Object.keys(config.channels || {}).length },
-          'YouTube channels configuration loaded'
+          'YouTube channels configuration loaded from file'
         );
         return config;
+      } else {
+        logger.warn(
+          { path: this.channelsConfigPath },
+          'YouTube channels configuration file not found - returning empty config'
+        );
       }
     } catch (error) {
       logger.error(error, 'Failed to load channels configuration');
     }
 
-    // Return empty config if file doesn't exist or loading fails
+    // Return empty config if file doesn't exist or load failed
     return { channels: {} };
   }
 
