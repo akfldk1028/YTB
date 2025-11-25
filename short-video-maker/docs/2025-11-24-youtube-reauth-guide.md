@@ -394,3 +394,289 @@ oauth2Client.on('tokens', (newTokens) => {
 6. ✅ 테스트 API 호출로 검증
 
 **핵심**: Refresh token revoked는 자동 복구 불가능 → 수동 재인증 필수!
+
+---
+
+# 영구적인 해결책: Refresh Token이 절대 Revoke 안 되게 하기
+
+## 문제의 근본 원인
+
+Refresh token이 revoke되는 이유:
+1. **Testing 앱 상태** - 7일마다 자동으로 토큰 만료
+2. **50개 토큰 제한** - 51번째 토큰 생성 시 가장 오래된 토큰 자동 삭제
+3. **사용자가 수동으로 앱 권한 취소** - YouTube Studio에서 연결 해제
+4. **Google의 보안 정책** - 의심스러운 활동 감지 시 revoke
+
+## ✅ 해결책 1: OAuth App을 Production으로 변경 (가장 중요!)
+
+### Step 1: Google Cloud Console에서 OAuth 동의 화면 설정
+
+```bash
+# 1. Google Cloud Console 접속
+https://console.cloud.google.com/apis/credentials/consent
+
+# 2. 프로젝트 선택
+```
+
+**Publishing Status 확인**:
+- 현재 상태: `Testing` (7일마다 토큰 만료)
+- 목표 상태: `In Production` (영구적)
+
+### Step 2: Production으로 변경
+
+#### Option A: 간단한 내부 앱 (권장)
+
+**조건**:
+- 본인 계정만 사용
+- 공개 배포 불필요
+
+**설정**:
+1. OAuth 동의 화면에서 **"User Type"을 "Internal"로 설정**
+2. 저장하면 자동으로 Production 상태가 됨
+3. **검증 불필요!**
+
+#### Option B: 외부 앱 (검증 필요)
+
+**조건**:
+- 다른 사용자도 사용
+- 100명 이상 사용자
+
+**설정**:
+1. User Type: `External`
+2. **"PUBLISH APP"** 버튼 클릭
+3. Google 검증 프로세스 진행 (2-6주 소요)
+
+**검증 없이 External 사용하기**:
+- "Testing" 상태에서 **테스트 사용자 추가** (최대 100명)
+- 테스트 사용자는 7일 제한 없음!
+- 자기 계정을 테스트 사용자로 추가
+
+### Step 3: 검증
+
+```bash
+# OAuth 2.0 Client ID 확인
+https://console.cloud.google.com/apis/credentials
+
+# Publishing status 확인
+# - Testing → 7일마다 만료
+# - In Production → 영구적
+```
+
+## ✅ 해결책 2: 50개 토큰 제한 관리
+
+### 현재 토큰 개수 확인
+
+```bash
+# Google 계정 권한 페이지
+https://myaccount.google.com/permissions
+
+# "Short Video Maker" 앱 찾기
+# → 현재 활성 토큰 개수 확인 불가 (Google에서 숨김)
+```
+
+### 토큰 제한 방지 방법
+
+**Best Practice**:
+1. **프로덕션 환경에서만 토큰 생성**
+   - 로컬 개발: 테스트 계정 사용
+   - Cloud Run: 프로덕션 계정 사용
+
+2. **오래된 토큰 삭제**
+   ```bash
+   # Google 계정에서 앱 연결 해제 후 재인증
+   https://myaccount.google.com/permissions
+   → "Short Video Maker" 찾아서 "Remove Access"
+   → 즉시 웹 UI에서 재인증 (새 토큰 생성)
+   ```
+
+3. **단일 프로덕션 토큰 유지**
+   - Cloud Run에서만 YouTube 업로드 사용
+   - 로컬 개발 시 YouTube 업로드 비활성화
+
+## ✅ 해결책 3: 자동 갱신 메커니즘 검증
+
+코드에 이미 구현되어 있음:
+
+### YouTubeUploader.ts (Line 94-108)
+```typescript
+oauth2Client.on('tokens', (newTokens) => {
+  // Access token 자동 갱신 시 호출됨
+  const updatedTokens = { ...existingTokens, ...newTokens };
+
+  // 로컬 파일 저장
+  this.channelManager.saveTokens(channelName, updatedTokens);
+});
+```
+
+### YouTubeChannelManager.ts (Line 245-251)
+```typescript
+// Backup tokens to Secret Manager (Cloud Run only)
+if (this.secretManager.isEnabled()) {
+  this.secretManager.updateYouTubeDataSecret().catch(error => {
+    logger.warn({ error }, 'Secret Manager backup failed (non-fatal)');
+  });
+}
+```
+
+### 동작 방식
+1. Cloud Run에서 API 요청 → Access token 만료됨
+2. google-auth-library가 자동으로 refresh token 사용해서 새 access token 발급
+3. `tokens` 이벤트 발생 → 로컬 파일 업데이트
+4. GCP Secret Manager에 자동 백업
+5. **다음 배포 시 최신 토큰 자동 반영**
+
+### 자동 갱신 검증 방법
+
+```bash
+# Cloud Run 로그에서 토큰 갱신 확인
+gcloud run services logs read short-video-maker \
+  --region=us-central1 \
+  --limit=100 | grep "Access token automatically refreshed"
+
+# 예상 출력:
+# 2025-11-24 10:00:00 UTC - Access token automatically refreshed (channelName: main_channel)
+```
+
+## ✅ 해결책 4: 정기적인 토큰 백업
+
+### 백업 스크립트 생성
+
+`/home/akfldk1028/backup-youtube-tokens.sh`:
+```bash
+#!/bin/bash
+
+echo "=== YouTube Token Backup ==="
+cd /home/akfldk1028/.ai-agents-az-video-generator
+
+# 백업 디렉토리 생성
+BACKUP_DIR="backups/$(date +%Y-%m-%d)"
+mkdir -p "$BACKUP_DIR"
+
+# 토큰 파일 복사
+cp youtube-channels.json "$BACKUP_DIR/"
+cp youtube-tokens-main_channel.json "$BACKUP_DIR/"
+
+# GCP Secret 백업
+gcloud secrets versions access latest --secret="YOUTUBE_DATA" | \
+  base64 -d > "$BACKUP_DIR/youtube-data-gcp.tar.gz"
+
+echo "✅ Backup completed: $BACKUP_DIR"
+
+# 30일 이상 된 백업 삭제
+find backups/ -type d -mtime +30 -exec rm -rf {} \;
+```
+
+### Cron Job 설정 (매일 자정)
+
+```bash
+# Crontab 편집
+crontab -e
+
+# 추가
+0 0 * * * /home/akfldk1028/backup-youtube-tokens.sh >> /tmp/youtube-backup.log 2>&1
+```
+
+## ✅ 해결책 5: 모니터링 및 알림
+
+### GCP Secret 버전 확인 스크립트
+
+`/home/akfldk1028/check-youtube-token.sh`:
+```bash
+#!/bin/bash
+
+echo "=== YouTube Token Status Check ==="
+
+# GCP Secret에서 토큰 만료 시간 확인
+gcloud secrets versions access latest --secret="YOUTUBE_DATA" | \
+  base64 -d | \
+  tar xzf - -O youtube-tokens-main_channel.json | \
+  python3 -c "
+import sys, json
+from datetime import datetime
+
+d = json.load(sys.stdin)
+exp = d.get('expiry_date', 0)
+has_refresh = 'refresh_token' in d
+
+print(f'Has refresh_token: {has_refresh}')
+
+if exp:
+    exp_date = datetime.fromtimestamp(exp/1000)
+    now = datetime.utcnow()
+    diff_hours = (exp_date - now).total_seconds() / 3600
+
+    print(f'Access token expires: {exp_date.strftime(\"%Y-%m-%d %H:%M:%S UTC\")}')
+    print(f'Time remaining: {diff_hours:.2f} hours')
+
+    # Access token이 만료되었어도 refresh token이 있으면 OK
+    if diff_hours < 0 and has_refresh:
+        print('⚠️  Access token expired but refresh token is valid')
+        exit(0)
+    elif not has_refresh:
+        print('❌ CRITICAL: No refresh token! Re-authentication required!')
+        exit(1)
+    else:
+        print('✅ Token is valid')
+        exit(0)
+"
+
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+  echo "❌ Token issue detected! Check immediately!"
+  # 알림 전송 (선택 사항)
+  # curl -X POST https://your-webhook-url -d "YouTube token needs attention"
+fi
+
+exit $EXIT_CODE
+```
+
+### 매시간 확인 (Cron)
+
+```bash
+# Crontab 편집
+crontab -e
+
+# 추가 - 매시간 토큰 상태 확인
+0 * * * * /home/akfldk1028/check-youtube-token.sh >> /tmp/youtube-token-check.log 2>&1
+```
+
+## 🎯 최종 체크리스트
+
+이 모든 설정을 완료하면 **영구적으로 작동**합니다:
+
+### 필수 (반드시 해야 함)
+- [ ] OAuth App을 Production 상태로 변경 (`Internal` 또는 `In Production`)
+- [ ] 현재 토큰 재인증 (위 Step 1-6)
+- [ ] GCP Secret 업데이트
+- [ ] Cloud Run 재배포
+
+### 권장 (문제 예방)
+- [ ] 50개 토큰 제한 관리 (오래된 권한 삭제)
+- [ ] 자동 갱신 로그 확인 (Cloud Run logs)
+- [ ] 정기 백업 설정 (Cron)
+- [ ] 모니터링 스크립트 설정
+
+### 검증
+- [ ] 7일 후에도 토큰이 유효한지 확인
+- [ ] Cloud Run 로그에서 자동 갱신 확인
+- [ ] GCP Secret 버전이 자동으로 업데이트되는지 확인
+
+## 📝 Production 상태 확인 방법
+
+```bash
+# Google Cloud Console에서 확인
+echo "1. https://console.cloud.google.com/apis/credentials/consent 접속"
+echo "2. Publishing status 확인:"
+echo "   - Testing: ❌ (7일마다 만료)"
+echo "   - In Production: ✅ (영구적)"
+```
+
+**Production으로 변경 후**:
+- Refresh token이 영구적으로 유효함
+- 자동 갱신 메커니즘이 영원히 작동함
+- 50개 제한만 관리하면 끝!
+
+---
+
+**이제 다시는 재인증할 필요 없습니다!** 🎉

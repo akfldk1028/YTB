@@ -9,14 +9,23 @@ export class VideoQueue {
 
   constructor(
     private processVideoCallback: (item: QueueItem) => Promise<void>
-  ) {}
+  ) {
+    logger.info("VideoQueue constructor called - queue initialized");
+  }
 
   public addToQueue(
-    sceneInput: SceneInput[], 
-    config: RenderConfig, 
-    callbackUrl?: string, 
+    sceneInput: SceneInput[],
+    config: RenderConfig,
+    callbackUrl?: string,
     metadata?: any
   ): string {
+    logger.info("VideoQueue.addToQueue called - ENTRY POINT", {
+      sceneCount: sceneInput?.length,
+      hasConfig: !!config,
+      hasCallbackUrl: !!callbackUrl,
+      hasMetadata: !!metadata
+    });
+
     const id = cuid();
     const item: QueueItem = {
       sceneInput,
@@ -30,8 +39,17 @@ export class VideoQueue {
     logger.debug({ id, queueLength: this.queue.length }, "Item added to queue");
 
     if (!this.isProcessing) {
+      logger.info("VideoQueue - about to start processQueue", {
+        isProcessing: this.isProcessing,
+        queueLength: this.queue.length
+      });
       this.processQueue().catch(error => {
         logger.error(error, "Unhandled error in processQueue - queue may have stopped");
+      });
+    } else {
+      logger.info("VideoQueue - processQueue already running", {
+        isProcessing: this.isProcessing,
+        queueLength: this.queue.length
       });
     }
 
@@ -51,12 +69,27 @@ export class VideoQueue {
   }
 
   private async processQueue(): Promise<void> {
+    logger.info("VideoQueue.processQueue ENTERED", {
+      queueLength: this.queue.length,
+      isProcessing: this.isProcessing
+    });
+
     if (this.queue.length === 0 || this.isProcessing) {
+      logger.info("VideoQueue.processQueue early return", {
+        queueLength: this.queue.length,
+        isProcessing: this.isProcessing,
+        reason: this.queue.length === 0 ? "queue empty" : "already processing"
+      });
       return;
     }
 
     this.isProcessing = true;
     const item = this.queue[0];
+
+    logger.info("VideoQueue.processQueue about to process item", {
+      itemId: item.id,
+      sceneCount: item.sceneInput?.length
+    });
 
     logger.debug(
       { sceneInput: item.sceneInput, config: item.config, id: item.id, callbackUrl: item.callbackUrl },

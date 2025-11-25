@@ -138,6 +138,12 @@ export class ConsistentShortsAPIRouter {
 
           const input = validateCreateShortInput(validationInput);
 
+          logger.info("API endpoint - About to call shortCreator.addToQueue", {
+            scenesCount: input.scenes.length,
+            mode: "consistent-shorts",
+            generateVideos: config?.generateVideos || false
+          });
+
           const videoId = this.shortCreator.addToQueue(
             input.scenes,
             input.config,
@@ -151,6 +157,10 @@ export class ConsistentShortsAPIRouter {
               youtubeUpload: req.body.youtubeUpload
             }
           );
+
+          logger.info("API endpoint - shortCreator.addToQueue returned", {
+            videoId
+          });
 
           logger.info({
             videoId,

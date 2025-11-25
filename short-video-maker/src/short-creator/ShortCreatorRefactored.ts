@@ -109,7 +109,9 @@ export class ShortCreatorRefactored {
     this.callbackManager = new CallbackManager(this.config, this.gcsService);
 
     // Initialize queue
+    logger.info("ShortCreatorRefactored - About to initialize VideoQueue");
     this.videoQueue = new VideoQueue(this.processVideo.bind(this));
+    logger.info("ShortCreatorRefactored - VideoQueue initialized successfully");
     this.statusManager = new StatusManager(this.videoQueue, this.config.videosDirPath);
 
     // Initialize video sources
@@ -183,7 +185,19 @@ export class ShortCreatorRefactored {
     callbackUrl?: string,
     metadata?: any
   ): string {
+    logger.info("ShortCreatorRefactored.addToQueue called - ENTRY POINT", {
+      sceneCount: sceneInput?.length,
+      hasConfig: !!config,
+      hasCallbackUrl: !!callbackUrl,
+      hasMetadata: !!metadata,
+      metadataMode: metadata?.mode
+    });
+
     const videoId = this.videoQueue.addToQueue(sceneInput, config, callbackUrl, metadata);
+
+    logger.info("ShortCreatorRefactored.addToQueue - videoQueue.addToQueue returned", {
+      videoId
+    });
 
     // Auto-register webhook for N8N integration
     if (callbackUrl && this.webhookManager) {
