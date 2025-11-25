@@ -267,33 +267,42 @@ export class GoogleVeoAPI {
       return video;
 
     } catch (error: unknown) {
-      if (
-        error instanceof Error &&
-        error instanceof DOMException &&
-        error.name === "TimeoutError"
-      ) {
-        if (retryCounter < retryTimes) {
-          logger.warn(
-            { searchTerms, retryCounter },
-            "Timeout error generating video, retrying...",
-          );
-          return await this.findVideo(
-            searchTerms,
-            minDurationSeconds,
-            excludeIds,
-            orientation,
-            timeout,
-            retryCounter + 1,
-          );
-        }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isRetryable =
+        (error instanceof Error && error instanceof DOMException && error.name === "TimeoutError") ||
+        errorMessage.includes("No video generated") ||
+        errorMessage.includes("No video URL found") ||
+        errorMessage.includes("timeout");
+
+      if (isRetryable && retryCounter < retryTimes) {
+        const waitTime = Math.min(5000 * (retryCounter + 1), 15000); // 5s, 10s, 15s
+        logger.warn(
+          { searchTerms, retryCounter, errorMessage, waitTime },
+          `⚠️ VEO3 error, retrying in ${waitTime/1000}s (attempt ${retryCounter + 1}/${retryTimes})...`,
+        );
+
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+
+        return await this.findVideo(
+          searchTerms,
+          minDurationSeconds,
+          excludeIds,
+          orientation,
+          timeout,
+          retryCounter + 1,
+          initialImage,
+        );
+      }
+
+      if (retryCounter >= retryTimes) {
         logger.error(
-          { searchTerms, retryCounter },
-          "Timeout error, retry limit reached",
+          { searchTerms, retryCounter, errorMessage },
+          "❌ VEO3 retry limit reached",
         );
       }
 
       logger.error(error, "Error finding video with Veo API");
-      throw new Error(`Failed to generate video with Veo API: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to generate video with Veo API: ${errorMessage}`);
     }
   }
 

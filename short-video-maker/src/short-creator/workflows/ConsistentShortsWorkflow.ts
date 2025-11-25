@@ -213,62 +213,154 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         if (context.metadata?.generateVideos && this.veoAPI) {
           logger.info("🎬 Converting consistent images to videos with VEO3 I2V");
 
-          const videoClips: string[] = [];
+          // Track which scenes use VEO3 video vs fallback image
+          const sceneResults: Array<{
+            type: 'video' | 'image';
+            path: string;
+            duration: number;
+          }> = [];
+
+          let veo3SuccessCount = 0;
+          let veo3FailCount = 0;
 
           for (let i = 0; i < imageDataList.length; i++) {
             const imageData = imageDataList[i];
             const scene = inputScenes[i];
-
-            logger.info({
-              sceneIndex: i + 1,
-              duration: imageData.duration
-            }, "🔄 Converting image to video with VEO3");
-
-            // Convert image to base64 for VEO3
-            const imageBase64 = imageData.imageBuffer.toString('base64');
-
-            // VEO3 I2V generation
-            const videoPrompt = scene.videoPrompt || scene.text || `Scene ${i + 1}`;
             const duration = imageData.duration || scenes[i]?.audio?.duration || 8;
 
-            const video = await this.veoAPI.findVideo(
-              [videoPrompt],
-              duration,          // minDurationSeconds (number)
-              [],                // excludeIds
-              context.orientation, // orientation
-              300000,            // timeout (5 minutes)
-              0,                 // retryCounter
-              {                  // initialImage for I2V
-                data: imageBase64,
-                mimeType: "image/png"
-              }
-            );
-
-            // Download VEO3 video
-            const videoPath = path.join(videoTempDir, `veo3_scene_${i + 1}_${context.videoId}.mp4`);
-            await this.videoProcessor.downloadVideo(video.url, videoPath);
-
-            videoClips.push(videoPath);
-
             logger.info({
               sceneIndex: i + 1,
-              videoPath
-            }, "✅ VEO3 video generated from consistent image");
+              duration
+            }, "🔄 Converting image to video with VEO3");
+
+            try {
+              // Convert image to base64 for VEO3
+              const imageBase64 = imageData.imageBuffer.toString('base64');
+
+              // VEO3 I2V generation
+              const videoPrompt = scene.videoPrompt || scene.text || `Scene ${i + 1}`;
+
+              const video = await this.veoAPI.findVideo(
+                [videoPrompt],
+                duration,          // minDurationSeconds (number)
+                [],                // excludeIds
+                context.orientation, // orientation
+                300000,            // timeout (5 minutes)
+                0,                 // retryCounter
+                {                  // initialImage for I2V
+                  data: imageBase64,
+                  mimeType: "image/png"
+                }
+              );
+
+              // Download VEO3 video
+              const videoPath = path.join(videoTempDir, `veo3_scene_${i + 1}_${context.videoId}.mp4`);
+              await this.videoProcessor.downloadVideo(video.url, videoPath);
+
+              sceneResults.push({
+                type: 'video',
+                path: videoPath,
+                duration
+              });
+
+              veo3SuccessCount++;
+
+              logger.info({
+                sceneIndex: i + 1,
+                videoPath
+              }, "✅ VEO3 video generated from consistent image");
+
+            } catch (veoError) {
+              // VEO3 실패 → 이미지로 fallback
+              veo3FailCount++;
+
+              logger.warn({
+                sceneIndex: i + 1,
+                error: veoError instanceof Error ? veoError.message : 'Unknown error',
+                totalFailed: veo3FailCount
+              }, "⚠️ VEO3 failed for scene, falling back to static image");
+
+              sceneResults.push({
+                type: 'image',
+                path: imageData.imagePath,
+                duration
+              });
+            }
           }
 
-          // Combine VEO3 clips
           logger.info({
-            clipCount: videoClips.length,
-            clips: videoClips
-          }, "🎬 Combining VEO3 video clips");
+            totalScenes: imageDataList.length,
+            veo3Success: veo3SuccessCount,
+            veo3Failed: veo3FailCount,
+            fallbackUsed: veo3FailCount > 0
+          }, "📊 VEO3 conversion summary");
 
-          const tempVideoPath = path.join(videoTempDir, `veo3_combined_${context.videoId}.mp4`);
-          await this.videoProcessor.combineVideoClips(videoClips, tempVideoPath);
+          // 혼합 처리: VEO3 비디오 + fallback 이미지 결합
+          let tempVideoPath: string;
+
+          if (veo3FailCount === 0) {
+            // 모든 scene VEO3 성공 → 비디오 결합
+            const videoClips = sceneResults.map(r => r.path);
+
+            logger.info({
+              clipCount: videoClips.length,
+              clips: videoClips
+            }, "🎬 Combining VEO3 video clips");
+
+            tempVideoPath = path.join(videoTempDir, `veo3_combined_${context.videoId}.mp4`);
+            await this.videoProcessor.combineVideoClips(videoClips, tempVideoPath);
+
+          } else if (veo3SuccessCount === 0) {
+            // 모든 scene VEO3 실패 → 정적 이미지 비디오
+            logger.info("⚠️ All VEO3 failed, creating static video from images");
+
+            const dimensions = context.orientation === "portrait"
+              ? VIDEO_DIMENSIONS.PORTRAIT
+              : VIDEO_DIMENSIONS.LANDSCAPE;
+
+            tempVideoPath = path.join(videoTempDir, `fallback_static_${context.videoId}.mp4`);
+            await this.videoProcessor.createStaticVideoFromMultipleImages(
+              imageDataList,
+              tempVideoPath,
+              dimensions
+            );
+
+          } else {
+            // 혼합: 일부 성공, 일부 실패 → 성공한 것만 결합 + 실패한 것은 이미지로
+            logger.info({
+              successCount: veo3SuccessCount,
+              failCount: veo3FailCount
+            }, "🔀 Mixed results: combining VEO3 videos with static images");
+
+            const dimensions = context.orientation === "portrait"
+              ? VIDEO_DIMENSIONS.PORTRAIT
+              : VIDEO_DIMENSIONS.LANDSCAPE;
+
+            // 1. 먼저 실패한 scene들을 이미지 비디오로 변환
+            for (let i = 0; i < sceneResults.length; i++) {
+              const result = sceneResults[i];
+              if (result.type === 'image') {
+                const imageVideoPath = path.join(videoTempDir, `image_to_video_${i + 1}_${context.videoId}.mp4`);
+                await this.videoProcessor.createStaticVideoFromMultipleImages(
+                  [{ imagePath: result.path, duration: result.duration }],
+                  imageVideoPath,
+                  dimensions
+                );
+                sceneResults[i].path = imageVideoPath;
+                sceneResults[i].type = 'video';
+              }
+            }
+
+            // 2. 모든 비디오 클립 결합
+            const allVideoClips = sceneResults.map(r => r.path);
+            tempVideoPath = path.join(videoTempDir, `mixed_combined_${context.videoId}.mp4`);
+            await this.videoProcessor.combineVideoClips(allVideoClips, tempVideoPath);
+          }
 
           logger.info({
-            clipCount: videoClips.length,
+            clipCount: sceneResults.length,
             outputPath: tempVideoPath
-          }, "✅ VEO3 videos combined");
+          }, "✅ Video clips combined");
 
           // Step 3B: Combine with audio
           const audioFiles: string[] = [];
