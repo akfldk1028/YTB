@@ -30,7 +30,9 @@ export class VideoQueue {
     logger.debug({ id, queueLength: this.queue.length }, "Item added to queue");
 
     if (!this.isProcessing) {
-      this.processQueue();
+      this.processQueue().catch(error => {
+        logger.error(error, "Unhandled error in processQueue - queue may have stopped");
+      });
     }
 
     return id;
