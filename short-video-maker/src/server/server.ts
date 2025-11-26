@@ -15,6 +15,10 @@ import { VEO3APIRouter } from "./api/veo3";
 import { ConsistentShortsAPIRouter } from "./api/consistent-shorts";
 import { YouTubeRoutes } from "../youtube-upload/routes/youtubeRoutes";
 import { YouTubeUploader } from "../youtube-upload/services/YouTubeUploader";
+import { YouTubeAnalyticsService } from "../youtube-analytics/services/YouTubeAnalyticsService";
+import { createAnalyticsRoutes } from "../youtube-analytics/routes/analyticsRoutes";
+import { GoogleSheetsService } from "../sheet/services/GoogleSheetsService";
+import { createSheetRoutes } from "../sheet/routes/sheetRoutes";
 import { logger } from "../logger";
 import { Config } from "../config";
 
@@ -56,6 +60,31 @@ export class Server {
       const youtubeRoutes = new YouTubeRoutes(config, youtubeUploader);
       this.app.use("/api/youtube", youtubeRoutes.router);
       logger.info("YouTube upload routes mounted at /api/youtube");
+
+      // Mount YouTube Analytics routes
+      let analyticsService: YouTubeAnalyticsService | undefined;
+      try {
+        analyticsService = new YouTubeAnalyticsService(config);
+        const analyticsRoutes = createAnalyticsRoutes(analyticsService);
+        this.app.use("/api/analytics", analyticsRoutes);
+        logger.info("YouTube Analytics routes mounted at /api/analytics");
+      } catch (error) {
+        logger.warn({ error }, "YouTube Analytics service not initialized");
+      }
+
+      // Mount Google Sheets routes (for video metadata logging)
+      try {
+        const sheetsService = new GoogleSheetsService(config);
+        const sheetRoutes = createSheetRoutes(sheetsService, analyticsService);
+        this.app.use("/api/sheet", sheetRoutes);
+        if (sheetsService.isConfigured()) {
+          logger.info("Google Sheets routes mounted at /api/sheet");
+        } else {
+          logger.warn("Google Sheets not configured (GOOGLE_SHEETS_SPREADSHEET_ID not set)");
+        }
+      } catch (error) {
+        logger.warn({ error }, "Google Sheets service not initialized");
+      }
     } else {
       logger.warn("YouTube uploader not available - upload routes not mounted");
     }

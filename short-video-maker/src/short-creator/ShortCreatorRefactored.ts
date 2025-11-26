@@ -39,6 +39,8 @@ import type { WebhookManager } from "../workflow/WebhookManager";
 import { VideoWorkflowState } from "../workflow/types";
 import type { YouTubeUploader } from "../youtube-upload/services/YouTubeUploader";
 import type { N8NYouTubeUploadConfig } from "../server/parsers/N8NInterfaces";
+import type { GoogleSheetsService } from "../sheet/services/GoogleSheetsService";
+import type { VideoGenerationRecord } from "../sheet/types";
 import crypto from "crypto";
 
 import type {
@@ -81,6 +83,7 @@ export class ShortCreatorRefactored {
   private workflowManager?: WorkflowManager;
   private webhookManager?: WebhookManager;
   private youtubeUploader?: YouTubeUploader;
+  private sheetsService?: GoogleSheetsService;
 
   constructor(
     private config: Config,
@@ -95,11 +98,13 @@ export class ShortCreatorRefactored {
     private gcsService?: GoogleCloudStorageService,
     workflowManager?: WorkflowManager,
     webhookManager?: WebhookManager,
-    youtubeUploader?: YouTubeUploader
+    youtubeUploader?: YouTubeUploader,
+    sheetsService?: GoogleSheetsService
   ) {
     this.workflowManager = workflowManager;
     this.webhookManager = webhookManager;
     this.youtubeUploader = youtubeUploader;
+    this.sheetsService = sheetsService;
     this.initializeComponents();
   }
 
@@ -290,6 +295,34 @@ export class ShortCreatorRefactored {
 
       // YouTube auto-upload if enabled
       const youtubeUpload = item.metadata?.youtubeUpload as N8NYouTubeUploadConfig | undefined;
+
+      // Log to Google Sheets (before YouTube upload)
+      if (this.sheetsService) {
+        try {
+          const ytMetadata = (youtubeUpload as any)?.metadata || youtubeUpload;
+          const record: VideoGenerationRecord = {
+            videoId: '', // Will be updated after YouTube upload
+            jobId: item.id,
+            createdAt: new Date().toISOString(),
+            channelName: youtubeUpload?.channelName || '',
+            title: ytMetadata?.title || item.metadata?.title || `Video ${item.id}`,
+            description: ytMetadata?.description || '',
+            tags: ytMetadata?.tags || [],
+            duration: undefined, // Could be extracted from video file
+            mode: (item.metadata?.mode || item.config?.videoSource || 'pexels') as VideoGenerationRecord['mode'],
+            sceneCount: item.sceneInput?.length || 0,
+            voice: item.config?.voice || '',
+            orientation: item.config?.orientation || 'portrait',
+            uploadStatus: youtubeUpload?.enabled ? 'pending' : 'uploaded',
+            gcsUrl,
+          };
+          await this.sheetsService.logVideoGeneration(record);
+          logger.info({ jobId: item.id }, '📊 Video logged to Google Sheets');
+        } catch (sheetError) {
+          logger.error({ error: sheetError, jobId: item.id }, '❌ Failed to log to Google Sheets');
+        }
+      }
+
       if (youtubeUpload?.enabled && this.youtubeUploader) {
         await this.handleYouTubeUpload(item.id, youtubeUpload, item.metadata);
       }
@@ -925,6 +958,21 @@ export class ShortCreatorRefactored {
             }
           }
         });
+      }
+
+      // Update Google Sheets with YouTube video ID
+      if (this.sheetsService) {
+        try {
+          await this.sheetsService.updateUploadStatus(
+            videoId, // jobId
+            youtubeVideoId, // YouTube video ID
+            'uploaded',
+            new Date().toISOString()
+          );
+          logger.info({ jobId: videoId, youtubeVideoId }, '📊 Sheet updated with YouTube video ID');
+        } catch (sheetError) {
+          logger.error({ error: sheetError, jobId: videoId }, '❌ Failed to update sheet with YouTube ID');
+        }
       }
     } catch (error: unknown) {
       logger.error(

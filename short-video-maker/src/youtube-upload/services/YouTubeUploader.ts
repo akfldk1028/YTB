@@ -133,6 +133,7 @@ export class YouTubeUploader {
     const scopes = [
       'https://www.googleapis.com/auth/youtube.upload',
       'https://www.googleapis.com/auth/youtube',
+      'https://www.googleapis.com/auth/yt-analytics.readonly',
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({

@@ -14,6 +14,7 @@ import { ImageGenerationService } from "./image-generation/services/ImageGenerat
 import { ImageModelType } from "./image-generation/models/imageModels";
 import { GoogleCloudStorageService } from "./storage/GoogleCloudStorageService";
 import { YouTubeUploader } from "./youtube-upload/services/YouTubeUploader";
+import { GoogleSheetsService } from "./sheet/services/GoogleSheetsService";
 import { Config } from "./config";
 import { ShortCreator } from "./short-creator";
 import { logger } from "./logger";
@@ -164,6 +165,20 @@ async function main() {
     logger.warn(error, "YouTube uploader service not initialized - check YOUTUBE_CLIENT_SECRET_PATH configuration");
   }
 
+  // Initialize Google Sheets service for video metadata logging
+  let sheetsService: GoogleSheetsService | null = null;
+  if (process.env.GOOGLE_SHEETS_SPREADSHEET_ID) {
+    try {
+      logger.debug("initializing google sheets service");
+      sheetsService = new GoogleSheetsService(config);
+      logger.info({ spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID }, "Google Sheets service initialized");
+    } catch (error: unknown) {
+      logger.warn(error, "Google Sheets service not initialized");
+    }
+  } else {
+    logger.info("GOOGLE_SHEETS_SPREADSHEET_ID not configured, video metadata logging disabled");
+  }
+
   logger.debug("initializing the short creator");
   const shortCreator = new ShortCreator(
     config,
@@ -178,7 +193,8 @@ async function main() {
     gcsService || undefined,
     undefined, // workflowManager
     undefined, // webhookManager
-    youtubeUploader || undefined
+    youtubeUploader || undefined,
+    sheetsService || undefined
   );
 
   if (!config.runningInDocker) {
