@@ -11,7 +11,7 @@ import type {
 import { GoogleSheetsService } from '../services/GoogleSheetsService';
 import { YouTubeAnalyticsService } from '../../youtube-analytics/services/YouTubeAnalyticsService';
 import { logger } from '../../logger';
-import type { VideoFilterOptions, VideoAnalyticsRecord } from '../types';
+import type { VideoFilterOptions, VideoAnalyticsRecord, VideoGenerationRecord } from '../types';
 
 export function createSheetRoutes(
   sheetsService: GoogleSheetsService,
@@ -383,6 +383,164 @@ export function createSheetRoutes(
       });
     }
   });
+
+  /**
+   * POST /api/sheet/import-youtube-videos
+   * YouTube 채널의 모든 비디오를 시트에 import하고 Analytics 데이터도 함께 가져옴
+   *
+   * Body:
+   * {
+   *   channelName: string,  // 채널 이름
+   *   maxResults?: number   // 가져올 최대 비디오 수 (기본: 50)
+   * }
+   */
+  router.post(
+    '/import-youtube-videos',
+    async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const { channelName, maxResults = 50 } = req.body;
+
+        if (!channelName) {
+          return res.status(400).json({
+            success: false,
+            error: 'channelName is required',
+          });
+        }
+
+        if (!analyticsService) {
+          return res.status(503).json({
+            success: false,
+            error: 'Analytics service not available',
+          });
+        }
+
+        logger.info({ channelName, maxResults }, 'Starting YouTube video import');
+
+        // YouTube 채널의 비디오 목록 가져오기
+        const videosResult = await analyticsService.getChannelVideos(
+          channelName,
+          maxResults
+        );
+
+        if (!videosResult.success || !videosResult.videos) {
+          return res.status(500).json({
+            success: false,
+            error: videosResult.error || 'Failed to fetch videos from YouTube',
+          });
+        }
+
+        const results: {
+          videoId: string;
+          title: string;
+          imported: boolean;
+          analyticsUpdated: boolean;
+          error?: string
+        }[] = [];
+
+        for (const video of videosResult.videos) {
+          try {
+            // 1. 기본 정보로 시트에 레코드 생성
+            const record: VideoGenerationRecord = {
+              videoId: video.videoId,
+              jobId: `youtube-import-${video.videoId}`,
+              createdAt: video.publishedAt,
+              channelName,
+              title: video.title,
+              description: video.description || '',
+              tags: [],
+              duration: 0,
+              mode: 'youtube-import' as VideoGenerationRecord['mode'],
+              sceneCount: 0,
+              voice: '',
+              orientation: 'portrait',
+              uploadStatus: 'uploaded',
+              uploadedAt: video.publishedAt,
+              gcsUrl: '',
+            };
+
+            const imported = await sheetsService.logVideoGeneration(record);
+
+            // 2. Analytics 데이터 가져와서 업데이트
+            let analyticsUpdated = false;
+            try {
+              const analyticsResult = await analyticsService.getVideoMetrics({
+                channelName,
+                videoId: video.videoId,
+                includeVideoInfo: true,
+                includeTrafficSources: false,
+                includeGeography: false,
+                includeDevices: false,
+                includeDemographics: false,
+              });
+
+              if (analyticsResult.success && analyticsResult.data && analyticsResult.reward) {
+                const analyticsRecord: VideoAnalyticsRecord = {
+                  videoId: video.videoId,
+                  views: analyticsResult.data.views,
+                  likes: analyticsResult.data.likes,
+                  comments: analyticsResult.data.comments,
+                  shares: analyticsResult.data.shares,
+                  averageViewDuration: analyticsResult.data.averageViewDuration,
+                  averageViewPercentage: analyticsResult.data.averageViewPercentage,
+                  estimatedMinutesWatched: analyticsResult.data.estimatedMinutesWatched,
+                  subscribersGained: analyticsResult.data.subscribersGained,
+                  subscribersLost: analyticsResult.data.subscribersLost,
+                  retentionScore: analyticsResult.reward.retentionScore,
+                  engagementScore: analyticsResult.reward.engagementScore,
+                  growthScore: analyticsResult.reward.growthScore,
+                  viralScore: analyticsResult.reward.viralScore,
+                  totalReward: analyticsResult.reward.totalReward,
+                  lastUpdated: new Date().toISOString(),
+                };
+
+                analyticsUpdated = await sheetsService.updateVideoAnalytics(video.videoId, analyticsRecord);
+              }
+            } catch (analyticsError) {
+              logger.warn({ videoId: video.videoId, error: analyticsError }, 'Failed to fetch analytics for video');
+            }
+
+            results.push({
+              videoId: video.videoId,
+              title: video.title,
+              imported,
+              analyticsUpdated,
+            });
+          } catch (error) {
+            results.push({
+              videoId: video.videoId,
+              title: video.title,
+              imported: false,
+              analyticsUpdated: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+
+        const importedCount = results.filter(r => r.imported).length;
+        const analyticsCount = results.filter(r => r.analyticsUpdated).length;
+
+        logger.info(
+          { channelName, total: results.length, imported: importedCount, analytics: analyticsCount },
+          'YouTube video import completed'
+        );
+
+        res.status(200).json({
+          success: true,
+          message: `Imported ${importedCount}/${results.length} videos, updated analytics for ${analyticsCount} videos`,
+          total: results.length,
+          imported: importedCount,
+          analyticsUpdated: analyticsCount,
+          results,
+        });
+      } catch (error) {
+        logger.error(error, 'YouTube video import endpoint error');
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+  );
 
   /**
    * GET /api/sheet/config

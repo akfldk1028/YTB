@@ -22,7 +22,7 @@ export interface VideoGenerationRecord {
   duration?: number;            // 길이 (초)
 
   // 생성 설정
-  mode: 'pexels' | 'veo3' | 'nano-banana' | 'consistent-shorts';
+  mode: 'pexels' | 'veo3' | 'nano-banana' | 'consistent-shorts' | 'youtube-import';
   sceneCount: number;           // 씬 개수
   voice?: string;               // TTS 음성
   orientation?: 'portrait' | 'landscape';
@@ -33,6 +33,9 @@ export interface VideoGenerationRecord {
 
   // GCS 정보
   gcsUrl?: string;              // GCS 저장 경로
+
+  // YouTube URL
+  youtubeUrl?: string;          // YouTube 영상 URL
 }
 
 /**
@@ -109,6 +112,7 @@ export interface SheetRowData {
   uploadStatus: string;
   uploadedAt: string;
   gcsUrl: string;
+  youtubeUrl: string;           // YouTube URL
   // Analytics 필드
   views: number;
   likes: number;
@@ -146,6 +150,7 @@ export const SHEET_HEADERS = [
   'uploadStatus',
   'uploadedAt',
   'gcsUrl',
+  'youtubeUrl',
   'views',
   'likes',
   'comments',

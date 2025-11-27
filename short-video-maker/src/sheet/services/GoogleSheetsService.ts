@@ -187,7 +187,7 @@ export class GoogleSheetsService {
         return false;
       }
 
-      // Analytics 컬럼 업데이트 (P열부터 AE열)
+      // Analytics 컬럼 업데이트 (Q열부터 AE열) - youtubeUrl이 P열에 추가됨
       const analyticsValues = [
         analytics.views,
         analytics.likes,
@@ -208,7 +208,7 @@ export class GoogleSheetsService {
 
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
-        range: `${this.sheetName}!P${rowIndex}:AD${rowIndex}`,
+        range: `${this.sheetName}!Q${rowIndex}:AE${rowIndex}`,
         valueInputOption: 'RAW',
         requestBody: {
           values: [analyticsValues],
@@ -413,6 +413,7 @@ export class GoogleSheetsService {
       record.uploadStatus,
       record.uploadedAt || '',
       record.gcsUrl || '',
+      record.youtubeUrl || (record.videoId ? `https://youtube.com/watch?v=${record.videoId}` : ''),
       // Analytics 필드 (빈 값)
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '',
     ];
@@ -451,22 +452,23 @@ export class GoogleSheetsService {
       uploadStatus: getString(12) as 'pending' | 'uploaded' | 'failed',
       uploadedAt: getString(13) || undefined,
       gcsUrl: getString(14) || undefined,
-      // Analytics
-      views: getNumber(15) || undefined,
-      likes: getNumber(16) || undefined,
-      comments: getNumber(17) || undefined,
-      shares: getNumber(18) || undefined,
-      averageViewDuration: getNumber(19) || undefined,
-      averageViewPercentage: getNumber(20) || undefined,
-      estimatedMinutesWatched: getNumber(21) || undefined,
-      subscribersGained: getNumber(22) || undefined,
-      subscribersLost: getNumber(23) || undefined,
-      retentionScore: getNumber(24) || undefined,
-      engagementScore: getNumber(25) || undefined,
-      growthScore: getNumber(26) || undefined,
-      viralScore: getNumber(27) || undefined,
-      totalReward: getNumber(28) || undefined,
-      analyticsLastUpdated: getString(29) || undefined,
+      youtubeUrl: getString(15) || undefined,
+      // Analytics (인덱스 +1 됨)
+      views: getNumber(16) || undefined,
+      likes: getNumber(17) || undefined,
+      comments: getNumber(18) || undefined,
+      shares: getNumber(19) || undefined,
+      averageViewDuration: getNumber(20) || undefined,
+      averageViewPercentage: getNumber(21) || undefined,
+      estimatedMinutesWatched: getNumber(22) || undefined,
+      subscribersGained: getNumber(23) || undefined,
+      subscribersLost: getNumber(24) || undefined,
+      retentionScore: getNumber(25) || undefined,
+      engagementScore: getNumber(26) || undefined,
+      growthScore: getNumber(27) || undefined,
+      viralScore: getNumber(28) || undefined,
+      totalReward: getNumber(29) || undefined,
+      analyticsLastUpdated: getString(30) || undefined,
     };
   }
 
