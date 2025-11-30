@@ -87,11 +87,13 @@ export interface N8NVideoConfig {
   musicVolume: 'low' | 'medium' | 'high';
   subtitlePosition: 'top' | 'center' | 'bottom';
   quality: 'standard' | 'high' | 'premium';
+  captionBackgroundColor?: string; // 🔥 TikTok 스타일 자막 하이라이트 색상
 }
 
 // ElevenLabs Config 구조
 export interface N8NElevenLabsConfig {
   model_id: string;
+  voice?: string; // 🔥 ElevenLabs voice ID (e.g., 'baRq1qg6PxLsnSQ04d8c' for Axl)
   voice_settings: {
     stability: number;
     similarity_boost: number;
@@ -292,8 +294,13 @@ export interface ParsedConfig {
   style?: string;
   subtitlePosition?: 'top' | 'center' | 'bottom';
   useVeo3?: boolean;
+  // 🔥 TTS Voice ID (ElevenLabs)
+  voice?: string;
+  // 🔥 TikTok 스타일 자막 하이라이트 색상
+  captionBackgroundColor?: string;
   elevenlabs?: {
     model_id: string;
+    voice?: string; // ElevenLabs voice ID
     voice_settings: {
       stability: number;
       similarity_boost: number;
