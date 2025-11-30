@@ -3,7 +3,7 @@ import {
   installWhisperCpp,
 } from "@remotion/install-whisper-cpp";
 import path from "path";
-import { execSync } from "child_process";
+import { spawn } from "child_process";
 import fs from "fs";
 
 import { Config } from "../../config";
@@ -47,24 +47,26 @@ export class Whisper {
   // Direct whisper.cpp CLI call for Korean language support
   async CreateCaption(audioPath: string): Promise<Caption[]> {
     logger.debug({ audioPath }, "Starting to transcribe audio with direct whisper.cpp CLI");
-    
+
     const whisperExecutable = path.join(this.config.whisperInstallPath, "main");
     const modelPath = path.join(this.config.whisperInstallPath, "models", `ggml-${this.config.whisperModel}.bin`);
     const outputJsonPath = audioPath.replace('.wav', '_whisper_output.json');
-    
+
     try {
-      // Build whisper command with Korean language and no translation
-      // Use auto language detection instead of forcing Korean
-      const command = `"${whisperExecutable}" -m "${modelPath}" -l auto -oj -of "${outputJsonPath.replace('.json', '')}" "${audioPath}"`;
-      
-      logger.debug({ command }, "Executing whisper command");
-      
-      // Execute whisper.cpp directly
-      const output = execSync(command, { 
-        encoding: 'utf8',
-        timeout: 120000 // 120 second timeout (2 minutes)
-      });
-      
+      // Build whisper command args
+      const args = [
+        '-m', modelPath,
+        '-l', 'auto',
+        '-oj',
+        '-of', outputJsonPath.replace('.json', ''),
+        audioPath
+      ];
+
+      logger.debug({ whisperExecutable, args }, "Executing whisper command with spawn");
+
+      // Execute whisper.cpp using spawn (non-blocking, better timeout handling)
+      const output = await this.runWhisperAsync(whisperExecutable, args, 300000); // 5 minute timeout
+
       logger.debug({ output }, "Whisper command completed");
       
       // Read the JSON output file
@@ -115,5 +117,52 @@ export class Whisper {
       logger.error({ error, audioPath }, "Error in direct whisper transcription");
       throw new Error(`Whisper transcription failed: ${error}`);
     }
+  }
+
+  // Async wrapper for whisper execution using spawn
+  private runWhisperAsync(executable: string, args: string[], timeoutMs: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let stdout = '';
+      let stderr = '';
+      let killed = false;
+
+      logger.debug({ executable, args, timeoutMs }, "Starting whisper spawn process");
+
+      const process = spawn(executable, args, {
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      const timer = setTimeout(() => {
+        killed = true;
+        process.kill('SIGKILL');
+        reject(new Error(`Whisper process timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      process.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      process.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      process.on('close', (code) => {
+        clearTimeout(timer);
+        if (killed) return;
+
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          logger.error({ code, stderr, stdout }, "Whisper process failed");
+          reject(new Error(`Whisper process exited with code ${code}: ${stderr}`));
+        }
+      });
+
+      process.on('error', (error) => {
+        clearTimeout(timer);
+        logger.error({ error }, "Whisper spawn error");
+        reject(new Error(`Failed to spawn whisper process: ${error.message}`));
+      });
+    });
   }
 }
