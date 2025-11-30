@@ -159,34 +159,145 @@ export class FFMpeg {
     });
   }
 
+  /**
+   * 🔥 TikTok/Shorts 스타일 자막 필터 생성
+   *
+   * 단어별 하이라이트 효과:
+   * - 여러 단어를 함께 표시
+   * - 현재 발화중인 단어만 노란색 하이라이트
+   * - fontcolor_expr로 시간 기반 색상 변경
+   */
   private createSubtitleFilter(captions: any[], orientation: OrientationEnum): string | null {
     try {
       if (!captions || captions.length === 0) return null;
 
-      const fontSize = orientation === OrientationEnum.portrait ? 32 : 40; // Larger for better readability
-      const yPosition = orientation === OrientationEnum.portrait ? 'h*0.8' : 'h*0.85';
+      // 🔥 TikTok/Shorts 스타일 설정
+      const fontSize = orientation === OrientationEnum.portrait ? 52 : 60; // 더 크게!
+      const yPosition = orientation === OrientationEnum.portrait ? 'h*0.72' : 'h*0.78'; // Shorts 안전 영역
 
-      // Use Nanum Gothic for proper Korean support
-      const fontPath = '/home/akfldk1028/.fonts/NanumGothic-Regular.ttf';
+      // 한글 지원 폰트
+      const fontPath = '/home/akfldk1028/.fonts/NanumGothic-Bold.ttf';
 
-      // Create multiple drawtext filters for each caption with timing
-      // Important: In FFmpeg filter_complex, we need to properly escape special characters
-      // Colons should NOT be escaped in filter parameters
-      // Single quotes in text need to be escaped, but the enable parameter uses single quotes differently
-      const drawTextFilters = captions.map((caption, index) => {
-        const startTime = caption.startMs / 1000; // Convert to seconds
-        const endTime = caption.endMs / 1000;
-        // Escape single quotes and other special chars for FFmpeg
-        const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:');
+      // 🔥 TikTok 스타일 색상
+      const normalColor = 'FFFFFF'; // 흰색 (비활성)
+      const highlightColor = 'FFEB3B'; // 노란색 (활성)
+      const borderColor = 'black';
+      const borderWidth = 4;
 
-        // Use double quotes for enable to avoid nesting single quotes
-        return `drawtext=fontfile=${fontPath}:text='${text}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.7:boxborderw=5:enable=between(t\\,${startTime}\\,${endTime})`;
+      // 단어들을 그룹으로 묶기 (2-3 단어씩)
+      const wordGroups = this.groupWordsForDisplay(captions, 3);
+
+      const drawTextFilters: string[] = [];
+
+      wordGroups.forEach((group, groupIndex) => {
+        const groupStartTime = group[0].startMs / 1000;
+        const groupEndTime = group[group.length - 1].endMs / 1000;
+
+        // 그룹 내 각 단어에 대해 drawtext 생성
+        group.forEach((word, wordIndex) => {
+          const wordStartTime = word.startMs / 1000;
+          const wordEndTime = word.endMs / 1000;
+
+          // 단어 텍스트 escape 및 대문자 변환
+          const text = word.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
+
+          // 단어의 x 위치 계산 (그룹 내 위치에 따라)
+          // 간단한 방법: 이전 단어들의 너비 추정
+          const wordsBefore = group.slice(0, wordIndex).map(w => w.text.toUpperCase()).join(' ');
+
+          // 🔥 핵심: fontcolor_expr로 시간 기반 색상 변경
+          // 현재 단어가 발화 중이면 노란색, 아니면 흰색
+          const fontcolorExpr = `if(between(t\\,${wordStartTime}\\,${wordEndTime})\\,0x${highlightColor}\\,0x${normalColor})`;
+
+          // x 위치: 중앙 정렬 기준으로 오프셋 계산
+          // 그룹 전체 텍스트의 중앙에서 각 단어 위치 계산
+          const fullGroupText = group.map(w => w.text.toUpperCase()).join(' ');
+          const xPosition = wordIndex === 0
+            ? `(w-text_w*${fullGroupText.length/text.length})/2`
+            : `(w-text_w*${fullGroupText.length/text.length})/2+text_w*${wordsBefore.length/text.length}`;
+
+          drawTextFilters.push(
+            `drawtext=fontfile=${fontPath}:` +
+            `text='${text} ':` + // 공백 추가로 단어 간격
+            `fontcolor_expr=${fontcolorExpr}:` +
+            `fontsize=${fontSize}:` +
+            `x=(w-tw)/2:` + // 간단히 중앙 정렬 (복잡한 위치 계산 대신)
+            `y=${yPosition}:` +
+            `borderw=${borderWidth}:` +
+            `bordercolor=${borderColor}:` +
+            `enable=between(t\\,${groupStartTime}\\,${groupEndTime})`
+          );
+        });
       });
 
-      // Join all filters with comma
+      // 너무 많은 필터는 성능 문제 발생 가능
+      // 단순화: 단어별 개별 표시 (하이라이트 색상 적용)
+      if (drawTextFilters.length > 50) {
+        return this.createSimplifiedSubtitleFilter(captions, orientation);
+      }
+
       return drawTextFilters.join(',');
     } catch (error) {
-      logger.warn(error, "Could not create subtitle filter");
+      logger.warn(error, "Could not create subtitle filter, falling back to simplified version");
+      return this.createSimplifiedSubtitleFilter(captions, orientation);
+    }
+  }
+
+  /**
+   * 단어 그룹화 (n개씩 묶기)
+   */
+  private groupWordsForDisplay(captions: any[], maxWordsPerGroup: number): any[][] {
+    const groups: any[][] = [];
+    let currentGroup: any[] = [];
+
+    captions.forEach((caption, index) => {
+      currentGroup.push(caption);
+
+      // 그룹이 꽉 찼거나, 다음 단어와 시간 차이가 크면 새 그룹
+      const nextCaption = captions[index + 1];
+      const timegap = nextCaption ? (nextCaption.startMs - caption.endMs) : 9999;
+
+      if (currentGroup.length >= maxWordsPerGroup || timegap > 500) {
+        groups.push([...currentGroup]);
+        currentGroup = [];
+      }
+    });
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
+  }
+
+  /**
+   * 🔥 간소화된 TikTok 스타일 자막 필터 (단어 하나씩 노란색)
+   */
+  private createSimplifiedSubtitleFilter(captions: any[], orientation: OrientationEnum): string | null {
+    try {
+      if (!captions || captions.length === 0) return null;
+
+      const fontSize = orientation === OrientationEnum.portrait ? 56 : 64;
+      const yPosition = orientation === OrientationEnum.portrait ? 'h*0.72' : 'h*0.78';
+      const fontPath = '/home/akfldk1028/.fonts/NanumGothic-Bold.ttf';
+
+      // 🔥 노란색 하이라이트 (TikTok 스타일)
+      const fontColor = 'FFEB3B'; // 노란색!
+      const borderColor = 'black';
+      const borderWidth = 5;
+      const shadowColor = 'black@0.7';
+
+      const drawTextFilters = captions.map((caption) => {
+        const startTime = caption.startMs / 1000;
+        const endTime = caption.endMs / 1000;
+        const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
+
+        return `drawtext=fontfile=${fontPath}:text='${text}':fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`;
+      });
+
+      return drawTextFilters.join(',');
+    } catch (error) {
+      logger.warn(error, "Could not create simplified subtitle filter");
       return null;
     }
   }

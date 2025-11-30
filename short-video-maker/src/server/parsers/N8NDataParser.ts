@@ -181,9 +181,14 @@ export class RawDataParser {
       musicTag: this.mapMusicVolume(data.video_config?.musicVolume),
       quality: data.video_config?.quality || 'high',
       subtitlePosition: data.video_config?.subtitlePosition || 'center',
+      // 🔥 ElevenLabs voice ID 전달 (TTS에서 사용)
+      voice: data.elevenlabs_config?.voice || data.channel_config?.voice_preference || 'baRq1qg6PxLsnSQ04d8c', // Default: Axl (Shorts 최적화)
+      // Caption 배경색 (TikTok 스타일)
+      captionBackgroundColor: data.video_config?.captionBackgroundColor || '#FFEB3B',
       // ElevenLabs TTS 설정
       elevenlabs: {
         model_id: data.elevenlabs_config?.model_id || 'eleven_multilingual_v2',
+        voice: data.elevenlabs_config?.voice, // voice ID 저장
         voice_settings: data.elevenlabs_config?.voice_settings || {
           stability: 0.7,
           similarity_boost: 0.8,
