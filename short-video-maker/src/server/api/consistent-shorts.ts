@@ -71,7 +71,7 @@ export class ConsistentShortsAPIRouter {
         try {
           logger.info("Processing CONSISTENT SHORTS request (character consistency mode)");
 
-          const { character, scenes, config, webhook_url, callback_url } = req.body;
+          const { character, scenes, config, webhook_url, callback_url, elevenlabs_config, video_config } = req.body;
 
           // Validation
           if (!character || !character.description) {
@@ -122,15 +122,31 @@ export class ConsistentShortsAPIRouter {
           const validationInput = {
             scenes: processedScenes,
             config: {
-              orientation: config?.orientation || "landscape",
-              voice: config?.voice || "am_adam",
-              musicVolume: config?.musicVolume || "low",
-              subtitlePosition: config?.subtitlePosition || "bottom",
+              orientation: video_config?.orientation || config?.orientation || "portrait",
+              voice: elevenlabs_config?.voice || config?.voice || "baRq1qg6PxLsnSQ04d8c",
+              musicVolume: video_config?.musicVolume || config?.musicVolume || "low",
+              subtitlePosition: video_config?.subtitlePosition || config?.subtitlePosition || "bottom",
 
               // IMPORTANT: Always use "ffmpeg" for consistent shorts
               // The ConsistentShortsWorkflow handles NANO BANANA image generation internally
               // and optionally converts to VEO3 if metadata.generateVideos=true
               videoSource: "ffmpeg",
+
+              // Caption background color (TikTok style)
+              captionBackgroundColor: video_config?.captionBackgroundColor || "#FFEB3B",
+
+              // ElevenLabs TTS settings
+              elevenlabs: elevenlabs_config ? {
+                model_id: elevenlabs_config.model_id || "eleven_multilingual_v2",
+                voice: elevenlabs_config.voice,
+                voice_settings: elevenlabs_config.voice_settings || {
+                  stability: 0.7,
+                  similarity_boost: 0.8,
+                  speed: 1.0,
+                  style: "narration"
+                },
+                output_format: elevenlabs_config.output_format || "mp3"
+              } : undefined,
 
               ...config
             }

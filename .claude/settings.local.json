@@ -1,9 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C /mnt/d/Data/00_Personal/YTB/short-video-maker rev-parse:*)",
-      "Bash(git -C /mnt/d/Data/00_Personal/YTB add:*)",
-      "Bash(git -C /mnt/d/Data/00_Personal/YTB commit -m \"$(cat <<''EOF''\nAdd Shorts-optimized voices and TikTok-style captions\n\n- Add 9 new ElevenLabs voices for Shorts/Reels/TikTok (Arfa, Axl, etc)\n- Update caption styles: Montserrat font, bolder text, pop effect\n- Add getShortsVoices(), getDefaultShortsVoice() methods\n- Change default highlight color to yellow (#FFEB3B)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(gcloud builds list:*)",
+      "Bash(gcloud builds describe:*)",
+      "Bash(gcloud run services describe:*)",
+      "Bash(gcloud run revisions list:*)",
+      "Bash(cat:*)",
+      "Bash(gcloud builds log:*)",
+      "Bash(kill:*)",
+      "Bash(gcloud run deploy:*)",
+      "Bash(gcloud secrets versions access:*)",
+      "Bash(curl:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": [],
