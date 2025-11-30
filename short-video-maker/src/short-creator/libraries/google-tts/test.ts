@@ -38,7 +38,7 @@ async function testGoogleTTS() {
     logger.info({ text: testText }, "Generating test audio");
     
     const startTime = Date.now();
-    const result = await googleTts.generate(testText, "af_heart");
+    const result = await googleTts.generate(testText, "baRq1qg6PxLsnSQ04d8c"); // el_axl
     const generationTime = Date.now() - startTime;
     
     logger.info({ 

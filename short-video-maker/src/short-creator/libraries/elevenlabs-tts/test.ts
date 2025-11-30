@@ -36,17 +36,17 @@ async function testElevenLabsTTS() {
     const testTexts = [
       {
         text: "Hello! This is a test of ElevenLabs Text-to-Speech integration.",
-        voice: "af_heart" as const,
+        voice: "baRq1qg6PxLsnSQ04d8c" as const, // el_axl
         filename: "elevenlabs_test_english.mp3"
       },
       {
         text: "안녕하세요! ElevenLabs 음성 합성 테스트입니다. 한국어도 잘 지원됩니다.",
-        voice: "af_sarah" as const, 
+        voice: "N8CqI3qXFmT0tJHnzlrq" as const, // el_arfa
         filename: "elevenlabs_test_korean.mp3"
       },
       {
         text: "¡Hola! Esta es una prueba del sistema de síntesis de voz ElevenLabs.",
-        voice: "am_adam" as const,
+        voice: "TtRFBnwQdH1k01vR0hMz" as const, // el_arthur
         filename: "elevenlabs_test_spanish.mp3"
       }
     ];

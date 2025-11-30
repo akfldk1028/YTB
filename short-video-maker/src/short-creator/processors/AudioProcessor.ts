@@ -30,7 +30,7 @@ export class AudioProcessor {
       logger.debug({ text, voice }, "Generating TTS audio");
       
       // Generate TTS audio
-      const ttsResult = await this.ttsProvider.generate(text, voice || 'am_adam');
+      const ttsResult = await this.ttsProvider.generate(text, voice || 'baRq1qg6PxLsnSQ04d8c'); // el_axl
       
       // Create file paths
       const audioId = cuid();

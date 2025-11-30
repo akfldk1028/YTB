@@ -112,7 +112,7 @@ export class RawDataParser {
         searchTerms: shot.search_keywords || [],
         duration: shot.duration,
         voiceConfig: {
-          voice: data.channel_config?.voice_preference || "af_heart"
+          voice: data.channel_config?.voice_preference || "baRq1qg6PxLsnSQ04d8c"
         },
         videoPrompt: shot.image_prompt,
         imagePrompt: shot.image_prompt, // For VEO2/3 motion prompt
@@ -135,7 +135,7 @@ export class RawDataParser {
         searchTerms: scene.search_keywords || [],
         duration: scene.duration,
         voiceConfig: {
-          voice: data.channel_config?.voice_preference || "af_heart"
+          voice: data.channel_config?.voice_preference || "baRq1qg6PxLsnSQ04d8c"
         },
         // VEO3 우선순위 처리: image_prompt 필드가 있으면 VEO3 사용
         needsImageGeneration: !!(scene.image_prompt && scene.image_prompt.length > 0),
@@ -158,7 +158,7 @@ export class RawDataParser {
         searchTerms: shot.search_keywords || [],
         duration: shot.duration,
         voiceConfig: {
-          voice: data.channel_config?.voice_preference || "af_heart"
+          voice: data.channel_config?.voice_preference || "baRq1qg6PxLsnSQ04d8c"
         },
         videoPrompt: shot.image_prompt,
         // VEO3 사용시 NANO BANANA로 이미지 생성 필요 표시
@@ -381,7 +381,7 @@ export class RawDataParser {
       
       // 음성 설정 (첫 번째 내레이션의 voice 사용)
       const voiceConfig = {
-        voice: narrationElements[0]?.voice || "af_heart"
+        voice: narrationElements[0]?.voice || "baRq1qg6PxLsnSQ04d8c"
       };
 
       // 비디오 검색어 및 프롬프트
@@ -462,7 +462,7 @@ export class RawDataParser {
       
       // 음성 설정 (기본값 사용)
       const voiceConfig = {
-        voice: "af_heart" // 스토리보드에는 voice 정보가 없으므로 기본값 사용
+        voice: "baRq1qg6PxLsnSQ04d8c" // 스토리보드에는 voice 정보가 없으므로 기본값 사용
       };
 
       // 비디오 프롬프트에서 검색어 추출
@@ -602,7 +602,7 @@ export class RawDataParser {
       searchTerms: scene.searchTerms || scene.search_tags || [],
       duration: scene.duration || 3,
       voiceConfig: {
-        voice: rawData.channel_config?.voice_preference || "af_heart"
+        voice: rawData.channel_config?.voice_preference || "baRq1qg6PxLsnSQ04d8c"
       },
       videoPrompt: scene.videoPrompt || scene.image_prompt,
       needsImageGeneration: !!(scene.imageData?.prompt || scene.image_prompt || scene.imageDescription),
@@ -669,7 +669,7 @@ export class RawDataParser {
       searchTerms: shot.search_keywords || [],
       duration: shot.duration || 3,
       voiceConfig: {
-        voice: "af_heart" // 기본값
+        voice: "baRq1qg6PxLsnSQ04d8c" // 기본값
       },
       videoPrompt: shot.image_prompt,
       needsImageGeneration: !!shot.image_prompt,

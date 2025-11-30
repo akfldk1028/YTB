@@ -206,7 +206,7 @@ async function main() {
         "testing if the installation was successful - this may take a while...",
       );
       try {
-        const audioBuffer = (await ttsProvider.generate("hi", "af_heart")).audio;
+        const audioBuffer = (await ttsProvider.generate("hi", "baRq1qg6PxLsnSQ04d8c")).audio; // el_axl
         await ffmpeg.createMp3DataUri(audioBuffer);
         await pexelsApi.findVideo(["dog"], 2.4);
         // FFmpeg mode - no additional testing needed

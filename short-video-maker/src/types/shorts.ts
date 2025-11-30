@@ -55,34 +55,16 @@ export const sceneInput = z.object({
 export type SceneInput = z.infer<typeof sceneInput>;
 
 export enum VoiceEnum {
-  af_heart = "af_heart",
-  af_alloy = "af_alloy",
-  af_aoede = "af_aoede",
-  af_bella = "af_bella",
-  af_jessica = "af_jessica",
-  af_kore = "af_kore",
-  af_nicole = "af_nicole",
-  af_nova = "af_nova",
-  af_river = "af_river",
-  af_sarah = "af_sarah",
-  af_sky = "af_sky",
-  am_adam = "am_adam",
-  am_echo = "am_echo",
-  am_eric = "am_eric",
-  am_fenrir = "am_fenrir",
-  am_liam = "am_liam",
-  am_michael = "am_michael",
-  am_onyx = "am_onyx",
-  am_puck = "am_puck",
-  am_santa = "am_santa",
-  bf_emma = "bf_emma",
-  bf_isabella = "bf_isabella",
-  bm_george = "bm_george",
-  bm_lewis = "bm_lewis",
-  bf_alice = "bf_alice",
-  bf_lily = "bf_lily",
-  bm_daniel = "bm_daniel",
-  bm_fable = "bm_fable",
+  // 🔥 ElevenLabs Shorts-optimized voices (Recommended for YouTube Shorts/TikTok/Reels)
+  el_arfa = "N8CqI3qXFmT0tJHnzlrq",      // Female - Reels/Shorts optimized
+  el_axl = "baRq1qg6PxLsnSQ04d8c",       // Male - Energetic, cinematic (DEFAULT, recommended)
+  el_anika = "ecp3DWciuUyW7BYM7II1",     // Female - Sweet & Lively
+  el_ashley = "bxiObU1YDrf7lrFAyV99",    // Female - YouTube/TikTok
+  el_brittney = "kPzsL2i3teMYv0FxEYQ6",  // Female - Social media
+  el_arthur = "TtRFBnwQdH1k01vR0hMz",    // Male - Social media optimized
+  el_aiden = "dyTPmGzuLaJM15vpN3DS",     // Male - Happy Video
+  el_snap = "gWaDC0oXAheKoZfljzuI",      // Male - Vibrant Energy
+  el_ash = "2TgCsDinEcLJ95vqmLKm",       // Male - YouTube, natural
 }
 
 export enum OrientationEnum {
@@ -121,7 +103,7 @@ export const renderConfig = z.object({
   voice: z
     .nativeEnum(VoiceEnum)
     .optional()
-    .describe("Voice to be used for the speech, default is af_heart"),
+    .describe("Voice to be used for the speech. Kokoro (af_heart, etc) or ElevenLabs (el_axl, etc)"),
   orientation: z
     .nativeEnum(OrientationEnum)
     .optional()

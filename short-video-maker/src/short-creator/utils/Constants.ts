@@ -1,6 +1,7 @@
 export const DEFAULT_TIMEOUT_MS = 30000;
 export const DEFAULT_AUDIO_DURATION = 3;
-export const DEFAULT_VOICE = "af_heart";
+// 🔥 ElevenLabs Axl - Shorts 최적화 음성 (에너지 넘침, 시네마틱)
+export const DEFAULT_VOICE = "baRq1qg6PxLsnSQ04d8c"; // el_axl
 
 export const VIDEO_DIMENSIONS = {
   PORTRAIT: "1080x1920",
