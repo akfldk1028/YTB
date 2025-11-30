@@ -6,9 +6,12 @@ import {
   useVideoConfig,
   Audio,
   OffthreadVideo,
+  interpolate,
+  spring,
 } from "remotion";
 import { z } from "zod";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
+import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
 
 import {
   calculateVolume,
@@ -17,6 +20,18 @@ import {
 } from "../utils";
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
+const { fontFamily: montserratFont } = loadMontserrat(); // Modern Shorts font
+
+// 🔥 TikTok/Shorts 스타일 색상 팔레트
+const SHORTS_COLORS = {
+  yellow: '#FFEB3B',      // 밝은 노란색 - 에너지 넘침
+  green: '#00E676',       // 네온 그린 - 신선함
+  pink: '#FF4081',        // 핫 핑크 - 눈에 띔
+  cyan: '#00BCD4',        // 시안 - 시원함
+  orange: '#FF9800',      // 오렌지 - 따뜻함
+  purple: '#E040FB',      // 퍼플 - 세련됨
+  white: '#FFFFFF',       // 흰색 기본
+};
 
 export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
   scenes,
@@ -26,26 +41,32 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
+  // 🔥 숏츠 스타일 하이라이트 색상 (기본: 노란색으로 변경)
+  const captionBackgroundColor = config.captionBackgroundColor ?? SHORTS_COLORS.yellow;
 
+  // 🔥 TikTok 스타일 팝업 효과 active 스타일
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
-    padding: "10px",
-    marginLeft: "-10px",
-    marginRight: "-10px",
-    borderRadius: "10px",
+    color: captionBackgroundColor === SHORTS_COLORS.yellow ? '#000' : '#FFF', // 노란색이면 검정 글씨
+    padding: "12px 16px",
+    marginLeft: "-8px",
+    marginRight: "-8px",
+    borderRadius: "12px",
+    transform: "scale(1.15)", // 🔥 팝업 효과!
+    display: "inline-block",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.4)", // 입체감
   };
 
   const captionPosition = config.captionPosition ?? "center";
   let captionStyle = {};
   if (captionPosition === "top") {
-    captionStyle = { top: 100 };
+    captionStyle = { top: 120 };
   }
   if (captionPosition === "center") {
     captionStyle = { top: "50%", transform: "translateY(-50%)" };
   }
   if (captionPosition === "bottom") {
-    captionStyle = { bottom: 100 };
+    captionStyle = { bottom: 150 }; // 🔥 조금 더 위로 (Shorts 안전 영역)
   }
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
@@ -107,17 +128,18 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
                           return (
                             <p
                               style={{
-                                fontSize: "6em",
-                                fontFamily: fontFamily,
-                                fontWeight: "black",
+                                fontSize: "5.5em", // 🔥 약간 줄여서 가독성 향상
+                                fontFamily: montserratFont, // 🔥 더 모던한 폰트
+                                fontWeight: 900, // 🔥 최대 굵기
                                 color: "white",
-                                WebkitTextStroke: "2px black",
+                                WebkitTextStroke: "4px black", // 🔥 더 두꺼운 테두리
                                 WebkitTextFillColor: "white",
-                                textShadow: "0px 0px 10px black",
+                                textShadow: "0px 4px 20px rgba(0,0,0,0.8), 0px 0px 40px rgba(0,0,0,0.5)", // 🔥 더 강한 그림자
                                 textAlign: "center",
                                 width: "100%",
-                                // uppercase
                                 textTransform: "uppercase",
+                                letterSpacing: "2px", // 🔥 글자 간격
+                                lineHeight: 1.3,
                               }}
                               key={`scene-${i}-page-${j}-line-${k}`}
                             >
@@ -131,7 +153,8 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
                                   <>
                                     <span
                                       style={{
-                                        fontWeight: "bold",
+                                        fontWeight: 900,
+                                        transition: "all 0.1s ease-out", // 🔥 부드러운 전환
                                         ...(active ? activeStyle : {}),
                                       }}
                                       key={`scene-${i}-page-${j}-line-${k}-text-${l}`}

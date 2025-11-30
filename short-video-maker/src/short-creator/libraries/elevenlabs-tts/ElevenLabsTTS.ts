@@ -33,7 +33,21 @@ export class ElevenLabsTTS {
   private initializeVoices(): void {
     // ElevenLabs의 기본 제공 음성들 (높은 품질의 다국어 지원)
     this.availableVoices = [
-      // 영어 (미국) - 높은 품질 음성들
+      // 🔥 YouTube Shorts / TikTok / Instagram Reels 전용 음성들 (에너지 넘침!)
+      // Female - Shorts 최적화
+      { voiceId: 'kPzsL2i3teMYv0FxEYQ6', name: 'Brittney', category: 'Female', labels: { accent: 'american', age: 'young', gender: 'female', style: 'shorts' } },  // 소셜 미디어 전문
+      { voiceId: 'N8CqI3qXFmT0tJHnzlrq', name: 'Arfa', category: 'Female', labels: { accent: 'american', age: 'young', gender: 'female', style: 'shorts' } },      // Reels/Shorts 최적화!
+      { voiceId: 'ecp3DWciuUyW7BYM7II1', name: 'Anika', category: 'Female', labels: { accent: 'american', age: 'young', gender: 'female', style: 'shorts' } },     // Sweet & Lively
+      { voiceId: 'bxiObU1YDrf7lrFAyV99', name: 'Ashley', category: 'Female', labels: { accent: 'american', age: 'young', gender: 'female', style: 'shorts' } },    // YouTube/TikTok 전용
+
+      // Male - Shorts 최적화
+      { voiceId: 'baRq1qg6PxLsnSQ04d8c', name: 'Axl', category: 'Male', labels: { accent: 'american', age: 'young', gender: 'male', style: 'shorts' } },           // 에너지 넘침, 시네마틱
+      { voiceId: 'TtRFBnwQdH1k01vR0hMz', name: 'Arthur', category: 'Male', labels: { accent: 'american', age: 'young', gender: 'male', style: 'shorts' } },        // 소셜 미디어 최적화
+      { voiceId: 'dyTPmGzuLaJM15vpN3DS', name: 'Aiden', category: 'Male', labels: { accent: 'american', age: 'young', gender: 'male', style: 'shorts' } },         // Happy Video 전문
+      { voiceId: 'gWaDC0oXAheKoZfljzuI', name: 'Snap', category: 'Male', labels: { accent: 'american', age: 'young', gender: 'male', style: 'shorts' } },          // Vibrant Energy
+      { voiceId: '2TgCsDinEcLJ95vqmLKm', name: 'ASH', category: 'Male', labels: { accent: 'american', age: 'young', gender: 'male', style: 'shorts' } },           // YouTube 전문 Enthusiastic
+
+      // 영어 (미국) - 기존 높은 품질 음성들
       { voiceId: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', category: 'Male', labels: { accent: 'american', age: 'middle_aged', gender: 'male' } },
       { voiceId: 'Xb7hH8MSUJpSbSDYk0k2', name: 'Sarah', category: 'Female', labels: { accent: 'american', age: 'young', gender: 'female' } },
       { voiceId: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', category: 'Male', labels: { accent: 'american', age: 'young', gender: 'male' } },
@@ -44,11 +58,11 @@ export class ElevenLabsTTS {
       { voiceId: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', category: 'Female', labels: { accent: 'american', age: 'young', gender: 'female' } },
       { voiceId: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', category: 'Male', labels: { accent: 'american', age: 'young', gender: 'male' } },
       { voiceId: 'VR6AewLTigWG4xSOukaG', name: 'Arnold', category: 'Male', labels: { accent: 'american', age: 'middle_aged', gender: 'male' } },
-      
+
       // 영어 (영국) 억양
       { voiceId: 'oWAxZDx7w5VEj9dCyTzz', name: 'Grace', category: 'Female', labels: { accent: 'british', age: 'young', gender: 'female' } },
       { voiceId: 'cjVigY5qzO86Huf0OWal', name: 'Freya', category: 'Female', labels: { accent: 'british', age: 'young', gender: 'female' } },
-      
+
       // 다국어 지원 음성들
       { voiceId: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', category: 'Male', labels: { accent: 'australian', age: 'middle_aged', gender: 'male' } },
       { voiceId: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', category: 'Male', labels: { accent: 'british', age: 'middle_aged', gender: 'male' } },
@@ -197,6 +211,34 @@ export class ElevenLabsTTS {
       logger.error({ error }, "Error fetching ElevenLabs voices");
       return this.availableVoices;
     }
+  }
+
+  // 🔥 Shorts/Reels 전용 음성 목록 가져오기
+  getShortsVoices(): ElevenLabsVoice[] {
+    return this.availableVoices.filter(v => v.labels.style === 'shorts');
+  }
+
+  // 🔥 Shorts 기본 음성 가져오기 (성별 선택 가능)
+  getDefaultShortsVoice(gender: 'male' | 'female' = 'female'): ElevenLabsVoice {
+    const shortsVoices = this.getShortsVoices();
+    const genderVoices = shortsVoices.filter(v => v.labels.gender === gender);
+
+    // 기본 추천: 여성 = Arfa (Reels 최적화), 남성 = Axl (에너지 넘침)
+    if (gender === 'female') {
+      return genderVoices.find(v => v.name === 'Arfa') || genderVoices[0];
+    } else {
+      return genderVoices.find(v => v.name === 'Axl') || genderVoices[0];
+    }
+  }
+
+  // 🔥 voice ID로 직접 음성 사용 (N8N에서 직접 지정 시)
+  getVoiceById(voiceId: string): ElevenLabsVoice | undefined {
+    return this.availableVoices.find(v => v.voiceId === voiceId);
+  }
+
+  // 🔥 이름으로 음성 검색
+  getVoiceByName(name: string): ElevenLabsVoice | undefined {
+    return this.availableVoices.find(v => v.name.toLowerCase() === name.toLowerCase());
   }
 
   static async init(config?: ElevenLabsConfig): Promise<ElevenLabsTTS> {
