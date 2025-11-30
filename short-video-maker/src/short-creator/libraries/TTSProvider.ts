@@ -22,6 +22,11 @@ export class TTSProvider {
   ): Promise<{
     audio: ArrayBuffer;
     audioLength: number;
+    alignment?: {
+      characters: string[];
+      character_start_times_seconds: number[];
+      character_end_times_seconds: number[];
+    };
   }> {
     // 빈 텍스트 처리: 유효성 검사 후 무음 오디오 반환
     const trimmedText = text?.trim();

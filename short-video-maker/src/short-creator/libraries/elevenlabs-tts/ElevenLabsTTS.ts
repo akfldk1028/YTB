@@ -75,76 +75,117 @@ export class ElevenLabsTTS {
   ): Promise<{
     audio: ArrayBuffer;
     audioLength: number;
+    alignment?: {
+      characters: string[];
+      character_start_times_seconds: number[];
+      character_end_times_seconds: number[];
+    };
   }> {
     try {
       // 기존 Kokoro 음성을 ElevenLabs 음성으로 매핑
       const elevenLabsVoice = this.mapKokoroToElevenLabsVoice(voice);
-      
-      logger.debug({ 
-        text: text.substring(0, 100), 
-        voice, 
-        elevenLabsVoice: elevenLabsVoice.name 
-      }, "Generating audio with ElevenLabs TTS");
 
-      // ElevenLabs API 호출 - 다국어 모델 사용 (타임아웃 설정)
-      const audioStream = await Promise.race([
-        this.client.textToSpeech.convert(elevenLabsVoice.voiceId, {
+      logger.debug({
+        text: text.substring(0, 100),
+        voice,
+        elevenLabsVoice: elevenLabsVoice.name
+      }, "Generating audio with ElevenLabs TTS (with timestamps)");
+
+      // ElevenLabs API 호출 - convertWithTimestamps 사용하여 alignment 데이터 함께 가져오기
+      const sdkResponseRaw = await Promise.race([
+        this.client.textToSpeech.convertWithTimestamps(elevenLabsVoice.voiceId, {
           text: text,
           modelId: "eleven_multilingual_v2" // 다국어 지원 모델
         }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('ElevenLabs API timeout after 10 seconds')), 10000)
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('ElevenLabs API timeout after 30 seconds')), 30000)
         )
-      ]) as ReadableStream;
+      ]);
 
-      // 스트림을 ArrayBuffer로 변환
-      const chunks: Uint8Array[] = [];
-      const reader = audioStream.getReader();
-      
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-        }
-      } finally {
-        reader.releaseLock();
+      // Debug: SDK response 구조 확인
+      logger.debug({
+        responseType: typeof sdkResponseRaw,
+        hasData: 'data' in (sdkResponseRaw as any),
+        keys: Object.keys(sdkResponseRaw as any),
+      }, "ElevenLabs SDK response structure");
+
+      // SDK response에서 실제 데이터 추출
+      const sdkResponse = sdkResponseRaw as {
+        data?: {
+          audioBase64: string;
+          alignment: {
+            characters: string[];
+            characterStartTimesSeconds: number[];
+            characterEndTimesSeconds: number[];
+          } | null;
+        };
+        audioBase64?: string;
+        alignment?: {
+          characters: string[];
+          characterStartTimesSeconds: number[];
+          characterEndTimesSeconds: number[];
+        } | null;
+      };
+
+      // SDK가 { data: ... } 로 래핑하는 경우와 직접 반환하는 경우 모두 처리
+      const response = sdkResponse.data || sdkResponse;
+
+      // response 검증
+      if (!response.audioBase64) {
+        logger.error({
+          responseKeys: Object.keys(response),
+          hasAudioBase64: 'audioBase64' in response,
+        }, "ElevenLabs response missing audioBase64");
+        throw new Error('ElevenLabs response missing audioBase64 field');
       }
 
-      // Uint8Array chunks를 ArrayBuffer로 결합
-      const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-      const result = new Uint8Array(totalLength);
-      let offset = 0;
-      
-      for (const chunk of chunks) {
-        result.set(chunk, offset);
-        offset += chunk.length;
+      // Base64를 ArrayBuffer로 변환 (Node.js 방식)
+      const audioBuffer = Buffer.from(response.audioBase64, 'base64').buffer;
+
+      // alignment 데이터에서 오디오 길이 계산 (마지막 문자의 end time)
+      let audioLength: number;
+      if (response.alignment && response.alignment.characterEndTimesSeconds.length > 0) {
+        audioLength = Math.max(...response.alignment.characterEndTimesSeconds);
+      } else {
+        // fallback: 파일 크기로 추정
+        audioLength = (audioBuffer.byteLength * 8) / 128000;
       }
 
-      const audioBuffer = result.buffer;
-      
-      // MP3 길이 추정 (128kbps 기준 - 실제로는 더 정확한 계산이 필요하지만 근사치)
-      // MP3 파일 크기를 기반으로 길이 추정: fileSize * 8 / bitrate
-      const audioLength = (audioBuffer.byteLength * 8) / 128000; // 초 단위
-      
-      logger.debug({ 
-        voice, 
-        audioLength: audioLength.toFixed(2), 
+      logger.debug({
+        voice,
+        audioLength: audioLength.toFixed(2),
         audioSizeBytes: audioBuffer.byteLength,
-        elevenLabsVoice: elevenLabsVoice.name
-      }, "Audio generated with ElevenLabs TTS");
+        elevenLabsVoice: elevenLabsVoice.name,
+        hasAlignment: !!response.alignment
+      }, "Audio generated with ElevenLabs TTS (with timestamps)");
+
+      // SDK response를 기존 interface에 맞게 변환
+      const alignmentConverted = response.alignment ? {
+        characters: response.alignment.characters,
+        character_start_times_seconds: response.alignment.characterStartTimesSeconds,
+        character_end_times_seconds: response.alignment.characterEndTimesSeconds,
+      } : undefined;
 
       return {
         audio: audioBuffer,
         audioLength: audioLength,
+        alignment: alignmentConverted,
       };
     } catch (error) {
-      logger.error({ 
-        error, 
-        text: text.substring(0, 100), 
-        voice 
+      // 더 자세한 에러 로깅
+      const errorDetails = {
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : 'Unknown',
+        stack: error instanceof Error ? error.stack?.substring(0, 500) : undefined,
+        code: (error as any)?.code,
+      };
+
+      logger.error({
+        errorDetails,
+        text: text.substring(0, 100),
+        voice
       }, "Error generating audio with ElevenLabs TTS - will throw for fallback");
-      
+
       // ElevenLabsError를 그대로 throw하여 상위에서 fallback 처리할 수 있도록 함
       throw error;
     }
@@ -188,6 +229,31 @@ export class ElevenLabsTTS {
 
     const mappedVoice = voiceMap[kokoroVoice];
     if (!mappedVoice) {
+      // Check if kokoroVoice is actually an ElevenLabs voice ID (not a Kokoro name)
+      // ElevenLabs voice IDs are typically 20+ character alphanumeric strings
+      const isElevenLabsVoiceId = kokoroVoice &&
+        kokoroVoice.length > 15 &&
+        !kokoroVoice.includes('_') &&
+        /^[a-zA-Z0-9]+$/.test(kokoroVoice);
+
+      if (isElevenLabsVoiceId) {
+        // Check if this voice ID exists in our available voices
+        const directVoice = this.availableVoices.find(v => v.voiceId === kokoroVoice);
+        if (directVoice) {
+          logger.info({ voiceId: kokoroVoice, voiceName: directVoice.name }, "Using direct ElevenLabs voice ID from available voices");
+          return directVoice;
+        }
+
+        // If not in our list, create a custom voice entry to use the ID directly
+        logger.info({ voiceId: kokoroVoice }, "Using custom ElevenLabs voice ID directly");
+        return {
+          voiceId: kokoroVoice,
+          name: 'Custom',
+          category: 'Custom',
+          labels: { accent: 'unknown', age: 'unknown', gender: 'unknown' }
+        };
+      }
+
       // 기본값으로 자연스러운 여성 음성 사용
       logger.warn({ kokoroVoice }, "Unknown voice, using default ElevenLabs voice");
       return this.availableVoices.find(v => v.name === 'Sarah')!;
