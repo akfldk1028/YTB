@@ -6,11 +6,51 @@ import { logger } from "../../logger";
 import { OrientationEnum } from "../../types/shorts";
 import type { RenderConfig } from "../../types/shorts";
 
+// Font paths to check (in order of preference)
+const FONT_PATHS = [
+  // Docker/Cloud Run paths (fonts-nanum package)
+  '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+  '/usr/share/fonts/truetype/nanum/NanumGothic-Bold.ttf',
+  // Local development paths
+  '/home/akfldk1028/.fonts/NanumGothic-Bold.ttf',
+  // Fallback to DejaVu Sans (commonly available)
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  // Ubuntu/Debian default fonts
+  '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+];
+
+// Cache the found font path
+let cachedFontPath: string | null = null;
+
+/**
+ * Find the first available font path from the list of candidates
+ */
+function findAvailableFontPath(): string {
+  if (cachedFontPath) {
+    return cachedFontPath;
+  }
+
+  for (const fontPath of FONT_PATHS) {
+    if (fs.existsSync(fontPath)) {
+      logger.info({ fontPath }, "Found available font for captions");
+      cachedFontPath = fontPath;
+      return fontPath;
+    }
+  }
+
+  // If no font found, log warning and return first path (will fail gracefully)
+  logger.warn({ triedPaths: FONT_PATHS }, "No font file found for captions, subtitles may not render");
+  return FONT_PATHS[0];
+}
+
 export class FFMpeg {
   static async init(): Promise<FFMpeg> {
     return import("@ffmpeg-installer/ffmpeg").then((ffmpegInstaller) => {
       ffmpeg.setFfmpegPath(ffmpegInstaller.path);
       logger.info(`FFmpeg path set to: ${ffmpegInstaller.path}`);
+      // Log the font path that will be used
+      const fontPath = findAvailableFontPath();
+      logger.info(`Caption font path: ${fontPath}`);
       return new FFMpeg();
     });
   }
@@ -175,8 +215,8 @@ export class FFMpeg {
       const fontSize = orientation === OrientationEnum.portrait ? 52 : 60; // 더 크게!
       const yPosition = orientation === OrientationEnum.portrait ? 'h*0.72' : 'h*0.78'; // Shorts 안전 영역
 
-      // 한글 지원 폰트
-      const fontPath = '/home/akfldk1028/.fonts/NanumGothic-Bold.ttf';
+      // Dynamic font path (works in both local and Docker/Cloud Run)
+      const fontPath = findAvailableFontPath();
 
       // 🔥 TikTok 스타일 색상
       const normalColor = 'FFFFFF'; // 흰색 (비활성)
@@ -279,7 +319,8 @@ export class FFMpeg {
 
       const fontSize = orientation === OrientationEnum.portrait ? 56 : 64;
       const yPosition = orientation === OrientationEnum.portrait ? 'h*0.72' : 'h*0.78';
-      const fontPath = '/home/akfldk1028/.fonts/NanumGothic-Bold.ttf';
+      // Dynamic font path (works in both local and Docker/Cloud Run)
+      const fontPath = findAvailableFontPath();
 
       // 🔥 노란색 하이라이트 (TikTok 스타일)
       const fontColor = 'FFEB3B'; // 노란색!

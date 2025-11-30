@@ -59,6 +59,8 @@ RUN apt update && apt install -y \
       # Additional fonts for better text rendering
       fonts-liberation \
       fonts-noto-color-emoji \
+      # Korean font for captions (NanumGothic)
+      fonts-nanum \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
