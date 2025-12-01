@@ -204,19 +204,17 @@ export class ShortCreatorRefactored {
     callbackUrl?: string,
     metadata?: any
   ): string {
-    logger.info("ShortCreatorRefactored.addToQueue called - ENTRY POINT", {
+    logger.info({
       sceneCount: sceneInput?.length,
       hasConfig: !!config,
       hasCallbackUrl: !!callbackUrl,
       hasMetadata: !!metadata,
       metadataMode: metadata?.mode
-    });
+    }, "ShortCreatorRefactored.addToQueue called - ENTRY POINT");
 
     const videoId = this.videoQueue.addToQueue(sceneInput, config, callbackUrl, metadata);
 
-    logger.info("ShortCreatorRefactored.addToQueue - videoQueue.addToQueue returned", {
-      videoId
-    });
+    logger.info({ videoId }, "ShortCreatorRefactored.addToQueue - videoQueue.addToQueue returned");
 
     // Auto-register webhook for N8N integration
     if (callbackUrl && this.webhookManager) {
