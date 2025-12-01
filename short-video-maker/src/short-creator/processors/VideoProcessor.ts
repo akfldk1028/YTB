@@ -465,6 +465,21 @@ export class VideoProcessor {
     }
   }
 
+  /**
+   * Trim video to specified duration
+   * Useful for trimming VEO3 videos (min 6s) to match audio length
+   */
+  async trimVideo(inputPath: string, outputPath: string, duration: number): Promise<void> {
+    try {
+      logger.debug({ inputPath, outputPath, duration }, "Trimming video to duration");
+      await this.ffmpeg.trimVideo(inputPath, outputPath, duration);
+      logger.info({ outputPath, duration }, "✅ Video trimmed successfully");
+    } catch (error) {
+      logger.error(error, "Failed to trim video");
+      throw new Error(`Video trim failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async combineVideoWithAudio(
     videoPath: string,
     audioPaths: string[],

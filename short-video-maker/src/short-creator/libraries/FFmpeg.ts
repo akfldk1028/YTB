@@ -1,5 +1,6 @@
 import ffmpeg from "fluent-ffmpeg";
 import { Readable } from "node:stream";
+import { spawn } from "child_process";
 import path from "path";
 import fs from "fs-extra";
 import { logger } from "../../logger";
@@ -344,71 +345,134 @@ export class FFMpeg {
   }
 
   /**
+   * Trim video to specified duration
+   * Useful for trimming VEO3 videos (min 6s) to match shorter audio lengths
+   */
+  async trimVideo(inputPath: string, outputPath: string, duration: number): Promise<void> {
+    logger.debug({ inputPath, outputPath, duration }, "Trimming video with FFmpeg");
+
+    return new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .setDuration(duration)
+        .outputOptions(['-c', 'copy']) // Copy without re-encoding for speed
+        .on('start', (commandLine) => {
+          logger.debug('FFmpeg trim command: ' + commandLine);
+        })
+        .on('end', () => {
+          logger.debug({ outputPath, duration }, "Video trim complete");
+          resolve();
+        })
+        .on('error', (err) => {
+          logger.error({ error: err, inputPath, outputPath }, "FFmpeg video trim failed");
+          reject(err);
+        })
+        .save(outputPath);
+    });
+  }
+
+  /**
    * 여러 비디오 파일을 FFmpeg concat demuxer로 결합
    * 무손실 결합을 위해 concat demuxer 사용 (재인코딩 없음)
+   * Cloud Run 호환성을 위해 spawn 사용 (fluent-ffmpeg mergeToFile이 hang됨)
    */
   async concatVideos(inputPaths: string[], outputPath: string): Promise<string> {
-    logger.debug({ inputPaths, outputPath }, "Concatenating videos with FFmpeg mergeToFile");
-    
-    return new Promise(async (resolve, reject) => {
+    logger.info({ inputPaths, outputPath }, "Concatenating videos with FFmpeg spawn");
+
+    if (inputPaths.length === 0) {
+      throw new Error("No input paths provided");
+    }
+
+    if (inputPaths.length === 1) {
+      // 단일 파일인 경우 복사만 수행
+      fs.copyFileSync(inputPaths[0], outputPath);
+      return outputPath;
+    }
+
+    // concat demuxer용 파일 리스트 생성
+    const concatListPath = path.join(path.dirname(outputPath), `concat_list_${Date.now()}.txt`);
+    const concatListContent = inputPaths.map(p => `file '${p}'`).join('\n');
+    fs.writeFileSync(concatListPath, concatListContent);
+
+    logger.debug({ concatListPath, concatListContent }, "Created concat list file");
+
+    try {
+      // FFmpeg concat demuxer로 비디오 결합 (재인코딩 없음)
+      await this.runFFmpegSpawn([
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', concatListPath,
+        '-c', 'copy',
+        '-y',
+        outputPath
+      ], 300000); // 5분 타임아웃
+
+      logger.info({ outputPath }, "Video merge complete via spawn");
+      return outputPath;
+    } finally {
+      // concat 리스트 파일 정리
       try {
-        if (inputPaths.length === 0) {
-          reject(new Error("No input paths provided"));
-          return;
-        }
-        
-        if (inputPaths.length === 1) {
-          // 단일 파일인 경우 복사만 수행
-          fs.copyFileSync(inputPaths[0], outputPath);
-          resolve(outputPath);
-          return;
-        }
-
-        // fluent-ffmpeg의 mergeToFile 사용 (부드러운 연결 보장)
-        let ffmpegCommand = ffmpeg(inputPaths[0]);
-        
-        // 나머지 입력 파일들 추가
-        for (let i = 1; i < inputPaths.length; i++) {
-          ffmpegCommand = ffmpegCommand.input(inputPaths[i]);
-        }
-
-        // 임시 디렉토리 생성 (mergeToFile에서 요구함)
-        const tempDir = path.join(path.dirname(outputPath), `temp_merge_${Date.now()}`);
-        fs.mkdirSync(tempDir, { recursive: true });
-        
-        ffmpegCommand
-          .on('start', (commandLine) => {
-            logger.debug('FFmpeg mergeToFile command: ' + commandLine);
-          })
-          .on('progress', (progress) => {
-            logger.debug(`Merge progress: ${Math.floor(progress.percent || 0)}% done`);
-          })
-          .on('end', () => {
-            logger.debug({ outputPath }, "Video merge complete");
-            // 임시 디렉토리 정리
-            try {
-              fs.rmSync(tempDir, { recursive: true, force: true });
-            } catch (error) {
-              logger.warn(error, "Could not clean up temp merge directory");
-            }
-            resolve(outputPath);
-          })
-          .on('error', (error) => {
-            logger.error(error, "FFmpeg merge failed");
-            // 임시 디렉토리 정리
-            try {
-              fs.rmSync(tempDir, { recursive: true, force: true });
-            } catch (cleanupError) {
-              logger.warn(cleanupError, "Could not clean up temp merge directory after error");
-            }
-            reject(error);
-          })
-          .mergeToFile(outputPath, tempDir);
-
-      } catch (error) {
-        logger.error(error, "Error setting up FFmpeg mergeToFile");
-        reject(error);
+        fs.unlinkSync(concatListPath);
+      } catch (cleanupError) {
+        logger.warn({ cleanupError }, "Could not clean up concat list file");
       }
+    }
+  }
+
+  /**
+   * FFmpeg 명령을 spawn으로 실행 (Cloud Run 호환)
+   * fluent-ffmpeg가 hang되는 문제 해결을 위해 직접 spawn 사용
+   */
+  private runFFmpegSpawn(args: string[], timeoutMs: number): Promise<string> {
+    return new Promise(async (resolve, reject) => {
+      let stdout = '';
+      let stderr = '';
+      let killed = false;
+
+      // FFmpeg 경로 가져오기
+      const ffmpegInstaller = await import("@ffmpeg-installer/ffmpeg");
+      const ffmpegPath = ffmpegInstaller.path;
+
+      logger.debug({ ffmpegPath, args, timeoutMs }, "Starting FFmpeg spawn process");
+
+      const process = spawn(ffmpegPath, args, {
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      const timer = setTimeout(() => {
+        killed = true;
+        process.kill('SIGKILL');
+        reject(new Error(`FFmpeg process timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      process.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      process.stderr?.on('data', (data) => {
+        stderr += data.toString();
+        // FFmpeg는 진행 상황을 stderr로 출력
+        if (stderr.includes('frame=') || stderr.includes('time=')) {
+          logger.debug({ progress: stderr.slice(-200) }, "FFmpeg progress");
+        }
+      });
+
+      process.on('close', (code) => {
+        clearTimeout(timer);
+        if (killed) return;
+
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          logger.error({ code, stderr: stderr.slice(-500), stdout }, "FFmpeg process failed");
+          reject(new Error(`FFmpeg process exited with code ${code}: ${stderr.slice(-500)}`));
+        }
+      });
+
+      process.on('error', (error) => {
+        clearTimeout(timer);
+        logger.error({ error }, "FFmpeg spawn error");
+        reject(new Error(`Failed to spawn FFmpeg process: ${error.message}`));
+      });
     });
   }
 
@@ -650,12 +714,13 @@ export class FFMpeg {
         .input(videoPath)
         .input(audioPath)
         // Strip original audio from video, use only new audio
+        // Note: Removed '-shortest' because video/audio durations are already matched
+        // by trimming VEO3 videos to audio length in ConsistentShortsWorkflow
         .outputOptions([
           '-map 0:v',           // Map video from first input
           '-map 1:a',           // Map audio from second input
           '-c:v copy',          // Copy video codec (no re-encoding)
           '-c:a aac',           // Encode audio to AAC
-          '-shortest',          // End output at shortest input duration
           '-strict experimental'
         ])
         .on('start', (commandLine) => {

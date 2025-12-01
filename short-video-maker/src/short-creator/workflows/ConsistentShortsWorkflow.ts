@@ -10,6 +10,17 @@ import { ImageModelType } from "../../image-generation/models/imageModels";
 import type { Scene, SceneInput } from "../../types/shorts";
 
 /**
+ * Minimum scene duration in seconds.
+ * VEO3 generates 6-second videos minimum, so we use 5 seconds to ensure
+ * good video content even when TTS audio is shorter.
+ *
+ * Scene duration = Math.max(audioDuration, MIN_SCENE_DURATION)
+ * - If audio is 1.5s → scene plays for 5s (audio at start, video continues)
+ * - If audio is 7s → scene plays for 7s (audio matches video)
+ */
+const MIN_SCENE_DURATION = 5;
+
+/**
  * Consistent Shorts Workflow
  *
  * Inspired by Image_out.ipynb Chat Mode:
@@ -194,11 +205,12 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
           characterConsistent: true
         }, "🎉 All images generated with consistent character!");
 
-        // Step 2: Update durations from audio data
+        // Step 2: Update durations from audio data (with minimum scene duration)
         for (let i = 0; i < scenes.length; i++) {
           const scene = scenes[i];
           if (scene.audio?.duration) {
-            imageDataList[i].duration = scene.audio.duration;
+            // 최소 씬 길이 보장: TTS가 짧아도 충분한 콘텐츠 제공
+            imageDataList[i].duration = Math.max(scene.audio.duration, MIN_SCENE_DURATION);
           }
         }
 
@@ -299,16 +311,38 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
           let tempVideoPath: string;
 
           if (veo3FailCount === 0) {
-            // 모든 scene VEO3 성공 → 비디오 결합
-            const videoClips = sceneResults.map(r => r.path);
+            // 모든 scene VEO3 성공 → 각 비디오를 적절한 길이로 트리밍 후 결합
+            // VEO3는 최소 6초 비디오를 생성하므로, 최소 씬 길이 보장 필요
+            const trimmedVideoPaths: string[] = [];
+
+            for (let i = 0; i < sceneResults.length; i++) {
+              const result = sceneResults[i];
+              const audioDuration = scenes[i]?.audio?.duration || result.duration;
+              // 최소 씬 길이 보장: TTS가 짧아도 VEO3 콘텐츠 활용
+              const sceneDuration = Math.max(audioDuration, MIN_SCENE_DURATION);
+
+              const trimmedPath = path.join(videoTempDir, `trimmed_scene_${i + 1}_${context.videoId}.mp4`);
+
+              logger.info({
+                sceneIndex: i + 1,
+                originalPath: result.path,
+                audioDuration,
+                sceneDuration,
+                minSceneDuration: MIN_SCENE_DURATION,
+                trimmedPath
+              }, "✂️ Trimming VEO3 video (respecting min scene duration)");
+
+              await this.videoProcessor.trimVideo(result.path, trimmedPath, sceneDuration);
+              trimmedVideoPaths.push(trimmedPath);
+            }
 
             logger.info({
-              clipCount: videoClips.length,
-              clips: videoClips
-            }, "🎬 Combining VEO3 video clips");
+              clipCount: trimmedVideoPaths.length,
+              clips: trimmedVideoPaths
+            }, "🎬 Combining trimmed VEO3 video clips");
 
             tempVideoPath = path.join(videoTempDir, `veo3_combined_${context.videoId}.mp4`);
-            await this.videoProcessor.combineVideoClips(videoClips, tempVideoPath);
+            await this.videoProcessor.combineVideoClips(trimmedVideoPaths, tempVideoPath);
 
           } else if (veo3SuccessCount === 0) {
             // 모든 scene VEO3 실패 → 정적 이미지 비디오
@@ -326,7 +360,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             );
 
           } else {
-            // 혼합: 일부 성공, 일부 실패 → 성공한 것만 결합 + 실패한 것은 이미지로
+            // 혼합: 일부 성공, 일부 실패 → VEO3 비디오 트리밍 + 실패한 것은 이미지로
             logger.info({
               successCount: veo3SuccessCount,
               failCount: veo3FailCount
@@ -336,25 +370,34 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
               ? VIDEO_DIMENSIONS.PORTRAIT
               : VIDEO_DIMENSIONS.LANDSCAPE;
 
-            // 1. 먼저 실패한 scene들을 이미지 비디오로 변환
+            const processedClips: string[] = [];
+
             for (let i = 0; i < sceneResults.length; i++) {
               const result = sceneResults[i];
-              if (result.type === 'image') {
+              const audioDuration = scenes[i]?.audio?.duration || result.duration;
+              // 최소 씬 길이 보장: TTS가 짧아도 충분한 콘텐츠 제공
+              const sceneDuration = Math.max(audioDuration, MIN_SCENE_DURATION);
+
+              if (result.type === 'video') {
+                // VEO3 성공 → 최소 씬 길이 보장하여 트리밍
+                const trimmedPath = path.join(videoTempDir, `trimmed_mixed_${i + 1}_${context.videoId}.mp4`);
+                await this.videoProcessor.trimVideo(result.path, trimmedPath, sceneDuration);
+                processedClips.push(trimmedPath);
+              } else {
+                // VEO3 실패 → 이미지로 비디오 생성 (최소 씬 길이 적용)
                 const imageVideoPath = path.join(videoTempDir, `image_to_video_${i + 1}_${context.videoId}.mp4`);
                 await this.videoProcessor.createStaticVideoFromMultipleImages(
-                  [{ imagePath: result.path, duration: result.duration }],
+                  [{ imagePath: result.path, duration: sceneDuration }],
                   imageVideoPath,
                   dimensions
                 );
-                sceneResults[i].path = imageVideoPath;
-                sceneResults[i].type = 'video';
+                processedClips.push(imageVideoPath);
               }
             }
 
-            // 2. 모든 비디오 클립 결합
-            const allVideoClips = sceneResults.map(r => r.path);
+            // 모든 처리된 클립 결합
             tempVideoPath = path.join(videoTempDir, `mixed_combined_${context.videoId}.mp4`);
-            await this.videoProcessor.combineVideoClips(allVideoClips, tempVideoPath);
+            await this.videoProcessor.combineVideoClips(processedClips, tempVideoPath);
           }
 
           logger.info({
