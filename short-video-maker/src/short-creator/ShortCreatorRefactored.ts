@@ -960,16 +960,17 @@ export class ShortCreatorRefactored {
         });
       }
 
-      // Update Google Sheets with YouTube video ID
+      // Update Google Sheets with YouTube video ID and URL
       if (this.sheetsService) {
         try {
           await this.sheetsService.updateUploadStatus(
             videoId, // jobId
             youtubeVideoId, // YouTube video ID
             'uploaded',
-            new Date().toISOString()
+            new Date().toISOString(),
+            videoUrl // YouTube URL
           );
-          logger.info({ jobId: videoId, youtubeVideoId }, '📊 Sheet updated with YouTube video ID');
+          logger.info({ jobId: videoId, youtubeVideoId, youtubeUrl: videoUrl }, '📊 Sheet updated with YouTube video ID and URL');
         } catch (sheetError) {
           logger.error({ error: sheetError, jobId: videoId }, '❌ Failed to update sheet with YouTube ID');
         }

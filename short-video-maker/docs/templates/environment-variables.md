@@ -22,10 +22,10 @@ GCS_REGION=us-central1
 GOOGLE_SHEETS_SPREADSHEET_ID=1mjCpZ-yzolphxY82Ccu4WWtoIiANJTMjUZFuleJQf5o
 ```
 
-### Cloud Run 배포 시 (deploy-gcp.sh에 이미 포함됨)
+### Cloud Run 배포 시 (cloudbuild yaml 또는 deploy-gcp.sh)
 ```bash
-# deploy-gcp.sh 177번째 줄 참조
---set-env-vars "DOCKER=true,LOG_LEVEL=info,CONCURRENCY=1,VIDEO_CACHE_SIZE_IN_BYTES=2097152000,WHISPER_MODEL=base.en,TTS_PROVIDER=google,VIDEO_SOURCE=veo,VEO3_USE_NATIVE_AUDIO=false,VEO_MODEL=veo-3.0-fast-generate-001,GCS_BUCKET_NAME=dkdk-474008-short-videos,GCS_REGION=us-central1,GCS_SIGNED_URL_EXPIRY_HOURS=24,GCS_AUTO_DELETE_DAYS=30,GOOGLE_SHEETS_SPREADSHEET_ID=1mjCpZ-yzolphxY82Ccu4WWtoIiANJTMjUZFuleJQf5o"
+# 현재 Cloud Run에 설정된 환경변수 (2025-12-01 기준)
+--set-env-vars "DOCKER=true,LOG_LEVEL=info,CONCURRENCY=1,VIDEO_CACHE_SIZE_IN_BYTES=2097152000,WHISPER_MODEL=base.en,TTS_PROVIDER=elevenlabs,VIDEO_SOURCE=veo,VEO3_USE_NATIVE_AUDIO=false,VEO_MODEL=veo-3.0-fast-generate-001,GCS_BUCKET_NAME=dkdk-474008-short-videos,GCS_REGION=us-central1,GCS_SIGNED_URL_EXPIRY_HOURS=24,GCS_AUTO_DELETE_DAYS=30,GOOGLE_SHEETS_SPREADSHEET_ID=1mjCpZ-yzolphxY82Ccu4WWtoIiANJTMjUZFuleJQf5o,GOOGLE_SHEETS_NAME=Videos"
 ```
 
 ---
@@ -59,10 +59,11 @@ GOOGLE_SHEETS_SPREADSHEET_ID=1mjCpZ-yzolphxY82Ccu4WWtoIiANJTMjUZFuleJQf5o
 ### 2.3 TTS (Text-to-Speech)
 | 변수명 | 기본값 | 설명 |
 |--------|-------|------|
-| `TTS_PROVIDER` | `google` | TTS 제공자 (kokoro, google, elevenlabs) |
+| `TTS_PROVIDER` | `elevenlabs` | TTS 제공자 (google, elevenlabs) - Kokoro 비활성화됨 |
 | `WHISPER_MODEL` | `base.en` | Whisper 모델 (tiny.en, base.en, small.en) |
-| `KOKORO_MODEL_PRECISION` | `fp32` | Kokoro 모델 정밀도 |
-| `ELEVENLABS_API_KEY` | - | ElevenLabs API 키 (선택) |
+| `ELEVENLABS_API_KEY` | Secret | ElevenLabs API 키 (필수 - elevenlabs 사용 시) |
+
+**참고**: ElevenLabs는 타임스탬프 alignment를 제공하므로 Whisper 없이도 자막 생성 가능 (Cloud Run 타임아웃 방지)
 
 ### 2.4 Google Cloud Storage
 | 변수명 | 값 | 설명 |
@@ -129,14 +130,16 @@ gcloud secrets versions access latest --secret=SECRET_NAME
 ### 4.1 환경변수 수동 추가 (배포 후)
 ```bash
 gcloud run services update short-video-maker \
-  --region us-central1 \
+  --region asia-northeast3 \
+  --project dkdk-474008 \
   --update-env-vars="GOOGLE_SHEETS_SPREADSHEET_ID=1mjCpZ-yzolphxY82Ccu4WWtoIiANJTMjUZFuleJQf5o"
 ```
 
 ### 4.2 현재 환경변수 확인
 ```bash
 gcloud run services describe short-video-maker \
-  --region us-central1 \
+  --region asia-northeast3 \
+  --project dkdk-474008 \
   --format="yaml(spec.template.spec.containers[0].env)"
 ```
 
@@ -234,17 +237,17 @@ https://docs.google.com/spreadsheets/d/1mjCpZ-yzolphxY82Ccu4WWtoIiANJTMjUZFuleJQ
 
 ```bash
 # 모든 ATT 채널 비디오 Analytics 일괄 업데이트
-curl -X POST "https://short-video-maker-550996044521.us-central1.run.app/api/sheet/batch-update-analytics" \
+curl -X POST "https://short-video-maker-550996044521.asia-northeast3.run.app/api/sheet/batch-update-analytics" \
   -H "Content-Type: application/json" \
   -d '{"channelName": "ATT"}'
 
 # 24시간 이상 지난 것만 업데이트 (maxAgeHours 기본값: 24)
-curl -X POST "https://short-video-maker-550996044521.us-central1.run.app/api/sheet/batch-update-analytics" \
+curl -X POST "https://short-video-maker-550996044521.asia-northeast3.run.app/api/sheet/batch-update-analytics" \
   -H "Content-Type: application/json" \
   -d '{"channelName": "ATT", "maxAgeHours": 24}'
 
 # 특정 비디오만 업데이트
-curl -X POST "https://short-video-maker-550996044521.us-central1.run.app/api/sheet/batch-update-analytics" \
+curl -X POST "https://short-video-maker-550996044521.asia-northeast3.run.app/api/sheet/batch-update-analytics" \
   -H "Content-Type: application/json" \
   -d '{"channelName": "ATT", "videoIds": ["5Tc19VhT6lQ", "KA0tBcO_5pc"]}'
 ```
@@ -282,4 +285,77 @@ gcloud secrets versions add YOUTUBE_DATA --data-file=/tmp/youtube-data.b64
 
 ---
 
-Last Updated: 2025-11-26
+Last Updated: 2025-12-01
+
+---
+
+## 9. 구글 아이디 변경 시 체크리스트
+
+구글 아이디를 변경해야 할 경우 아래 항목들을 모두 업데이트해야 합니다:
+
+### 9.1 Secret Manager 업데이트
+```bash
+# 1. GOOGLE_CLOUD_PROJECT_ID 변경
+echo -n "NEW_PROJECT_ID" | gcloud secrets versions add GOOGLE_CLOUD_PROJECT_ID --data-file=-
+
+# 2. GOOGLE_GEMINI_API_KEY 변경 (새 프로젝트에서 발급)
+echo -n "NEW_GEMINI_KEY" | gcloud secrets versions add GOOGLE_GEMINI_API_KEY --data-file=-
+
+# 3. YouTube 인증 재설정 (새 OAuth 클라이언트)
+gcloud secrets versions add YOUTUBE_CLIENT_SECRET --data-file=NEW_client_secret.json
+
+# 4. YouTube 토큰 재인증 필요
+# 로컬에서: curl "http://localhost:3123/api/youtube/auth/start?channelName=ATT"
+```
+
+### 9.2 환경변수 업데이트
+| 변수명 | 변경 필요 여부 |
+|--------|--------------|
+| `GOOGLE_CLOUD_PROJECT_ID` | 반드시 변경 |
+| `GCS_BUCKET_NAME` | 새 버킷 생성 후 변경 |
+| `GOOGLE_SHEETS_SPREADSHEET_ID` | 새 시트 생성 후 변경 (또는 공유 설정) |
+| `GOOGLE_GEMINI_API_KEY` | 새 프로젝트에서 발급 후 변경 |
+
+### 9.3 Google Sheets 권한
+새 서비스 계정에 시트 편집 권한 부여:
+1. Google Sheets 열기
+2. 공유 > 새 서비스 계정 이메일 추가
+3. "편집자" 권한 부여
+
+### 9.4 Cloud Run 재배포
+```bash
+# cloudbuild yaml에서 환경변수 업데이트 후
+gcloud builds submit --config=/tmp/cloudbuild-min-scene.yaml --project=NEW_PROJECT_ID .
+```
+
+---
+
+## 10. 현재 Cloud Run 서비스 정보 (2025-12-01)
+
+| 항목 | 값 |
+|------|---|
+| **서비스명** | `short-video-maker` |
+| **프로젝트** | `dkdk-474008` |
+| **리전** | `asia-northeast3` (서울) |
+| **현재 Revision** | `short-video-maker-00017-b9l` |
+| **메모리** | 4Gi |
+| **CPU** | 2 |
+| **타임아웃** | 3600s (1시간) |
+| **동시성** | 80 |
+| **최소 인스턴스** | 0 |
+| **최대 인스턴스** | 10 |
+
+### 서비스 URL
+```
+https://short-video-maker-550996044521.asia-northeast3.run.app
+```
+
+### Secret Manager에 저장된 키들
+| Secret 이름 | 설명 |
+|------------|------|
+| `PEXELS_API_KEY` | Pexels 비디오 검색 API |
+| `GOOGLE_GEMINI_API_KEY` | Gemini/VEO API |
+| `GOOGLE_CLOUD_PROJECT_ID` | GCP 프로젝트 ID |
+| `YOUTUBE_CLIENT_SECRET` | YouTube OAuth 클라이언트 JSON |
+| `YOUTUBE_DATA` | YouTube 채널/토큰 데이터 (Base64) |
+| `ELEVENLABS_API_KEY` | ElevenLabs TTS API |

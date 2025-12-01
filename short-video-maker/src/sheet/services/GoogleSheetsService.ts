@@ -225,12 +225,18 @@ export class GoogleSheetsService {
 
   /**
    * 업로드 상태 업데이트
+   * @param jobId - 내부 작업 ID
+   * @param videoId - YouTube 비디오 ID
+   * @param status - 업로드 상태
+   * @param uploadedAt - 업로드 완료 시간
+   * @param youtubeUrl - YouTube 영상 URL (선택)
    */
   async updateUploadStatus(
     jobId: string,
     videoId: string,
     status: 'uploaded' | 'failed',
-    uploadedAt?: string
+    uploadedAt?: string,
+    youtubeUrl?: string
   ): Promise<boolean> {
     if (!await this.initialize()) {
       return false;
@@ -247,7 +253,10 @@ export class GoogleSheetsService {
         return false;
       }
 
-      // videoId (A열), uploadStatus (M열), uploadedAt (N열) 업데이트
+      // youtubeUrl이 없으면 videoId로 자동 생성
+      const finalYoutubeUrl = youtubeUrl || (videoId ? `https://youtube.com/watch?v=${videoId}` : '');
+
+      // videoId (A열), uploadStatus (M열), uploadedAt (N열), youtubeUrl (P열) 업데이트
       await this.sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: this.spreadsheetId,
         requestBody: {
@@ -261,11 +270,15 @@ export class GoogleSheetsService {
               range: `${this.sheetName}!M${rowIndex}:N${rowIndex}`,
               values: [[status, uploadedAt || '']],
             },
+            {
+              range: `${this.sheetName}!P${rowIndex}`,
+              values: [[finalYoutubeUrl]],
+            },
           ],
         },
       });
 
-      logger.info({ jobId, videoId, status }, 'Upload status updated in sheet');
+      logger.info({ jobId, videoId, status, youtubeUrl: finalYoutubeUrl }, 'Upload status updated in sheet');
       return true;
     } catch (error) {
       logger.error({ error, jobId }, 'Failed to update upload status');
