@@ -7,6 +7,8 @@ import { VIDEO_DIMENSIONS } from "../utils/Constants";
 import { logger } from "../../logger";
 import { ImageGenerationService } from "../../image-generation/services/ImageGenerationService";
 import { ImageModelType } from "../../image-generation/models/imageModels";
+import { CharacterStorageService } from "../../character-store/CharacterStorageService";
+import type { CharacterProfile, Character } from "../../character-store/types";
 import type { Scene, SceneInput } from "../../types/shorts";
 
 /**
@@ -39,9 +41,96 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
   constructor(
     private videoProcessor: VideoProcessor,
     private imageGenerationService?: ImageGenerationService,
-    private veoAPI?: GoogleVeoAPI
+    private veoAPI?: GoogleVeoAPI,
+    private characterStorage?: CharacterStorageService
   ) {
     super();
+  }
+
+  /**
+   * Load stored character reference images from GCS
+   * These images serve as the starting point for character consistency
+   */
+  private async loadStoredCharacterImages(
+    profileId: string,
+    characterIds?: string[]
+  ): Promise<Array<{ data: Buffer; mimeType: string; characterId: string; description: string }>> {
+    if (!this.characterStorage || !this.characterStorage.isEnabled()) {
+      logger.warn("CharacterStorageService not available, skipping stored images");
+      return [];
+    }
+
+    try {
+      // Load profile
+      const profileResult = await this.characterStorage.getProfile(profileId);
+      if (!profileResult.success || !profileResult.data) {
+        logger.warn({ profileId }, "Character profile not found");
+        return [];
+      }
+
+      const profile = profileResult.data;
+
+      // Load character images
+      const imagesResult = await this.characterStorage.loadCharacterImages(profileId);
+      if (!imagesResult.success || !imagesResult.data) {
+        logger.warn({ profileId }, "No character images found");
+        return [];
+      }
+
+      const storedImages: Array<{ data: Buffer; mimeType: string; characterId: string; description: string }> = [];
+
+      // Filter by characterIds if provided
+      const targetCharacters = characterIds
+        ? profile.characters.filter(c => characterIds.includes(c.id))
+        : profile.characters;
+
+      for (const character of targetCharacters) {
+        const imageBase64 = imagesResult.data.get(character.id);
+        if (imageBase64) {
+          storedImages.push({
+            data: Buffer.from(imageBase64, 'base64'),
+            mimeType: 'image/png',
+            characterId: character.id,
+            description: character.description
+          });
+        }
+      }
+
+      logger.info({
+        profileId,
+        loadedCharacters: storedImages.length,
+        characterIds: storedImages.map(c => c.characterId)
+      }, "✅ Loaded stored character reference images");
+
+      return storedImages;
+
+    } catch (error) {
+      logger.error({ error, profileId }, "Failed to load stored character images");
+      return [];
+    }
+  }
+
+  /**
+   * Build character description from stored profile
+   */
+  private buildCharacterDescription(profile: CharacterProfile, characters: Character[]): string {
+    const descriptions = characters.map(c => {
+      let desc = c.description;
+      if (c.distinguishingFeatures) {
+        desc += `. Distinguishing features: ${c.distinguishingFeatures}`;
+      }
+      return `${c.name}: ${desc}`;
+    });
+
+    let fullDescription = descriptions.join('\n');
+    if (profile.defaultStyle) {
+      fullDescription += `\nStyle: ${profile.defaultStyle}`;
+    }
+    if (profile.defaultMood) {
+      fullDescription += `\nMood: ${profile.defaultMood}`;
+    }
+
+    return fullDescription;
   }
 
   /**
@@ -112,6 +201,35 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
           sceneIndex: number;
         }> = [];
 
+        // ⭐ NEW: Load stored character images if profileId is provided
+        // This enables character persistence across multiple video sessions!
+        const characterProfileId = context.metadata?.characterProfileId as string | undefined;
+        const characterIds = context.metadata?.characterIds as string[] | undefined;
+
+        if (characterProfileId) {
+          logger.info({
+            characterProfileId,
+            characterIds
+          }, "🎭 Loading stored character reference images for consistency");
+
+          const storedImages = await this.loadStoredCharacterImages(characterProfileId, characterIds);
+
+          // Add stored images as initial references (index: -1 to -N)
+          for (let idx = 0; idx < storedImages.length; idx++) {
+            const stored = storedImages[idx];
+            previousImages.push({
+              data: stored.data,
+              mimeType: stored.mimeType,
+              sceneIndex: -(idx + 1) // Negative index for stored images
+            });
+          }
+
+          logger.info({
+            storedImageCount: storedImages.length,
+            previousImagesTotal: previousImages.length
+          }, "✅ Stored character images loaded as initial references");
+        }
+
         for (let i = 0; i < inputScenes.length; i++) {
           const scene = inputScenes[i];
 
@@ -139,7 +257,8 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
           // ⭐ KEY FEATURE: Use previous images as references (max 3)
           // This is like Chat Mode in ipynb - maintains character consistency!
-          const referenceImages = i > 0
+          // ⭐ UPDATED: If we have stored character images, use them even for scene 0
+          const referenceImages = previousImages.length > 0
             ? previousImages.slice(-3).map(img => ({
                 data: img.data,
                 mimeType: img.mimeType

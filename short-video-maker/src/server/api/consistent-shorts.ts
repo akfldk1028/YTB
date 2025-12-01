@@ -49,6 +49,10 @@ export class ConsistentShortsAPIRouter {
      *     "mood": "adventurous",
      *     "referencePrompts": ["front view", "side view"] // Optional: generate reference set
      *   },
+     *   "characterReference": {   // ⭐ NEW: Use stored character profile
+     *     "profileId": "otter-couple",
+     *     "characterIds": ["husband", "wife"]  // Optional: specific characters
+     *   },
      *   "scenes": [
      *     {
      *       "text": "우주에서 떠다니는 외로운 우주비행사",
@@ -71,13 +75,16 @@ export class ConsistentShortsAPIRouter {
         try {
           logger.info("Processing CONSISTENT SHORTS request (character consistency mode)");
 
-          const { character, scenes, config, webhook_url, callback_url, elevenlabs_config, video_config } = req.body;
+          const { character, characterReference, scenes, config, webhook_url, callback_url, elevenlabs_config, video_config } = req.body;
 
-          // Validation
-          if (!character || !character.description) {
+          // Validation: Need either character description OR characterReference (stored profile)
+          const hasCharacterDescription = character && character.description;
+          const hasStoredProfile = characterReference && characterReference.profileId;
+
+          if (!hasCharacterDescription && !hasStoredProfile) {
             res.status(400).json({
-              error: "Missing character description",
-              message: "Please provide character.description for consistent character generation"
+              error: "Missing character information",
+              message: "Please provide either character.description OR characterReference.profileId for consistent character generation"
             });
             return;
           }
@@ -166,11 +173,14 @@ export class ConsistentShortsAPIRouter {
             callbackUrl,
             {
               mode: "consistent-shorts",
-              characterDescription: character.description,
-              characterStyle: character.style,
+              characterDescription: character?.description,
+              characterStyle: character?.style,
               useReferenceSet: config?.useReferenceSet || false,
               generateVideos: config?.generateVideos || false,
-              youtubeUpload: req.body.youtubeUpload
+              youtubeUpload: req.body.youtubeUpload,
+              // ⭐ NEW: Stored character profile support
+              characterProfileId: characterReference?.profileId,
+              characterIds: characterReference?.characterIds
             }
           );
 
@@ -189,9 +199,13 @@ export class ConsistentShortsAPIRouter {
             videoId,
             mode: "consistent-shorts",
             sceneCount: scenes.length,
-            characterDescription: character.description,
+            characterDescription: character?.description,
+            characterProfileId: characterReference?.profileId,
+            characterIds: characterReference?.characterIds,
             generateVideos: config?.generateVideos || false,
-            message: "Consistent character video generation started. All scenes will feature the same character."
+            message: characterReference?.profileId
+              ? `Consistent character video generation started using stored profile '${characterReference.profileId}'.`
+              : "Consistent character video generation started. All scenes will feature the same character."
           });
 
         } catch (error: unknown) {

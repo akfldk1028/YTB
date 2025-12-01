@@ -11,6 +11,7 @@ import { LeonardoAI } from "./libraries/LeonardoAI";
 import { ImageGenerationService } from "../image-generation/services/ImageGenerationService";
 import { ImageModelType } from "../image-generation/models/imageModels";
 import { GoogleCloudStorageService } from "../storage/GoogleCloudStorageService";
+import { CharacterStorageService } from "../character-store/CharacterStorageService";
 import { NanoBananaStaticVideoHelper } from "./nanoBananaStaticVideo";
 import { Config } from "../config";
 import { logger } from "../logger";
@@ -78,6 +79,9 @@ export class ShortCreatorRefactored {
 
   // Image cache for sharing generated images across scenes
   private imageCache: Map<string, any[]> = new Map();
+
+  // Character Storage (for persistent characters across videos)
+  private characterStorageService?: CharacterStorageService;
 
   // Workflow managers (optional - only available if server provides them)
   private workflowManager?: WorkflowManager;
@@ -160,22 +164,32 @@ export class ShortCreatorRefactored {
         this.imageGenerationService
       );
     }
+    // Initialize Character Storage Service (for persistent characters across videos)
+    this.characterStorageService = new CharacterStorageService(this.config);
+    if (this.characterStorageService.isEnabled()) {
+      logger.info("CharacterStorageService initialized for persistent character support");
+    }
+
     if (this.imageGenerationService && this.googleVeoApi) {
       this.consistentShortsWorkflow = new ConsistentShortsWorkflow(
         this.videoProcessor,
         this.imageGenerationService,
-        this.googleVeoApi
+        this.googleVeoApi,
+        this.characterStorageService
       );
-      logger.info({ hasVeoApi: true }, "ConsistentShortsWorkflow initialized WITH VeoAPI");
+      logger.info({ hasVeoApi: true, hasCharacterStorage: this.characterStorageService.isEnabled() }, "ConsistentShortsWorkflow initialized WITH VeoAPI");
     } else if (this.imageGenerationService) {
       // Can work without VEO3 too (for static videos)
       this.consistentShortsWorkflow = new ConsistentShortsWorkflow(
         this.videoProcessor,
-        this.imageGenerationService
+        this.imageGenerationService,
+        undefined, // no VeoAPI
+        this.characterStorageService
       );
       logger.warn({
         hasImageGen: !!this.imageGenerationService,
-        hasVeoApi: !!this.googleVeoApi
+        hasVeoApi: !!this.googleVeoApi,
+        hasCharacterStorage: this.characterStorageService.isEnabled()
       }, "ConsistentShortsWorkflow initialized WITHOUT VeoAPI (VEO3 I2V will be skipped)");
     }
   }

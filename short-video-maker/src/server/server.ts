@@ -13,6 +13,7 @@ import { PexelsAPIRouter } from "./api/pexels";
 import { NanoBananaAPIRouter } from "./api/nano-banana";
 import { VEO3APIRouter } from "./api/veo3";
 import { ConsistentShortsAPIRouter } from "./api/consistent-shorts";
+import { CharacterAPIRouter } from "./api/characters";
 import { YouTubeRoutes } from "../youtube-upload/routes/youtubeRoutes";
 import { YouTubeUploader } from "../youtube-upload/services/YouTubeUploader";
 import { YouTubeAnalyticsService } from "../youtube-analytics/services/YouTubeAnalyticsService";
@@ -54,6 +55,11 @@ export class Server {
     this.app.use("/api/video/nano-banana", nanoBananaAPIRouter.router);
     this.app.use("/api/video/veo3", veo3APIRouter.router);
     this.app.use("/api/video/consistent-shorts", consistentShortsAPIRouter.router);
+
+    // Mount Character Storage API (for persistent characters across videos)
+    const characterAPIRouter = new CharacterAPIRouter(config);
+    this.app.use("/api/characters", characterAPIRouter.router);
+    logger.info("Character Storage API mounted at /api/characters");
 
     // Mount YouTube upload routes if uploader is available
     if (youtubeUploader) {
