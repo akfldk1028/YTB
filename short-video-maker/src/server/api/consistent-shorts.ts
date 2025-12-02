@@ -99,6 +99,13 @@ export class ConsistentShortsAPIRouter {
 
           const callbackUrl = webhook_url || callback_url;
 
+          // Determine character description and style
+          // If using stored profile (characterReference), the description will be loaded by ConsistentShortsWorkflow
+          // If using inline character, use it directly
+          const characterDescription = character?.description || `Character from profile: ${characterReference?.profileId}`;
+          const characterStyle = character?.style || "pixar";
+          const characterMood = character?.mood || "dynamic";
+
           // Prepare scenes with character consistency flags
           const processedScenes = scenes.map((scene: any, index: number) => ({
             text: scene.text || scene.scenePrompt || `Scene ${index + 1}`,
@@ -106,17 +113,24 @@ export class ConsistentShortsAPIRouter {
 
             // Image generation data with character info
             imageData: {
-              prompt: index === 0
-                ? character.description // First scene: full character description
-                : `${character.description}. ${scene.scenePrompt || scene.text}`, // Subsequent: char + scene
-              style: character.style || "cinematic",
-              mood: character.mood || "dynamic",
+              // When using characterReference, the actual prompt will be built by ConsistentShortsWorkflow
+              // using the stored character descriptions from GCS
+              prompt: hasStoredProfile
+                ? scene.scenePrompt || scene.text  // Scene only, profile loaded separately
+                : (index === 0
+                  ? characterDescription // First scene: full character description
+                  : `${characterDescription}. ${scene.scenePrompt || scene.text}`), // Subsequent: char + scene
+              style: characterStyle,
+              mood: characterMood,
               numberOfImages: 1,
 
               // Character consistency metadata
               isCharacterConsistent: true,
-              characterDescription: character.description,
-              sceneIndex: index
+              characterDescription: characterDescription,
+              sceneIndex: index,
+
+              // Flag to indicate using stored profile
+              useStoredProfile: hasStoredProfile
             },
 
             // Video generation (if enabled)
