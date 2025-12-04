@@ -157,11 +157,17 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
     context: WorkflowContext
   ): Promise<WorkflowResult> {
     try {
+      // 🔍 DEBUG: Log full context.metadata to understand what's being passed
       logger.info({
         videoId: context.videoId,
         sceneCount: scenes.length,
-        mode: "consistent-shorts"
-      }, "✨ Processing CONSISTENT SHORTS workflow (character consistency mode)");
+        mode: "consistent-shorts",
+        hasMetadata: !!context.metadata,
+        metadataKeys: context.metadata ? Object.keys(context.metadata) : [],
+        characterProfileId: context.metadata?.characterProfileId,
+        characterIds: context.metadata?.characterIds,
+        fullMetadata: JSON.stringify(context.metadata || {}).substring(0, 500)
+      }, "✨ Processing CONSISTENT SHORTS workflow - DEBUG metadata");
 
       // Custom validation for Consistent Shorts: only require audio (we generate our own images/videos)
       this.validateConsistentShortsScenes(scenes);
@@ -205,6 +211,14 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         // This enables character persistence across multiple video sessions!
         const characterProfileId = context.metadata?.characterProfileId as string | undefined;
         const characterIds = context.metadata?.characterIds as string[] | undefined;
+
+        // 🔍 DEBUG: Always log this check
+        logger.info({
+          characterProfileId,
+          characterIds,
+          hasCharacterStorage: !!this.characterStorage,
+          characterStorageEnabled: this.characterStorage?.isEnabled?.() ?? false
+        }, "🔍 DEBUG: Checking if should load stored character images");
 
         if (characterProfileId) {
           logger.info({

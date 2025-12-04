@@ -1,0 +1,28 @@
+{
+  "profileId": "otter-couple",
+  "name": "수달 부부",
+  "description": "귀여운 수달 커플 캐릭터 - 유튜브 쇼츠용 마스코트",
+  "channelName": "수달TV",
+  "characters": [
+    {
+      "id": "husband",
+      "name": "남편 수달",
+      "description": "A cute male otter with soft brown fur, round friendly face, small black nose, and wearing a tiny blue bowtie. Pixar 3D animation style. The character has a slightly bigger build, warm brown eyes, and a gentle smile.",
+      "style": "pixar",
+      "distinguishingFeatures": "blue bowtie, slightly bigger build, warm brown eyes",
+      "referenceImageUrl": "gs://dkdk-474008-short-videos/characters/otter-couple/images/husband.png"
+    },
+    {
+      "id": "wife",
+      "name": "아내 수달",
+      "description": "A cute female otter with lighter brown fur, round adorable face, small pink nose, and wearing a pink ribbon on her head. Pixar 3D animation style. The character is slightly smaller, has big sparkling eyes, and a sweet smile.",
+      "style": "pixar",
+      "distinguishingFeatures": "pink ribbon on head, slightly smaller, sparkling eyes",
+      "referenceImageUrl": "gs://dkdk-474008-short-videos/characters/otter-couple/images/wife.png"
+    }
+  ],
+  "defaultStyle": "pixar",
+  "defaultMood": "cheerful",
+  "createdAt": "2025-12-02T01:12:46.012Z",
+  "updatedAt": "2025-12-02T02:35:00.000Z"
+}

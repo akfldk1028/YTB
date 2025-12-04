@@ -267,25 +267,31 @@ A:
 2. 서비스 계정에 시트 편집 권한 부여 확인
 3. 시트 이름이 "Videos"인지 확인
 
-### Q: YouTube 토큰이 만료됐어요
-A:
+### Q: YouTube 토큰이 만료됐어요 (invalid_grant 에러)
+A: 상세 가이드: [YOUTUBE-TOKEN-TROUBLESHOOTING.md](./YOUTUBE-TOKEN-TROUBLESHOOTING.md)
+
+**빠른 해결**:
 ```bash
-# 로컬에서 토큰 갱신
-curl "http://localhost:3124/api/youtube/auth/start?channelName=ATT"
-# 브라우저에서 인증 완료 후
+# 1. 로컬 서버 시작 (포트 3124 필수!)
+cd /mnt/d/Data/00_Personal/YTB/short-video-maker
+PORT=3124 node dist/index.js
 
-# Secret 업데이트
-cd ~/.ai-agents-az-video-generator/data
-tar czf - youtube-channels.json tokens-*.json | base64 -w0 > /tmp/youtube-data.b64
-gcloud secrets versions add YOUTUBE_DATA --data-file=/tmp/youtube-data.b64
+# 2. 브라우저에서 재인증
+http://localhost:3124/api/youtube/auth/ATT
 
-# Cloud Run 재배포
-./deploy-gcp.sh
+# 3. Secret Manager 업데이트
+cd ~/.ai-agents-az-video-generator
+tar czf /tmp/youtube-data.tar.gz youtube-channels.json youtube-tokens-*.json
+base64 /tmp/youtube-data.tar.gz > /tmp/youtube-data-base64.txt
+gcloud secrets versions add YOUTUBE_DATA --data-file=/tmp/youtube-data-base64.txt --project=dkdk-474008
+
+# 4. Cloud Run 재시작
+gcloud run services update short-video-maker --region=us-central1 --project=dkdk-474008 --update-env-vars="RESTART_TRIGGER=$(date +%s)"
 ```
 
 ---
 
-Last Updated: 2025-12-01
+Last Updated: 2025-12-04
 
 ---
 
