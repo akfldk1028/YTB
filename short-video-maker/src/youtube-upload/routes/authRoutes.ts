@@ -58,6 +58,89 @@ export function createAuthRoutes(youtubeUploader: YouTubeUploader): express.Rout
   );
 
   /**
+   * GET /api/youtube/auth/health-check
+   * Check token validity for all channels
+   * Returns 200 if all tokens are valid, 503 if any token is invalid
+   * Used by Cloud Scheduler to detect token issues early
+   *
+   * IMPORTANT: This route must be BEFORE /:channelName to avoid conflicts
+   */
+  router.get(
+    '/health-check',
+    async (req: ExpressRequest, res: ExpressResponse) => {
+      const results: Array<{
+        channelName: string;
+        status: 'ok' | 'error';
+        message: string;
+      }> = [];
+
+      let allHealthy = true;
+
+      try {
+        const channels = youtubeUploader.getChannelManager().getAuthenticatedChannels();
+
+        if (channels.length === 0) {
+          return res.status(200).json({
+            healthy: true,
+            message: 'No authenticated channels to check',
+            channels: [],
+            checkedAt: new Date().toISOString(),
+          });
+        }
+
+        for (const channel of channels) {
+          try {
+            // Try to refresh the token - this validates the refresh_token
+            await youtubeUploader.refreshAccessToken(channel.channelName);
+            results.push({
+              channelName: channel.channelName,
+              status: 'ok',
+              message: 'Token is valid and refreshed',
+            });
+            logger.info({ channelName: channel.channelName }, 'YouTube token health check passed');
+          } catch (error: unknown) {
+            allHealthy = false;
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            results.push({
+              channelName: channel.channelName,
+              status: 'error',
+              message: errorMessage,
+            });
+            logger.error(
+              { channelName: channel.channelName, error: errorMessage },
+              'YouTube token health check FAILED - re-authentication required'
+            );
+          }
+        }
+
+        const response = {
+          healthy: allHealthy,
+          message: allHealthy
+            ? 'All YouTube tokens are valid'
+            : 'Some YouTube tokens are invalid - re-authentication required',
+          channels: results,
+          checkedAt: new Date().toISOString(),
+        };
+
+        // Return 503 if any token is invalid (for alerting)
+        if (!allHealthy) {
+          return res.status(503).json(response);
+        }
+
+        return res.status(200).json(response);
+      } catch (error: unknown) {
+        logger.error(error, 'YouTube token health check failed');
+        return res.status(500).json({
+          healthy: false,
+          message: 'Health check failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          checkedAt: new Date().toISOString(),
+        });
+      }
+    }
+  );
+
+  /**
    * GET /api/youtube/auth/:channelName
    * Generate OAuth2 authorization URL for a specific channel
    */
