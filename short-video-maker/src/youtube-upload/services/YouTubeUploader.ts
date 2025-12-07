@@ -76,13 +76,26 @@ export class YouTubeUploader {
   }
 
   /**
+   * Get the appropriate redirect URI based on environment
+   */
+  private getRedirectUri(): string {
+    // In Cloud Run (DOCKER=true), use the Cloud Run URL
+    if (process.env.DOCKER === 'true') {
+      const cloudRunUrl = process.env.CLOUD_RUN_URL || 'https://short-video-maker-550996044521.us-central1.run.app';
+      return `${cloudRunUrl}/api/youtube/auth/callback`;
+    }
+    // Local development - use localhost
+    return this.clientSecrets.web.redirect_uris[0];
+  }
+
+  /**
    * Create OAuth2Client for a specific channel with automatic token refresh
    */
   private createOAuth2Client(channelName?: string): OAuth2Client {
     const oauth2Client = new google.auth.OAuth2(
       this.clientSecrets.web.client_id,
       this.clientSecrets.web.client_secret,
-      this.clientSecrets.web.redirect_uris[0]
+      this.getRedirectUri()
     );
 
     // Load tokens if channel name is provided
