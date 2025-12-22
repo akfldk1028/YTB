@@ -54,7 +54,7 @@ export class GoogleVeoAPI {
     lastImage?: { data: string; mimeType: string }, // VEO 3.1 Last Frame support
   ): Promise<Video> {
     const isVeo3 = this.veoModel.includes("veo-3");
-    const isVeo31 = this.veoModel === "veo-3.1-generate-preview";
+    const isVeo31 = this.veoModel === "veo-3.1-generate-preview" || this.veoModel === "veo-3.1-fast-generate-preview";
     const modelName = isVeo31 ? "VEO3.1" : (isVeo3 ? "VEO3" : "VEO2");
 
     logger.info({
