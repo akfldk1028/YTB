@@ -12,12 +12,12 @@ const pollIntervalMs = 10000; // Poll every 10 seconds
 export class GoogleVeoAPI {
   private ai: GoogleGenAI;
   private veoModel: string;
-  
+
   constructor(
     private geminiApiKey: string, // Gemini API key
     projectId: string, // Not used in Gemini API, but kept for interface compatibility
     region: string = "us-central1", // Not used in Gemini API, but kept for interface compatibility
-    veoModel: "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001" = "veo-2.0-generate-001"
+    veoModel: "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001" | "veo-3.1-generate-preview" | "veo-3.1-fast-generate-preview" = "veo-2.0-generate-001"
   ) {
     this.veoModel = veoModel;
     this.ai = new GoogleGenAI({ apiKey: this.geminiApiKey });
@@ -28,10 +28,21 @@ export class GoogleVeoAPI {
     const modelMapping = {
       "veo-2.0-generate-001": "veo-2.0-generate-001",
       "veo-3.0-generate-001": "veo-3.0-generate-001", // Standard VEO 3
-      "veo-3.0-fast-generate-001": "veo-3.0-fast-generate-001" // VEO 3 Fast
+      "veo-3.0-fast-generate-001": "veo-3.0-fast-generate-001", // VEO 3 Fast
+      "veo-3.1-generate-preview": "veo-3.1-generate-preview", // VEO 3.1 with First+Last Frame interpolation
+      "veo-3.1-fast-generate-preview": "veo-3.1-fast-generate-preview" // VEO 3.1 Fast with First+Last Frame interpolation
     };
 
     return modelMapping[this.veoModel as keyof typeof modelMapping] || this.veoModel;
+  }
+
+  /**
+   * Check if current model supports First + Last Frame interpolation
+   * Both VEO 3.1 and VEO 3.1 Fast support this feature
+   */
+  supportsFrameInterpolation(): boolean {
+    return this.veoModel === "veo-3.1-generate-preview" ||
+           this.veoModel === "veo-3.1-fast-generate-preview";
   }
 
   private async _generateVideo(
@@ -40,9 +51,11 @@ export class GoogleVeoAPI {
     orientation: OrientationEnum,
     timeout: number = defaultTimeoutMs,
     initialImage?: { data: string; mimeType: string },
+    lastImage?: { data: string; mimeType: string }, // VEO 3.1 Last Frame support
   ): Promise<Video> {
     const isVeo3 = this.veoModel.includes("veo-3");
-    const modelName = isVeo3 ? "VEO3" : "VEO2";
+    const isVeo31 = this.veoModel === "veo-3.1-generate-preview";
+    const modelName = isVeo31 ? "VEO3.1" : (isVeo3 ? "VEO3" : "VEO2");
 
     logger.info({
       model: this.veoModel,
@@ -51,7 +64,9 @@ export class GoogleVeoAPI {
       minDurationSeconds,
       orientation,
       hasInitialImage: !!initialImage,
-      imageSize: initialImage ? initialImage.data.length : 0
+      hasLastImage: !!lastImage,
+      imageSize: initialImage ? initialImage.data.length : 0,
+      lastImageSize: lastImage ? lastImage.data.length : 0
     }, `🎬 Starting ${modelName} video generation`);
 
     const aspectRatio = orientation === OrientationEnum.portrait ? "9:16" : "16:9";
@@ -63,6 +78,13 @@ export class GoogleVeoAPI {
     // For VEO3: round to nearest valid value (6 or 8) to be safe
     if (isVeo3) {
       duration = minDurationSeconds <= 6 ? 6 : 8;
+    }
+
+    // ⭐ VEO 3.1 First+Last Frame interpolation REQUIRES duration=8
+    // Official docs: "Duration requirement: Must be '8' when using extension or interpolation"
+    if (isVeo31 && lastImage) {
+      duration = 8;
+      logger.info({ forcedDuration: 8 }, "🎯 VEO 3.1 interpolation mode: forcing duration=8 (API requirement)");
     }
 
     const geminiModel = this.getGeminiVeoModel();
@@ -119,7 +141,21 @@ export class GoogleVeoAPI {
           imageBytes: initialImage.data,
           mimeType: initialImage.mimeType,
         };
-        logger.debug({ imageProvided: true, mimeType: initialImage.mimeType }, "Using image input for video generation");
+        logger.debug({ imageProvided: true, mimeType: initialImage.mimeType }, "Using first frame image for video generation");
+      }
+
+      // VEO 3.1: Add lastFrame for First + Last Frame interpolation
+      if (isVeo31 && lastImage) {
+        config.lastFrame = {
+          imageBytes: lastImage.data,
+          mimeType: lastImage.mimeType,
+        };
+        logger.debug({
+          lastFrameProvided: true,
+          mimeType: lastImage.mimeType
+        }, "🎯 VEO 3.1: Using last frame image for First+Last Frame interpolation");
+      } else if (lastImage && !isVeo31) {
+        logger.warn({ model: this.veoModel }, "⚠️ lastImage provided but model doesn't support First+Last Frame interpolation (requires veo-3.1-generate-preview)");
       }
 
       let operation = await this.ai.models.generateVideos(generateParams);
@@ -242,11 +278,13 @@ export class GoogleVeoAPI {
     orientation: OrientationEnum = OrientationEnum.portrait,
     timeout: number = defaultTimeoutMs,
     retryCounter: number = 0,
-    initialImage?: { data: string; mimeType: string }, // Add image input support
+    initialImage?: { data: string; mimeType: string }, // First frame (VEO 2/3)
+    lastImage?: { data: string; mimeType: string }, // Last frame (VEO 3.1 only)
   ): Promise<Video> {
     // Create a comprehensive prompt from search terms
-    // For image-to-video, use motion-focused prompt
-    const prompt = this.createVideoPrompt(searchTerms, minDurationSeconds, orientation, false, !!initialImage);
+    // For First+Last Frame interpolation, use transition-focused prompt
+    const isFrameInterpolation = !!initialImage && !!lastImage && this.supportsFrameInterpolation();
+    const prompt = this.createVideoPrompt(searchTerms, minDurationSeconds, orientation, false, !!initialImage, isFrameInterpolation);
 
     try {
       const video = await this._generateVideo(
@@ -255,13 +293,14 @@ export class GoogleVeoAPI {
         orientation,
         timeout,
         initialImage,
+        lastImage,
       );
 
       // Check if this video ID should be excluded (unlikely with generated content, but keeping interface)
       if (excludeIds.includes(video.id)) {
         // Generate with a slightly modified prompt
-        const modifiedPrompt = this.createVideoPrompt(searchTerms, minDurationSeconds, orientation, true);
-        return await this._generateVideo(modifiedPrompt, minDurationSeconds, orientation, timeout, initialImage);
+        const modifiedPrompt = this.createVideoPrompt(searchTerms, minDurationSeconds, orientation, true, !!initialImage, isFrameInterpolation);
+        return await this._generateVideo(modifiedPrompt, minDurationSeconds, orientation, timeout, initialImage, lastImage);
       }
 
       return video;
@@ -291,6 +330,7 @@ export class GoogleVeoAPI {
           timeout,
           retryCounter + 1,
           initialImage,
+          lastImage,
         );
       }
 
@@ -311,7 +351,8 @@ export class GoogleVeoAPI {
     durationSeconds: number,
     orientation: OrientationEnum,
     variant: boolean = false,
-    isImageToVideo: boolean = false
+    isImageToVideo: boolean = false,
+    isFrameInterpolation: boolean = false
   ): string {
     const baseTerms = searchTerms.join(" ");
     const orientationHint = orientation === OrientationEnum.portrait
@@ -322,7 +363,13 @@ export class GoogleVeoAPI {
 
     let prompt: string;
 
-    if (isImageToVideo) {
+    if (isFrameInterpolation) {
+      // VEO 3.1: First + Last Frame interpolation - focus on smooth transition
+      prompt = `Create a smooth, cinematic transition between the two provided images: ${baseTerms}. ` +
+        `Generate ${durationSeconds} seconds of fluid motion that naturally connects the starting scene to the ending scene. ` +
+        `Maintain consistent character appearance, lighting, and style throughout the transition. ` +
+        `Use smooth camera movements, natural motion, and seamless morphing in ${orientationHint}${variantSuffix}.`;
+    } else if (isImageToVideo) {
       // For image-to-video: focus on motion, camera movement, and animation
       // The baseTerms should already contain detailed motion instructions from image_prompt
       prompt = `Animate this image with cinematic motion: ${baseTerms}. ` +
@@ -341,7 +388,8 @@ export class GoogleVeoAPI {
       prompt: prompt.substring(0, 200) + "...",
       searchTerms,
       orientation,
-      isImageToVideo
+      isImageToVideo,
+      isFrameInterpolation
     }, "Created Veo prompt");
 
     return prompt;
