@@ -328,8 +328,18 @@ export class CharacterStorageService {
         character.distinguishingFeatures = request.distinguishingFeatures;
       }
 
-      // 새 이미지가 제공된 경우
-      if (request.referenceImageBase64) {
+      // 새 이미지가 제공된 경우 (우선순위: gcsPath > imageUrl > referenceImageBase64)
+      if (request.gcsPath) {
+        const imageUrl = await this.registerGcsImage(profileId, characterId, request.gcsPath);
+        character.referenceImageUrl = imageUrl;
+        delete character.referenceImageBase64;
+        logger.info({ profileId, characterId, gcsPath: request.gcsPath }, 'Character image updated from GCS path');
+      } else if (request.imageUrl) {
+        const imageUrl = await this.downloadAndSaveImage(profileId, characterId, request.imageUrl);
+        character.referenceImageUrl = imageUrl;
+        delete character.referenceImageBase64;
+        logger.info({ profileId, characterId, sourceUrl: request.imageUrl }, 'Character image updated from URL');
+      } else if (request.referenceImageBase64) {
         const imageUrl = await this.saveImage(
           profileId,
           characterId,
@@ -337,6 +347,7 @@ export class CharacterStorageService {
         );
         character.referenceImageUrl = imageUrl;
         delete character.referenceImageBase64;
+        logger.info({ profileId, characterId }, 'Character image updated from base64');
       }
 
       profile.updatedAt = new Date().toISOString();
@@ -470,6 +481,7 @@ export class CharacterStorageService {
 
   /**
    * 캐릭터 처리 (이미지 저장 포함)
+   * 우선순위: gcsPath > imageUrl > referenceImageBase64
    */
   private async processCharacter(
     profileId: string,
@@ -483,13 +495,123 @@ export class CharacterStorageService {
       distinguishingFeatures: request.distinguishingFeatures,
     };
 
-    // 이미지가 제공된 경우 저장
-    if (request.referenceImageBase64) {
+    // 1. GCS 경로가 직접 제공된 경우 (이미 GCS에 업로드됨)
+    if (request.gcsPath) {
+      const imageUrl = await this.registerGcsImage(profileId, request.id, request.gcsPath);
+      character.referenceImageUrl = imageUrl;
+      logger.info({ profileId, characterId: request.id, gcsPath: request.gcsPath }, 'Character image registered from GCS path');
+    }
+    // 2. 외부 URL이 제공된 경우 (서버에서 다운로드)
+    else if (request.imageUrl) {
+      const imageUrl = await this.downloadAndSaveImage(profileId, request.id, request.imageUrl);
+      character.referenceImageUrl = imageUrl;
+      logger.info({ profileId, characterId: request.id, sourceUrl: request.imageUrl }, 'Character image downloaded from URL');
+    }
+    // 3. Base64 데이터가 제공된 경우 (기존 방식)
+    else if (request.referenceImageBase64) {
       const imageUrl = await this.saveImage(profileId, request.id, request.referenceImageBase64);
       character.referenceImageUrl = imageUrl;
+      logger.info({ profileId, characterId: request.id }, 'Character image saved from base64');
     }
 
     return character;
+  }
+
+  /**
+   * 외부 URL에서 이미지 다운로드 후 GCS에 저장
+   */
+  private async downloadAndSaveImage(
+    profileId: string,
+    characterId: string,
+    imageUrl: string
+  ): Promise<string> {
+    try {
+      logger.debug({ imageUrl }, 'Downloading image from external URL');
+
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download image: HTTP ${response.status}`);
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/png';
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      // 확장자 결정
+      let extension = 'png';
+      if (contentType.includes('jpeg') || contentType.includes('jpg')) {
+        extension = 'jpg';
+      } else if (contentType.includes('webp')) {
+        extension = 'webp';
+      } else if (contentType.includes('gif')) {
+        extension = 'gif';
+      }
+
+      const imagePath = `${CHARACTERS_FOLDER}/${profileId}/${IMAGES_FOLDER}/${characterId}.${extension}`;
+      const file = this.bucket.file(imagePath);
+
+      await file.save(buffer, { contentType });
+
+      logger.info({ imagePath, size: buffer.length }, 'Image downloaded and saved to GCS');
+      return `gs://${this.config.gcsBucketName}/${imagePath}`;
+    } catch (error) {
+      logger.error({ error, imageUrl }, 'Failed to download and save image');
+      throw error;
+    }
+  }
+
+  /**
+   * GCS 경로에서 이미지 등록 (복사 또는 참조)
+   * gcsPath 형식:
+   * - "gs://bucket/path/to/image.png" (전체 경로)
+   * - "characters/profile/images/char.png" (버킷 내 상대 경로)
+   * - "path/to/image.png" (버킷 내 상대 경로)
+   */
+  private async registerGcsImage(
+    profileId: string,
+    characterId: string,
+    gcsPath: string
+  ): Promise<string> {
+    try {
+      let sourcePath: string;
+      let sourceBucket: Bucket = this.bucket;
+
+      // gs:// 형식 파싱
+      if (gcsPath.startsWith('gs://')) {
+        const match = gcsPath.match(/^gs:\/\/([^/]+)\/(.+)$/);
+        if (!match) {
+          throw new Error(`Invalid GCS path format: ${gcsPath}`);
+        }
+        const [, bucketName, filePath] = match;
+
+        if (bucketName !== this.config.gcsBucketName) {
+          // 다른 버킷에서 복사
+          sourceBucket = this.storage.bucket(bucketName);
+        }
+        sourcePath = filePath;
+      } else {
+        // 상대 경로
+        sourcePath = gcsPath;
+      }
+
+      const sourceFile = sourceBucket.file(sourcePath);
+      const [exists] = await sourceFile.exists();
+
+      if (!exists) {
+        throw new Error(`Source image not found: ${gcsPath}`);
+      }
+
+      // 표준 경로로 복사 (일관성 유지)
+      const targetPath = `${CHARACTERS_FOLDER}/${profileId}/${IMAGES_FOLDER}/${characterId}.png`;
+      const targetFile = this.bucket.file(targetPath);
+
+      await sourceFile.copy(targetFile);
+
+      logger.info({ sourcePath: gcsPath, targetPath }, 'Image copied to standard location');
+      return `gs://${this.config.gcsBucketName}/${targetPath}`;
+    } catch (error) {
+      logger.error({ error, gcsPath }, 'Failed to register GCS image');
+      throw error;
+    }
   }
 
   /**

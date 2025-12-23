@@ -86,8 +86,20 @@ export interface CreateCharacterRequest {
   /** 구분 특징 (optional) */
   distinguishingFeatures?: string;
 
-  /** 레퍼런스 이미지 Base64 (optional) */
+  /** 레퍼런스 이미지 Base64 (optional) - 기존 방식 */
   referenceImageBase64?: string;
+
+  /**
+   * 외부 이미지 URL (optional) - 서버에서 다운로드하여 GCS에 저장
+   * 예: "https://example.com/character.png"
+   */
+  imageUrl?: string;
+
+  /**
+   * GCS 경로 (optional) - 이미 GCS에 업로드된 이미지 경로
+   * 예: "gs://bucket-name/path/to/image.png" 또는 "characters/cat-couple/new-char.png"
+   */
+  gcsPath?: string;
 }
 
 /**
@@ -157,8 +169,20 @@ export interface UpdateCharacterRequest {
   /** 구분 특징 (optional) */
   distinguishingFeatures?: string;
 
-  /** 레퍼런스 이미지 Base64 (optional) */
+  /** 레퍼런스 이미지 Base64 (optional) - 기존 방식 */
   referenceImageBase64?: string;
+
+  /**
+   * 외부 이미지 URL (optional) - 서버에서 다운로드하여 GCS에 저장
+   * 예: "https://example.com/character.png"
+   */
+  imageUrl?: string;
+
+  /**
+   * GCS 경로 (optional) - 이미 GCS에 업로드된 이미지 경로
+   * 예: "gs://bucket-name/path/to/image.png" 또는 "characters/cat-couple/new-char.png"
+   */
+  gcsPath?: string;
 }
 
 /**
