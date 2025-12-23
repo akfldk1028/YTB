@@ -247,11 +247,44 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         for (let i = 0; i < inputScenes.length; i++) {
           const scene = inputScenes[i];
 
+          // ⭐ Scene-level character support: use scene.characterIds if provided
+          const sceneCharacterIds = scene.characterIds || characterIds;
+
+          // If scene has different characterIds than video-level, reload character images
+          if (sceneCharacterIds && characterProfileId &&
+              JSON.stringify(sceneCharacterIds) !== JSON.stringify(characterIds)) {
+            logger.info({
+              sceneIndex: i + 1,
+              sceneCharacterIds,
+              videoCharacterIds: characterIds
+            }, "🎭 Scene has different character set, loading scene-specific characters");
+
+            const sceneStoredImages = await this.loadStoredCharacterImages(characterProfileId, sceneCharacterIds);
+
+            // Temporarily replace reference images for this scene
+            // Clear old stored images and add scene-specific ones
+            const nonStoredImages = previousImages.filter(img => img.sceneIndex >= 0);
+            previousImages.length = 0;
+
+            for (let idx = 0; idx < sceneStoredImages.length; idx++) {
+              const stored = sceneStoredImages[idx];
+              previousImages.push({
+                data: stored.data,
+                mimeType: stored.mimeType,
+                sceneIndex: -(idx + 1)
+              });
+            }
+
+            // Add back generated scene images
+            previousImages.push(...nonStoredImages);
+          }
+
           logger.info({
             sceneIndex: i + 1,
             totalScenes: inputScenes.length,
             hasPreviousImages: previousImages.length > 0,
-            referenceImageCount: Math.min(previousImages.length, 3)
+            referenceImageCount: Math.min(previousImages.length, 3),
+            sceneCharacterIds
           }, "📸 Generating image for scene with character consistency");
 
           if (!scene.imageData) {
@@ -356,7 +389,14 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         }, "🔍 Checking VEO3 I2V condition");
 
         if (context.metadata?.generateVideos && this.veoAPI) {
-          logger.info("🎬 Converting consistent images to videos with VEO3 I2V");
+          const useFrameInterpolation = context.metadata?.useFrameInterpolation === true;
+
+          logger.info({
+            useFrameInterpolation,
+            supportsInterpolation: this.veoAPI.supportsFrameInterpolation?.() ?? false
+          }, useFrameInterpolation
+            ? "🎬 Converting consistent images to videos with VEO3.1 First+Last Frame interpolation"
+            : "🎬 Converting consistent images to videos with VEO3 I2V");
 
           // Track which scenes use VEO3 video vs fallback image
           const sceneResults: Array<{
@@ -373,10 +413,19 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             const scene = inputScenes[i];
             const duration = imageData.duration || scenes[i]?.audio?.duration || 8;
 
+            // ⭐ VEO 3.1: Use next scene's image as lastFrame for smooth transition
+            const hasNextScene = i < imageDataList.length - 1;
+            const nextSceneImage = hasNextScene ? imageDataList[i + 1] : null;
+
             logger.info({
               sceneIndex: i + 1,
-              duration
-            }, "🔄 Converting image to video with VEO3");
+              duration,
+              useFrameInterpolation,
+              hasNextScene,
+              willUseLastFrame: useFrameInterpolation && hasNextScene
+            }, useFrameInterpolation && hasNextScene
+              ? "🔄 Converting with VEO 3.1 First+Last Frame interpolation"
+              : "🔄 Converting image to video with VEO3");
 
             try {
               // Convert image to base64 for VEO3
@@ -385,6 +434,14 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
               // VEO3 I2V generation
               const videoPrompt = scene.videoPrompt || scene.text || `Scene ${i + 1}`;
 
+              // ⭐ Prepare lastImage for VEO 3.1 First+Last Frame interpolation
+              const lastImage = (useFrameInterpolation && nextSceneImage)
+                ? {
+                    data: nextSceneImage.imageBuffer.toString('base64'),
+                    mimeType: "image/png"
+                  }
+                : undefined;
+
               const video = await this.veoAPI.findVideo(
                 [videoPrompt],
                 duration,          // minDurationSeconds (number)
@@ -392,10 +449,11 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
                 context.orientation, // orientation
                 300000,            // timeout (5 minutes)
                 0,                 // retryCounter
-                {                  // initialImage for I2V
+                {                  // initialImage for I2V (first frame)
                   data: imageBase64,
                   mimeType: "image/png"
-                }
+                },
+                lastImage          // ⭐ lastImage for VEO 3.1 (last frame)
               );
 
               // Download VEO3 video

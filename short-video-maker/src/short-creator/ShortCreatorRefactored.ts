@@ -926,12 +926,13 @@ export class ShortCreatorRefactored {
         );
       }
 
-      // Upload to YouTube
+      // Upload to YouTube (with subChannel support)
       const youtubeVideoId = await this.youtubeUploader.uploadVideo(
         videoId,
         youtubeUpload.channelName,
         uploadMetadata,
-        false // notifySubscribers
+        youtubeUpload.notifySubscribers || false,
+        youtubeUpload.subChannel  // 서브채널 alias (Brand Account 지원)
       );
 
       const videoUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;

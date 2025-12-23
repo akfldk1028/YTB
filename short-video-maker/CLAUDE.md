@@ -1,0 +1,183 @@
+# Short Video Maker - AI Context
+
+## 프로젝트 개요
+
+YouTube Shorts 자동 생성 시스템. 캐릭터 기반 일관성 있는 영상을 생성하고 YouTube에 업로드.
+
+**Base URL:** `https://short-video-maker-7qtnitbuvq-uc.a.run.app`
+**GCS Bucket:** `gs://dkdk-474008-short-videos`
+
+---
+
+## 핵심 API 엔드포인트
+
+### 캐릭터/프로필 관리
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| `GET` | `/api/characters/profiles` | 전체 프로필 목록 |
+| `GET` | `/api/characters/profiles/:profileId` | 프로필 상세 |
+| `POST` | `/api/characters/profiles` | 새 프로필 생성 |
+| `POST` | `/api/characters/profiles/:profileId/characters` | 캐릭터 추가 |
+| `PUT` | `/api/characters/profiles/:profileId/characters/:characterId` | 캐릭터 수정 |
+| `DELETE` | `/api/characters/profiles/:profileId/characters/:characterId` | 캐릭터 삭제 |
+
+### 비디오 생성
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| `POST` | `/api/video/consistent-shorts` | 캐릭터 기반 영상 생성 |
+| `GET` | `/api/video/consistent-shorts/:videoId/status` | 생성 상태 확인 |
+
+### YouTube 업로드
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| `GET` | `/api/youtube/channels` | 채널 목록 |
+| `POST` | `/api/youtube/upload` | 비디오 업로드 |
+| `GET` | `/api/youtube/auth/health-check` | 토큰 상태 확인 |
+
+---
+
+## 현재 등록된 프로필/캐릭터
+
+| profileId | channelName | characters |
+|-----------|-------------|------------|
+| `cat-couple` | `why_cat` | `kami`, `dalgi` |
+| `otter-couple` | `수달TV` | `husband`, `wife` |
+
+---
+
+## 캐릭터 이미지 등록 방법
+
+**우선순위: gcsPath > imageUrl > referenceImageBase64**
+
+```json
+{
+  "id": "character-id",
+  "name": "캐릭터 이름",
+  "description": "캐릭터 설명 (프롬프트용)",
+  "gcsPath": "temp/image.png",        // GCS 경로 (1순위)
+  "imageUrl": "https://...",          // 외부 URL (2순위)
+  "referenceImageBase64": "data:..."  // Base64 (3순위)
+}
+```
+
+---
+
+## 비디오 생성 요청 예시
+
+```json
+{
+  "characterReference": {
+    "profileId": "cat-couple",
+    "characterIds": ["kami", "dalgi"]
+  },
+  "scenes": [
+    {
+      "text": "까미가 방에 들어온다",
+      "scenePrompt": "Black cat entering room",
+      "characterIds": ["kami"]
+    },
+    {
+      "text": "딸기가 눈을 뜬다",
+      "scenePrompt": "White cat waking up",
+      "characterIds": ["dalgi"]
+    }
+  ],
+  "config": {
+    "orientation": "portrait",
+    "generateVideos": true,
+    "useFrameInterpolation": true
+  }
+}
+```
+
+---
+
+## YouTube 업로드 요청 예시
+
+```json
+{
+  "videoId": "생성된_비디오_ID",
+  "channelName": "why_cat",
+  "metadata": {
+    "title": "비디오 제목",
+    "description": "설명",
+    "tags": ["고양이", "shorts"],
+    "privacyStatus": "private"
+  }
+}
+```
+
+---
+
+## 프로젝트 구조
+
+```
+src/
+├── character-store/     # 캐릭터/프로필 관리
+│   ├── CharacterStorageService.ts
+│   └── types.ts
+├── server/              # API 서버
+│   ├── api/             # API 라우트
+│   └── parsers/         # 요청 파서
+├── short-creator/       # 영상 생성
+│   ├── ShortCreatorRefactored.ts
+│   ├── ConsistentShortsWorkflow.ts
+│   └── libraries/
+│       └── GoogleVeo.ts  # VEO 2/3/3.1 API
+├── youtube-upload/      # YouTube 업로드
+│   ├── services/
+│   │   ├── YouTubeUploader.ts
+│   │   └── YouTubeChannelManager.ts
+│   └── routes/
+├── storage/             # GCS 저장소
+└── types/               # 타입 정의
+    └── shorts.ts
+```
+
+---
+
+## 배포
+
+```bash
+# Cloud Run 배포
+gcloud builds submit --config=cloudbuild.yaml
+
+# Secret Manager (YouTube 토큰)
+gcloud secrets versions add YOUTUBE_DATA --data-file=youtube-data.tar.gz
+```
+
+---
+
+## 관련 문서
+
+- `docs/CHARACTER-MANAGEMENT-GUIDE.md` - 캐릭터 관리 전체 가이드
+- `docs/2025-12-23-character-image-registration.md` - 이미지 등록 기능 상세
+- `docs/2025-12-22-scene-character-and-frame-interpolation.md` - Scene별 캐릭터 + VEO 3.1
+
+---
+
+## 자주 사용하는 명령어
+
+```bash
+# 프로필 목록
+curl -s ".../api/characters/profiles"
+
+# 캐릭터 추가
+curl -X POST ".../api/characters/profiles/cat-couple/characters" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"nabi", "name":"나비", "description":"...", "imageUrl":"..."}'
+
+# 캐릭터 삭제
+curl -X DELETE ".../api/characters/profiles/cat-couple/characters/nabi"
+
+# 비디오 생성
+curl -X POST ".../api/video/consistent-shorts" \
+  -H "Content-Type: application/json" \
+  -d '{"characterReference":{"profileId":"cat-couple"}, "scenes":[...], "config":{...}}'
+
+# YouTube 채널 목록
+curl -s ".../api/youtube/channels"
+```

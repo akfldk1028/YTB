@@ -20,11 +20,13 @@ export interface N8NStoryboardRawData {
 export interface N8NYouTubeUploadConfig {
   enabled: boolean;
   channelName: string;
+  subChannel?: string;  // 서브채널 alias (예: "att", "cgxr", "why_cat")
   title?: string;  // "{{auto}}" for auto-generation from metadata
   description?: string;
   tags?: string[];
   privacy?: 'private' | 'unlisted' | 'public';
   categoryId?: string;
+  notifySubscribers?: boolean;
 }
 
 // 새로운 N8N RAW 데이터 구조 (format_type 포함)

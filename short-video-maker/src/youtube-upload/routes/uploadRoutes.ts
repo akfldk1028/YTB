@@ -22,6 +22,7 @@ export function createUploadRoutes(youtubeUploader: YouTubeUploader): express.Ro
    * {
    *   "videoId": "cuid123...",
    *   "channelName": "main_channel",
+   *   "subChannel": "why_cat",  // Optional: sub-channel alias or ID for Brand Account uploads
    *   "metadata": {
    *     "title": "My Video",
    *     "description": "Video description",
@@ -84,12 +85,13 @@ export function createUploadRoutes(youtubeUploader: YouTubeUploader): express.Ro
           });
         }
 
-        // Start upload
+        // Start upload (with optional sub-channel support)
         const youtubeVideoId = await youtubeUploader.uploadVideo(
           uploadRequest.videoId,
           uploadRequest.channelName,
           uploadRequest.metadata,
-          uploadRequest.notifySubscribers
+          uploadRequest.notifySubscribers,
+          uploadRequest.subChannel
         );
 
         const videoUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;
@@ -98,6 +100,7 @@ export function createUploadRoutes(youtubeUploader: YouTubeUploader): express.Ro
           success: true,
           videoId: uploadRequest.videoId,
           channelName: uploadRequest.channelName,
+          subChannel: uploadRequest.subChannel || null,
           youtubeVideoId,
           url: videoUrl,
           message: 'Video uploaded successfully',

@@ -6,6 +6,19 @@
 // Channel Management Types
 
 /**
+ * Represents a sub-channel (Brand Account) under a main YouTube account
+ * One Google account can have multiple YouTube channels (Brand Accounts)
+ */
+export interface YouTubeSubChannel {
+  id: string; // YouTube channel ID (UCxxxx...)
+  title: string; // Channel display name
+  alias: string; // Short alias for API calls (e.g., "why_cat", "gaming")
+  customUrl?: string; // Channel custom URL (@xxx)
+  thumbnailUrl?: string; // Channel thumbnail
+  isDefault?: boolean; // Whether this is the default sub-channel
+}
+
+/**
  * Represents a YouTube channel accessible via OAuth token
  * Multiple channels can share the same OAuth token (accountName)
  */
@@ -20,6 +33,7 @@ export interface YouTubeChannel {
   createdAt: Date; // When this channel was added to our system
   authenticated: boolean; // Whether this channel has valid tokens
   accountName?: string; // Which OAuth account this channel belongs to (optional for backward compatibility)
+  subChannels?: YouTubeSubChannel[]; // Sub-channels (Brand Accounts) under this account
 }
 
 /**
@@ -65,6 +79,7 @@ export interface YouTubeVideoMetadata {
 export interface YouTubeUploadRequest {
   videoId: string; // Internal video ID from our system
   channelName: string; // Which channel to upload to
+  subChannel?: string; // Optional: sub-channel alias or ID for Brand Account uploads
   metadata: YouTubeVideoMetadata;
   notifySubscribers?: boolean;
 }

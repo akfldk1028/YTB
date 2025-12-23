@@ -195,12 +195,18 @@ export class YouTubeUploader {
 
   /**
    * Upload video to YouTube on a specific channel
+   * @param videoId - Internal video ID
+   * @param channelName - Main channel name
+   * @param metadata - Video metadata
+   * @param notifySubscribers - Whether to notify subscribers
+   * @param subChannel - Optional sub-channel alias or ID for Brand Account uploads
    */
   public async uploadVideo(
     videoId: string,
     channelName: string,
     metadata: YouTubeVideoMetadata,
-    notifySubscribers: boolean = false
+    notifySubscribers: boolean = false,
+    subChannel?: string
   ): Promise<string> {
     // Validate channel
     if (!this.channelManager.channelExists(channelName)) {
@@ -210,6 +216,20 @@ export class YouTubeUploader {
     if (!this.isChannelAuthenticated(channelName)) {
       throw new Error(`Channel '${channelName}' is not authenticated. Please authenticate first.`);
     }
+
+    // Resolve target channel ID (handles sub-channels)
+    const targetChannelId = this.channelManager.resolveTargetChannelId(channelName, subChannel);
+    const subChannelInfo = subChannel ? this.channelManager.getSubChannel(channelName, subChannel) : null;
+
+    logger.info(
+      {
+        channelName,
+        subChannel: subChannel || 'none',
+        targetChannelId,
+        subChannelTitle: subChannelInfo?.title,
+      },
+      'Resolved upload target channel'
+    );
 
     // Update status to uploading
     this.updateStatus(videoId, channelName, 'uploading', 0);
@@ -239,7 +259,18 @@ export class YouTubeUploader {
       }
 
       const fileSize = fs.statSync(videoPath).size;
-      logger.info({ videoId, channelName, videoPath, fileSize, downloadedFromGCS }, 'Starting YouTube upload');
+      logger.info(
+        {
+          videoId,
+          channelName,
+          subChannel: subChannel || 'none',
+          targetChannelId,
+          videoPath,
+          fileSize,
+          downloadedFromGCS,
+        },
+        'Starting YouTube upload'
+      );
 
       // Create OAuth2 client for this channel
       const oauth2Client = this.createOAuth2Client(channelName);
@@ -334,7 +365,14 @@ export class YouTubeUploader {
       }
 
       logger.info(
-        { videoId, channelName, youtubeVideoId, videoUrl },
+        {
+          videoId,
+          channelName,
+          subChannel: subChannel || 'none',
+          targetChannelId,
+          youtubeVideoId,
+          videoUrl,
+        },
         'YouTube upload completed successfully'
       );
 

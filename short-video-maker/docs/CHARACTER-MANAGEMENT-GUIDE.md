@@ -5,16 +5,118 @@
 
 ---
 
-## 목차
+## Quick API Reference (AI용)
 
-1. [캐릭터 확인 방법](#1-캐릭터-확인-방법)
-2. [캐릭터 추가 방법](#2-캐릭터-추가-방법)
-3. [비디오 생성 시 캐릭터 지정](#3-비디오-생성-시-캐릭터-지정)
-4. [유튜브 업로드](#4-유튜브-업로드)
+### 엔드포인트 요약
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| `GET` | `/api/characters/profiles` | 전체 프로필 목록 |
+| `GET` | `/api/characters/profiles/:profileId` | 프로필 상세 (캐릭터 포함) |
+| `POST` | `/api/characters/profiles` | 새 프로필 생성 |
+| `POST` | `/api/characters/profiles/:profileId/characters` | 캐릭터 추가 |
+| `PUT` | `/api/characters/profiles/:profileId/characters/:characterId` | 캐릭터 수정 |
+| `DELETE` | `/api/characters/profiles/:profileId/characters/:characterId` | 캐릭터 삭제 |
+
+### 캐릭터 이미지 등록 방법 (우선순위)
+
+| 필드 | 설명 | 예시 |
+|------|------|------|
+| `gcsPath` | GCS 경로 (1순위) | `"temp/image.png"` 또는 `"gs://bucket/path.png"` |
+| `imageUrl` | 외부 URL (2순위) | `"https://example.com/image.png"` |
+| `referenceImageBase64` | Base64 (3순위) | `"data:image/png;base64,..."` |
+
+### 현재 프로필/캐릭터
+
+| profileId | channelName | characters |
+|-----------|-------------|------------|
+| `cat-couple` | `why_cat` | `kami`, `dalgi` |
+| `otter-couple` | `수달TV` | `husband`, `wife` |
+
+### 비디오 생성 시 캐릭터 지정
+
+```json
+{
+  "characterReference": {
+    "profileId": "cat-couple",
+    "characterIds": ["kami", "dalgi"]
+  }
+}
+```
+
+- `characterIds` 생략 시 → 프로필의 모든 캐릭터 사용
+- Scene별 지정: `scene.characterIds: ["kami"]`
 
 ---
 
-## 1. 캐릭터 확인 방법
+## 목차
+
+1. [채널(프로필) 관리](#1-채널프로필-관리)
+2. [캐릭터 확인 방법](#2-캐릭터-확인-방법)
+3. [캐릭터 추가 방법](#3-캐릭터-추가-방법)
+4. [캐릭터 삭제/수정 방법](#4-캐릭터-삭제수정-방법)
+5. [비디오 생성 시 캐릭터 지정](#5-비디오-생성-시-캐릭터-지정)
+6. [유튜브 업로드](#6-유튜브-업로드)
+
+---
+
+## 1. 채널(프로필) 관리
+
+캐릭터는 **프로필(profileId)** 단위로 관리됩니다. 각 프로필은 유튜브 채널과 연결할 수 있습니다.
+
+### 현재 등록된 프로필 목록
+
+| 프로필 ID | 이름 | 채널명 | 캐릭터 |
+|-----------|------|--------|--------|
+| `cat-couple` | 까미와 딸기 | why_cat | kami, dalgi |
+| `otter-couple` | 수달 부부 | 수달TV | husband, wife |
+
+### 프로필 목록 조회
+
+```bash
+curl -s "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/characters/profiles"
+```
+
+### 새 프로필(채널) 생성
+
+```bash
+curl -X POST "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/characters/profiles" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profileId": "dog-family",
+    "name": "강아지 가족",
+    "description": "3D Pixar 스타일 강아지 가족",
+    "channelName": "dogTV",
+    "defaultStyle": "pixar",
+    "characters": [
+      {
+        "id": "papa",
+        "name": "아빠 강아지",
+        "description": "Golden retriever father, 3D Pixar style",
+        "imageUrl": "https://example.com/papa-dog.png"
+      }
+    ]
+  }'
+```
+
+### 채널별 캐릭터 관리 예시
+
+```bash
+# === cat-couple 채널 ===
+curl -X POST ".../profiles/cat-couple/characters" -d '{"id":"nabi",...}'
+curl -X DELETE ".../profiles/cat-couple/characters/nabi"
+
+# === otter-couple 채널 ===
+curl -X POST ".../profiles/otter-couple/characters" -d '{"id":"baby",...}'
+curl -X DELETE ".../profiles/otter-couple/characters/baby"
+
+# === dog-family 채널 ===
+curl -X POST ".../profiles/dog-family/characters" -d '{"id":"mama",...}'
+```
+
+---
+
+## 2. 캐릭터 확인 방법
 
 ### 방법 1: API로 프로필 조회
 
@@ -35,8 +137,7 @@ curl -s "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/characters/profil
     "name": "까미와 딸기",
     "characters": [
       {"id": "kami", "name": "까미", "description": "Black cat..."},
-      {"id": "dalgi", "name": "딸기", "description": "White cat..."},
-      {"id": "chingu", "name": "친구", "description": "Orange tabby..."}
+      {"id": "dalgi", "name": "딸기", "description": "White cat..."}
     ]
   }
 }
@@ -49,7 +150,6 @@ curl -s "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/characters/profil
 gcloud storage ls -l "gs://dkdk-474008-short-videos/characters/cat-couple/images/"
 
 # 결과 예시:
-#   215264  2025-12-23T00:44:31Z  .../chingu.jpg
 #  2663538  2025-12-22T11:48:33Z  .../dalgi.png
 #  2628260  2025-12-22T11:48:15Z  .../kami.png
 ```
@@ -73,7 +173,7 @@ gcloud storage cp "gs://dkdk-474008-short-videos/characters/cat-couple/images/*"
 
 ---
 
-## 2. 캐릭터 추가 방법
+## 3. 캐릭터 추가 방법
 
 ### 방법 A: 외부 URL로 추가 (imageUrl) ⭐ 추천
 
@@ -126,15 +226,67 @@ curl -X POST ".../api/characters/profiles/cat-couple/characters" \
   }'
 ```
 
+---
+
+## 4. 캐릭터 삭제/수정 방법
+
 ### 캐릭터 삭제
 
 ```bash
+# 특정 캐릭터 삭제
 curl -X DELETE "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/characters/profiles/cat-couple/characters/nabi"
+```
+
+**응답 예시:**
+```json
+{
+  "success": true,
+  "message": "Character nabi deleted from profile cat-couple"
+}
+```
+
+### 캐릭터 정보 수정
+
+```bash
+# 캐릭터 정보 업데이트 (PUT)
+curl -X PUT "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/characters/profiles/cat-couple/characters/kami" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "까미 (수정됨)",
+    "description": "Updated description for black cat",
+    "style": "pixar",
+    "distinguishingFeatures": "yellow eyes, fluffy tail"
+  }'
+```
+
+### 캐릭터 이미지 교체
+
+```bash
+# imageUrl로 이미지 교체
+curl -X PUT ".../api/characters/profiles/cat-couple/characters/kami" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "imageUrl": "https://new-image-url.com/kami-new.png"
+  }'
+
+# gcsPath로 이미지 교체
+curl -X PUT ".../api/characters/profiles/cat-couple/characters/kami" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gcsPath": "temp/kami-updated.png"
+  }'
+```
+
+### GCS에서 이미지 직접 삭제
+
+```bash
+# 주의: API 사용을 권장. GCS 직접 삭제 시 프로필 JSON과 불일치 발생 가능
+gcloud storage rm "gs://dkdk-474008-short-videos/characters/cat-couple/images/nabi.png"
 ```
 
 ---
 
-## 3. 비디오 생성 시 캐릭터 지정
+## 5. 비디오 생성 시 캐릭터 지정
 
 ### 기본: 특정 캐릭터만 사용
 
@@ -158,8 +310,7 @@ curl -X POST ".../api/video/consistent-shorts" \
 | 설정 | 결과 |
 |------|------|
 | `"characterIds": ["kami"]` | 까미만 나옴 |
-| `"characterIds": ["kami", "dalgi"]` | 까미, 딸기 나옴 |
-| `"characterIds": ["kami", "dalgi", "chingu"]` | 3마리 다 나옴 |
+| `"characterIds": ["kami", "dalgi"]` | 까미, 딸기 둘 다 나옴 |
 | `characterIds` 생략 | 프로필의 모든 캐릭터 사용 |
 
 ### Scene별 다른 캐릭터 지정
@@ -189,7 +340,7 @@ curl -X POST ".../api/video/consistent-shorts" \
 
 ---
 
-## 4. 유튜브 업로드
+## 6. 유튜브 업로드
 
 ### 채널 목록 확인
 

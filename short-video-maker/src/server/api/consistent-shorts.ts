@@ -64,6 +64,7 @@ export class ConsistentShortsAPIRouter {
      *     "orientation": "landscape",
      *     "voice": "am_adam",
      *     "generateVideos": true,  // If true, use VEO3 I2V
+     *     "useFrameInterpolation": true, // VEO 3.1 First+Last Frame (smooth scene transitions)
      *     "useReferenceSet": false // If true, generate reference images first
      *   },
      *   "webhook_url": "https://your-n8n-webhook.com/callback"
@@ -137,7 +138,10 @@ export class ConsistentShortsAPIRouter {
             videoPrompt: scene.scenePrompt || scene.text,
 
             // Mark as needing image generation
-            needsImageGeneration: true
+            needsImageGeneration: true,
+
+            // ⭐ Scene-level character IDs (for multi-character stories)
+            characterIds: scene.characterIds
           }));
 
           const validationInput = {
@@ -178,7 +182,8 @@ export class ConsistentShortsAPIRouter {
           logger.info({
             scenesCount: input.scenes.length,
             mode: "consistent-shorts",
-            generateVideos: config?.generateVideos || false
+            generateVideos: config?.generateVideos || false,
+            useFrameInterpolation: config?.useFrameInterpolation || false
           }, "API endpoint - About to call shortCreator.addToQueue");
 
           const videoId = this.shortCreator.addToQueue(
@@ -191,8 +196,10 @@ export class ConsistentShortsAPIRouter {
               characterStyle: character?.style,
               useReferenceSet: config?.useReferenceSet || false,
               generateVideos: config?.generateVideos || false,
+              // ⭐ VEO 3.1 First+Last Frame interpolation (smooth scene transitions)
+              useFrameInterpolation: config?.useFrameInterpolation || false,
               youtubeUpload: req.body.youtubeUpload,
-              // ⭐ NEW: Stored character profile support
+              // ⭐ Stored character profile support
               characterProfileId: characterReference?.profileId,
               characterIds: characterReference?.characterIds
             }
@@ -200,12 +207,18 @@ export class ConsistentShortsAPIRouter {
 
           logger.info({ videoId }, "API endpoint - shortCreator.addToQueue returned");
 
+          const useFrameInterpolation = config?.useFrameInterpolation || false;
+          const generateVideos = config?.generateVideos || false;
+
           logger.info({
             videoId,
             mode: "consistent-shorts",
             sceneCount: scenes.length,
-            generateVideos: config?.generateVideos || false
-          }, "✨ CONSISTENT SHORTS video queued");
+            generateVideos,
+            useFrameInterpolation
+          }, useFrameInterpolation
+            ? "✨ CONSISTENT SHORTS video queued with VEO 3.1 First+Last Frame interpolation"
+            : "✨ CONSISTENT SHORTS video queued");
 
           res.status(201).json({
             videoId,
@@ -214,7 +227,9 @@ export class ConsistentShortsAPIRouter {
             characterDescription: character?.description,
             characterProfileId: characterReference?.profileId,
             characterIds: characterReference?.characterIds,
-            generateVideos: config?.generateVideos || false,
+            generateVideos,
+            useFrameInterpolation,
+            veoMode: useFrameInterpolation ? "VEO 3.1 (First+Last Frame)" : (generateVideos ? "VEO 3 (First Frame only)" : "none"),
             message: characterReference?.profileId
               ? `Consistent character video generation started using stored profile '${characterReference.profileId}'.`
               : "Consistent character video generation started. All scenes will feature the same character."

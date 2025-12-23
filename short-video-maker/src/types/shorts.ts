@@ -51,6 +51,8 @@ export const sceneInput = z.object({
   needsImageGeneration: z.boolean().optional().describe("Whether this scene needs image generation"),
   video: z.string().optional().describe("Pre-existing video URL for this scene"),
   videoPrompt: z.string().optional().describe("Prompt for video generation"),
+  // ⭐ Scene-level character specification for multi-character stories
+  characterIds: z.array(z.string()).optional().describe("Character IDs to use in this scene (e.g., ['kkam-i'] or ['kkam-i', 'ddal-gi'])"),
 });
 export type SceneInput = z.infer<typeof sceneInput>;
 

@@ -8,6 +8,7 @@ import {
   YouTubeChannel,
   YouTubeChannelConfig,
   YouTubeTokens,
+  YouTubeSubChannel,
 } from '../types/youtube';
 import { YouTubeSecretManager } from './YouTubeSecretManager';
 
@@ -284,5 +285,149 @@ export class YouTubeChannelManager {
     return this.listChannels().filter(
       (channel) => !this.isChannelAuthenticated(channel.channelName)
     );
+  }
+
+  /**
+   * Get sub-channels for a specific channel
+   */
+  public getSubChannels(channelName: string): YouTubeSubChannel[] {
+    const channel = this.getChannel(channelName);
+    return channel?.subChannels || [];
+  }
+
+  /**
+   * Get a specific sub-channel by alias or ID
+   * @param channelName - The main channel name
+   * @param subChannelRef - The sub-channel alias or channel ID
+   * @returns The sub-channel if found, null otherwise
+   */
+  public getSubChannel(channelName: string, subChannelRef: string): YouTubeSubChannel | null {
+    const subChannels = this.getSubChannels(channelName);
+
+    // Find by alias (case-insensitive) or by ID
+    const subChannel = subChannels.find(
+      (sc) =>
+        sc.alias.toLowerCase() === subChannelRef.toLowerCase() ||
+        sc.id === subChannelRef
+    );
+
+    return subChannel || null;
+  }
+
+  /**
+   * Get the default sub-channel for a channel
+   * Returns the sub-channel marked as default, or the first one if none is default
+   */
+  public getDefaultSubChannel(channelName: string): YouTubeSubChannel | null {
+    const subChannels = this.getSubChannels(channelName);
+
+    if (subChannels.length === 0) {
+      return null;
+    }
+
+    // Find default sub-channel or return the first one
+    return subChannels.find((sc) => sc.isDefault) || subChannels[0];
+  }
+
+  /**
+   * Resolve target channel ID for upload
+   * Takes into account sub-channels if specified
+   * @param channelName - The main channel name
+   * @param subChannelRef - Optional sub-channel alias or ID
+   * @returns The YouTube channel ID to upload to
+   */
+  public resolveTargetChannelId(channelName: string, subChannelRef?: string): string | null {
+    const channel = this.getChannel(channelName);
+    if (!channel) {
+      return null;
+    }
+
+    // If sub-channel is specified, try to resolve it
+    if (subChannelRef) {
+      const subChannel = this.getSubChannel(channelName, subChannelRef);
+      if (subChannel) {
+        logger.debug(
+          { channelName, subChannelRef, targetId: subChannel.id },
+          'Resolved sub-channel for upload'
+        );
+        return subChannel.id;
+      }
+
+      logger.warn(
+        { channelName, subChannelRef },
+        'Sub-channel not found, using main channel'
+      );
+    }
+
+    // No sub-channels or sub-channel not found - use main channel ID
+    // Check if there's a default sub-channel first
+    const defaultSub = this.getDefaultSubChannel(channelName);
+    if (defaultSub) {
+      return defaultSub.id;
+    }
+
+    return channel.channelId || null;
+  }
+
+  /**
+   * Add a sub-channel to an existing channel
+   */
+  public addSubChannel(channelName: string, subChannel: YouTubeSubChannel): void {
+    const channel = this.channelsConfig.channels[channelName];
+    if (!channel) {
+      throw new Error(`Channel '${channelName}' not found`);
+    }
+
+    // Initialize subChannels array if not exists
+    if (!channel.subChannels) {
+      channel.subChannels = [];
+    }
+
+    // Check for duplicate alias
+    if (channel.subChannels.some((sc) => sc.alias === subChannel.alias)) {
+      throw new Error(`Sub-channel with alias '${subChannel.alias}' already exists`);
+    }
+
+    channel.subChannels.push(subChannel);
+    this.saveChannelsConfig();
+
+    logger.info(
+      { channelName, subChannelAlias: subChannel.alias, subChannelId: subChannel.id },
+      'Sub-channel added'
+    );
+  }
+
+  /**
+   * Remove a sub-channel
+   */
+  public removeSubChannel(channelName: string, subChannelRef: string): void {
+    const channel = this.channelsConfig.channels[channelName];
+    if (!channel || !channel.subChannels) {
+      throw new Error(`Channel '${channelName}' not found or has no sub-channels`);
+    }
+
+    const index = channel.subChannels.findIndex(
+      (sc) => sc.alias === subChannelRef || sc.id === subChannelRef
+    );
+
+    if (index === -1) {
+      throw new Error(`Sub-channel '${subChannelRef}' not found`);
+    }
+
+    channel.subChannels.splice(index, 1);
+    this.saveChannelsConfig();
+
+    logger.info({ channelName, subChannelRef }, 'Sub-channel removed');
+  }
+
+  /**
+   * List all sub-channels for a channel with their details
+   */
+  public listSubChannelsInfo(channelName: string): { channelName: string; subChannels: YouTubeSubChannel[] } {
+    const channel = this.getChannel(channelName);
+    return {
+      channelName,
+      subChannels: channel?.subChannels || [],
+    };
   }
 }

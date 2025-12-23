@@ -41,7 +41,7 @@ export class Config {
   public googleVeoApiKey?: string; // DEPRECATED: Used for Vertex AI VEO, now using Gemini API
   public googleCloudProjectId?: string;
   public googleCloudRegion: string = "us-central1";
-  public veoModel: "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001" = "veo-3.0-fast-generate-001";
+  public veoModel: "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001" | "veo-3.1-generate-preview" = "veo-3.0-fast-generate-001";
   public leonardoApiKey?: string;
   public googleGeminiApiKey?: string; // For Gemini API (Imagen image generation and VEO video generation)
   public googleTtsApiKey?: string; // For Google Cloud Text-to-Speech
@@ -101,7 +101,7 @@ export class Config {
     this.googleVeoApiKey = process.env.GOOGLE_VEO_API_KEY;
     this.googleCloudProjectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
     this.googleCloudRegion = process.env.GOOGLE_CLOUD_REGION || "us-central1";
-    this.veoModel = (process.env.VEO_MODEL as "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001") || "veo-3.0-fast-generate-001";
+    this.veoModel = (process.env.VEO_MODEL as "veo-2.0-generate-001" | "veo-3.0-generate-001" | "veo-3.0-fast-generate-001" | "veo-3.1-generate-preview") || "veo-3.0-fast-generate-001";
     this.leonardoApiKey = process.env.LEONARDO_API_KEY;
     this.googleGeminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
     this.googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY;
