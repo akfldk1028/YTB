@@ -203,6 +203,54 @@ curl -X POST "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consis
   }'
 ```
 
+### 🔥 부드러운 씬 전환 (xfade) 영상 생성
+
+**기본값: 활성화 (fade 효과 0.5초)**
+
+```bash
+curl -X POST "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "characterReference": {
+      "profileId": "cat-couple"
+    },
+    "scenes": [
+      {
+        "text": "까미가 창가에 앉아있어요",
+        "scenePrompt": "Black cat in blue shirt sitting by window, 3D Pixar style",
+        "characterIds": ["kami"]
+      },
+      {
+        "text": "딸기가 다가와요",
+        "scenePrompt": "White cat with pink bow approaches black cat, 3D Pixar style",
+        "characterIds": ["kami", "dalgi"]
+      }
+    ],
+    "config": {
+      "orientation": "portrait",
+      "generateVideos": true,
+      "useFrameInterpolation": true,
+      "useSceneTransitions": true,
+      "sceneTransitionType": "fade",
+      "sceneTransitionDuration": 0.5
+    }
+  }'
+```
+
+**전환 효과 옵션:**
+
+| sceneTransitionType | 설명 |
+|---------------------|------|
+| `fade` | 페이드 인/아웃 (기본값) |
+| `dissolve` | 디졸브 효과 |
+| `wipeleft` | 왼쪽으로 와이프 |
+| `wiperight` | 오른쪽으로 와이프 |
+| `wipeup` | 위로 와이프 |
+| `wipedown` | 아래로 와이프 |
+| `slideup` | 위로 슬라이드 |
+| `slidedown` | 아래로 슬라이드 |
+| `circlecrop` | 원형 크롭 |
+
 ### 영상 상태 확인
 
 ```bash

@@ -53,9 +53,19 @@ export class ConsistentShortsAPIRouter {
      *     "profileId": "otter-couple",
      *     "characterIds": ["husband", "wife"]  // Optional: specific characters
      *   },
+     *   "titleText": {  // 🔥 NEW: 상단 제목 (숏츠 어그로용)
+     *     "ko": "호텔 조식에 진심인 부부 커플 특징",  // 한국어 제목 (필수)
+     *     "en": "Couple's hotel breakfast enthusiasm",  // 영어 (선택)
+     *     "position": "top",           // top | center (기본: top)
+     *     "style": "highlight",        // highlight (노란배경) | default (흰텍스트)
+     *     "duration": "full",          // "full" | 초 단위 숫자
+     *     "fontSize": 42,              // 폰트 크기 (기본: 42)
+     *     "backgroundColor": "#FFEB3B" // 배경색 (기본: 노란색)
+     *   },
      *   "scenes": [
      *     {
      *       "text": "우주에서 떠다니는 외로운 우주비행사",
+     *       "textEnglish": "A lonely astronaut floating in space", // 🔥 Optional: English subtitles
      *       "scenePrompt": "Floating in deep space with Earth in background",
      *       "duration": 3
      *     }
@@ -65,7 +75,15 @@ export class ConsistentShortsAPIRouter {
      *     "voice": "am_adam",
      *     "generateVideos": true,  // If true, use VEO3 I2V
      *     "useFrameInterpolation": true, // VEO 3.1 First+Last Frame (smooth scene transitions)
+     *     "useStoredImageForVeo": true, // ⭐ Use stored character image directly for VEO (skip NANO BANANA)
      *     "useReferenceSet": false // If true, generate reference images first
+     *   },
+     *   "audio_config": {  // 🔥 NEW: Sound effects and background music
+     *     "transitionSound": { "type": "whoosh", "volume": 0.5 },  // Between scenes
+     *     "soundEffects": [
+     *       { "type": "preset", "value": "CAT_MEOW", "startTime": 2.5, "volume": 0.7 }
+     *     ],
+     *     "backgroundMusic": { "source": "chill", "volume": 0.2, "loop": true }
      *   },
      *   "webhook_url": "https://your-n8n-webhook.com/callback"
      * }
@@ -76,7 +94,22 @@ export class ConsistentShortsAPIRouter {
         try {
           logger.info("Processing CONSISTENT SHORTS request (character consistency mode)");
 
-          const { character, characterReference, scenes, config, webhook_url, callback_url, elevenlabs_config, video_config } = req.body;
+          const { character, characterReference, titleText, scenes, config, webhook_url, callback_url, elevenlabs_config, video_config, audio_config } = req.body;
+
+          // 🔥 DEBUG: Check if Korean text is corrupted at API entry
+          if (scenes && scenes.length > 0 && scenes[0].text) {
+            const firstText = scenes[0].text;
+            const firstCharCode = firstText.charCodeAt(0);
+            const textHex = firstText.substring(0, 5).split('').map((c: string) => c.charCodeAt(0).toString(16)).join(',');
+            const hasKorean = /[\uac00-\ud7af]/.test(firstText);
+            logger.info({
+              firstCharCode,
+              textHex,
+              textLength: firstText.length,
+              hasKorean,
+              rawText: firstText.substring(0, 20)
+            }, "🔥 DEBUG API ENTRY: Korean text check at request entry");
+          }
 
           // Validation: Need either character description OR characterReference (stored profile)
           const hasCharacterDescription = character && character.description;
@@ -110,6 +143,7 @@ export class ConsistentShortsAPIRouter {
           // Prepare scenes with character consistency flags
           const processedScenes = scenes.map((scene: any, index: number) => ({
             text: scene.text || scene.scenePrompt || `Scene ${index + 1}`,
+            textEnglish: scene.textEnglish || scene.englishText || undefined, // 🔥 이중 자막용 영어 텍스트
             searchTerms: [], // Not used in consistent mode
 
             // Image generation data with character info
@@ -198,10 +232,20 @@ export class ConsistentShortsAPIRouter {
               generateVideos: config?.generateVideos || false,
               // ⭐ VEO 3.1 First+Last Frame interpolation (smooth scene transitions)
               useFrameInterpolation: config?.useFrameInterpolation || false,
+              // ⭐ Use stored character image directly for VEO (skip NANO BANANA)
+              useStoredImageForVeo: config?.useStoredImageForVeo || false,
+              // 🔥 Scene transition effects (xfade: fade, dissolve, wipeleft, etc.)
+              useSceneTransitions: config?.useSceneTransitions ?? true, // Default: enabled
+              sceneTransitionType: config?.sceneTransitionType || 'fade',
+              sceneTransitionDuration: config?.sceneTransitionDuration || 0.5,
               youtubeUpload: req.body.youtubeUpload,
               // ⭐ Stored character profile support
               characterProfileId: characterReference?.profileId,
-              characterIds: characterReference?.characterIds
+              characterIds: characterReference?.characterIds,
+              // 🔥 Audio configuration (sound effects, background music)
+              audioConfig: audio_config,
+              // 🔥 상단 제목 (숏츠 어그로용)
+              titleText: titleText
             }
           );
 
@@ -209,16 +253,20 @@ export class ConsistentShortsAPIRouter {
 
           const useFrameInterpolation = config?.useFrameInterpolation || false;
           const generateVideos = config?.generateVideos || false;
+          const useStoredImageForVeo = config?.useStoredImageForVeo || false;
 
           logger.info({
             videoId,
             mode: "consistent-shorts",
             sceneCount: scenes.length,
             generateVideos,
-            useFrameInterpolation
-          }, useFrameInterpolation
-            ? "✨ CONSISTENT SHORTS video queued with VEO 3.1 First+Last Frame interpolation"
-            : "✨ CONSISTENT SHORTS video queued");
+            useFrameInterpolation,
+            useStoredImageForVeo
+          }, useStoredImageForVeo
+            ? "✨ CONSISTENT SHORTS video queued with STORED CHARACTER IMAGE for VEO"
+            : useFrameInterpolation
+              ? "✨ CONSISTENT SHORTS video queued with VEO 3.1 First+Last Frame interpolation"
+              : "✨ CONSISTENT SHORTS video queued");
 
           res.status(201).json({
             videoId,
@@ -229,7 +277,10 @@ export class ConsistentShortsAPIRouter {
             characterIds: characterReference?.characterIds,
             generateVideos,
             useFrameInterpolation,
+            useStoredImageForVeo,
+            titleText: titleText ? { ko: titleText.ko, en: titleText.en } : undefined,
             veoMode: useFrameInterpolation ? "VEO 3.1 (First+Last Frame)" : (generateVideos ? "VEO 3 (First Frame only)" : "none"),
+            imageMode: useStoredImageForVeo ? "Stored Character Image → VEO" : "NANO BANANA Generated → VEO",
             message: characterReference?.profileId
               ? `Consistent character video generation started using stored profile '${characterReference.profileId}'.`
               : "Consistent character video generation started. All scenes will feature the same character."

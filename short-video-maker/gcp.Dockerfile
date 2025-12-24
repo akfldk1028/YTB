@@ -61,8 +61,12 @@ RUN apt update && apt install -y \
       fonts-noto-color-emoji \
       # Korean font for captions (NanumGothic)
       fonts-nanum \
+      # fontconfig for font cache
+      fontconfig \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # Update font cache for Korean fonts to work in FFmpeg
+    && fc-cache -fv
 
 # Setup pnpm package manager
 ENV PNPM_HOME="/pnpm"

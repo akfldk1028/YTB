@@ -1,7 +1,8 @@
 export const DEFAULT_TIMEOUT_MS = 30000;
 export const DEFAULT_AUDIO_DURATION = 3;
-// 🔥 ElevenLabs Axl - Shorts 최적화 음성 (에너지 넘침, 시네마틱)
-export const DEFAULT_VOICE = "baRq1qg6PxLsnSQ04d8c"; // el_axl
+// 🔥 ElevenLabs Rachel - 무료 사용 가능한 기본 음성 (Female, American)
+// 유료 음성 대안: Axl (baRq1qg6PxLsnSQ04d8c) - Shorts 최적화, 에너지 넘침
+export const DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM"; // Rachel (premade, free)
 
 export const VIDEO_DIMENSIONS = {
   PORTRAIT: "1080x1920",

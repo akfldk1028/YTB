@@ -23,6 +23,7 @@ export enum CaptionPositionEnum {
 
 export type Scene = {
   captions: Caption[];
+  englishCaptions?: Caption[];  // 🔥 이중 자막: 영어 자막
   video: string;
   audio: {
     url: string;
@@ -32,6 +33,7 @@ export type Scene = {
 
 export const sceneInput = z.object({
   text: z.string().describe("Text to be spoken in the video"),
+  textEnglish: z.string().optional().describe("English translation of text for dual subtitles"),
   searchTerms: z
     .array(z.string())
     .describe(
@@ -57,9 +59,14 @@ export const sceneInput = z.object({
 export type SceneInput = z.infer<typeof sceneInput>;
 
 export enum VoiceEnum {
-  // 🔥 ElevenLabs Shorts-optimized voices (Recommended for YouTube Shorts/TikTok/Reels)
+  // 🔥 ElevenLabs Premade voices (FREE - 무료 사용 가능)
+  el_rachel = "21m00Tcm4TlvDq8ikWAM",    // Female - American (DEFAULT, premade, FREE)
+  el_adam = "pNInz6obpgDQGcFmaJgB",      // Male - American (premade, FREE)
+  el_sam = "yoZ06aMxZJJ28mfd3POQ",       // Male - American (premade, FREE)
+
+  // 🔥 ElevenLabs Shorts-optimized voices (유료 - Paid subscription required)
   el_arfa = "N8CqI3qXFmT0tJHnzlrq",      // Female - Reels/Shorts optimized
-  el_axl = "baRq1qg6PxLsnSQ04d8c",       // Male - Energetic, cinematic (DEFAULT, recommended)
+  el_axl = "baRq1qg6PxLsnSQ04d8c",       // Male - Energetic, cinematic
   el_anika = "ecp3DWciuUyW7BYM7II1",     // Female - Sweet & Lively
   el_ashley = "bxiObU1YDrf7lrFAyV99",    // Female - YouTube/TikTok
   el_brittney = "kPzsL2i3teMYv0FxEYQ6",  // Female - Social media
@@ -135,6 +142,47 @@ export type Caption = {
   endMs: number;
 };
 
+/**
+ * 🔥 Sound Effect Configuration
+ * Supports ElevenLabs Sound Effects API
+ */
+export type SoundEffectConfig = {
+  /** Sound effect type: preset, custom, or transition */
+  type: 'preset' | 'custom' | 'transition';
+  /** Preset name (WHOOSH, CAT_MEOW, etc.) or custom description */
+  value: string;
+  /** Start time in seconds (relative to scene or video) */
+  startTime: number;
+  /** Duration in seconds (optional, auto if not specified) */
+  duration?: number;
+  /** Volume level (0.0 to 1.0, default 0.5) */
+  volume?: number;
+};
+
+/**
+ * 🔥 Audio Configuration for video generation
+ */
+export type AudioConfig = {
+  /** Background music settings */
+  backgroundMusic?: {
+    /** Music mood for auto-selection or URL for custom */
+    source: MusicMoodEnum | string;
+    /** Volume level (0.0 to 1.0, default 0.2) */
+    volume?: number;
+    /** Loop music throughout video */
+    loop?: boolean;
+  };
+  /** Sound effects to overlay on TTS audio */
+  soundEffects?: SoundEffectConfig[];
+  /** Scene transition sound effect (applies between all scenes) */
+  transitionSound?: {
+    /** Type: whoosh, ding, pop, swipe */
+    type: 'whoosh' | 'ding' | 'pop' | 'swipe';
+    /** Volume level (0.0 to 1.0, default 0.5) */
+    volume?: number;
+  };
+};
+
 export type CaptionLine = {
   texts: Caption[];
 };
@@ -179,3 +227,53 @@ export type whisperModels =
   | "large-v2"
   | "large-v3"
   | "large-v3-turbo";
+
+/**
+ * ⭐ Title Text Configuration (상단 제목/Hook)
+ * 숏츠 어그로용 상단 제목 텍스트 설정
+ */
+export type TitleTextConfig = {
+  /** 한국어 제목 (필수) */
+  ko: string;
+  /** 영어 제목 (선택) */
+  en?: string;
+  /** 위치: top (기본) 또는 center */
+  position?: 'top' | 'center';
+  /** 스타일: highlight (노란 배경, 기본) 또는 default (흰색 텍스트) */
+  style?: 'highlight' | 'default';
+  /** 표시 시간: 'full' (전체, 기본) 또는 초 단위 숫자 */
+  duration?: 'full' | number;
+  /** 폰트 크기 (기본: 42) */
+  fontSize?: number;
+  /** 배경색 (기본: #FFEB3B 노란색) */
+  backgroundColor?: string;
+  /** 텍스트 색 (기본: #000000 검정) */
+  textColor?: string;
+};
+
+/**
+ * ⭐ Multi-Character Scene Support
+ * 다중 캐릭터 씬 처리를 위한 타입 정의
+ */
+
+/** 개별 캐릭터 이미지 정보 */
+export type CharacterImageInfo = {
+  characterId: string;
+  data: Buffer;
+  mimeType: string;
+  description: string;
+};
+
+/** 씬별 캐릭터 이미지 정보 (N개 캐릭터 지원) */
+export type SceneCharacterImages = {
+  /** 씬에 포함된 캐릭터 ID 목록 */
+  characterIds: string[];
+  /** 각 캐릭터의 이미지 정보 */
+  images: CharacterImageInfo[];
+  /** 단일 캐릭터 씬 여부 */
+  isSingleCharacter: boolean;
+  /** 다중 캐릭터 씬 여부 */
+  isMultiCharacter: boolean;
+  /** 캐릭터 수 */
+  characterCount: number;
+};

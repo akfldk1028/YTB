@@ -1,5 +1,6 @@
 import fs from "fs-extra";
 import path from "path";
+import cuid from "cuid";
 import { BaseWorkflow, WorkflowContext, WorkflowResult } from "./BaseWorkflow";
 import { VideoProcessor } from "../processors/VideoProcessor";
 import { GoogleVeoAPI } from "../libraries/GoogleVeo";
@@ -9,7 +10,8 @@ import { ImageGenerationService } from "../../image-generation/services/ImageGen
 import { ImageModelType } from "../../image-generation/models/imageModels";
 import { CharacterStorageService } from "../../character-store/CharacterStorageService";
 import type { CharacterProfile, Character } from "../../character-store/types";
-import type { Scene, SceneInput } from "../../types/shorts";
+import type { Scene, SceneInput, AudioConfig, SoundEffectConfig, SceneCharacterImages, CharacterImageInfo, TitleTextConfig } from "../../types/shorts";
+import { ElevenLabsSoundEffects, SoundEffectPresets } from "../libraries/elevenlabs-tts";
 
 /**
  * Minimum scene duration in seconds.
@@ -45,6 +47,154 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
     private characterStorage?: CharacterStorageService
   ) {
     super();
+  }
+
+  /**
+   * 🔥 Generate English captions synced to Korean audio timing
+   * Uses Korean TTS captions timing with English text
+   */
+  private generateSyncedEnglishCaptions(
+    englishText: string,
+    koreanCaptions: any[],
+    totalDuration: number
+  ): any[] {
+    if (!englishText || !koreanCaptions || koreanCaptions.length === 0) {
+      return [];
+    }
+
+    const englishWords = englishText.split(/\s+/).filter(w => w.trim());
+    if (englishWords.length === 0) return [];
+
+    const firstCaption = koreanCaptions[0];
+    const lastCaption = koreanCaptions[koreanCaptions.length - 1];
+    const koreanStartTime = firstCaption?.startMs ?? (firstCaption?.start ? firstCaption.start * 1000 : 0);
+    const koreanEndTime = lastCaption?.endMs ?? (lastCaption?.end ? lastCaption.end * 1000 : totalDuration * 1000);
+    const totalTime = koreanEndTime - koreanStartTime;
+    const timePerWord = totalTime / englishWords.length;
+
+    const englishCaptions: any[] = [];
+
+    for (let i = 0; i < englishWords.length; i++) {
+      englishCaptions.push({
+        text: englishWords[i],
+        startMs: koreanStartTime + (i * timePerWord),
+        endMs: koreanStartTime + ((i + 1) * timePerWord),
+        start: (koreanStartTime + (i * timePerWord)) / 1000,
+        end: (koreanStartTime + ((i + 1) * timePerWord)) / 1000
+      });
+    }
+
+    logger.debug({
+      englishWordCount: englishWords.length,
+      koreanCaptionCount: koreanCaptions.length,
+      totalDuration: totalTime / 1000
+    }, "🔥 Generated synced English captions");
+
+    return englishCaptions;
+  }
+
+  /**
+   * 🔥 Generate sound effects using ElevenLabs API
+   * Returns array of audio file paths with timing info
+   */
+  private async generateSoundEffects(
+    audioConfig: AudioConfig | undefined,
+    tempDirPath: string,
+    sceneDurations: number[],
+    apiKey: string
+  ): Promise<Array<{ path: string; startTime: number; volume: number; loop?: boolean }>> {
+    if (!audioConfig || (!audioConfig.soundEffects?.length && !audioConfig.transitionSound)) {
+      return [];
+    }
+
+    const soundEffects = new ElevenLabsSoundEffects({ apiKey });
+    const overlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean }> = [];
+
+    // Calculate cumulative scene start times
+    const sceneStartTimes: number[] = [];
+    let cumulativeTime = 0;
+    for (const duration of sceneDurations) {
+      sceneStartTimes.push(cumulativeTime);
+      cumulativeTime += duration;
+    }
+
+    try {
+      // 1. Generate transition sounds (between scenes)
+      if (audioConfig.transitionSound && sceneDurations.length > 1) {
+        const transitionType = audioConfig.transitionSound.type;
+        const transitionVolume = audioConfig.transitionSound.volume ?? 0.5;
+
+        logger.info({ transitionType, sceneCount: sceneDurations.length }, "🎵 Generating transition sounds");
+
+        const transitionResult = await soundEffects.generateTransition(transitionType);
+
+        // Save transition audio once (will be reused)
+        const transitionPath = path.join(tempDirPath, `transition-${cuid()}.mp3`);
+        await fs.writeFile(transitionPath, Buffer.from(transitionResult.audio));
+
+        // Add transition between each scene
+        for (let i = 1; i < sceneDurations.length; i++) {
+          // Place transition sound at scene boundary (slightly before)
+          const transitionTime = sceneStartTimes[i] - 0.3;
+          overlays.push({
+            path: transitionPath,
+            startTime: Math.max(0, transitionTime),
+            volume: transitionVolume
+          });
+        }
+      }
+
+      // 2. Generate custom sound effects
+      if (audioConfig.soundEffects && audioConfig.soundEffects.length > 0) {
+        logger.info({ count: audioConfig.soundEffects.length }, "🎵 Generating custom sound effects");
+
+        for (const sfxConfig of audioConfig.soundEffects) {
+          let audioResult;
+
+          if (sfxConfig.type === 'preset') {
+            // Use preset from SoundEffectPresets
+            const presetKey = sfxConfig.value as keyof typeof SoundEffectPresets;
+            if (SoundEffectPresets[presetKey]) {
+              audioResult = await soundEffects.generate({
+                text: SoundEffectPresets[presetKey],
+                duration_seconds: sfxConfig.duration ?? null,
+                prompt_influence: 0.3
+              });
+            } else {
+              logger.warn({ preset: sfxConfig.value }, "Unknown sound effect preset, using as custom prompt");
+              audioResult = await soundEffects.generate({
+                text: sfxConfig.value,
+                duration_seconds: sfxConfig.duration ?? null
+              });
+            }
+          } else {
+            // Custom description
+            audioResult = await soundEffects.generate({
+              text: sfxConfig.value,
+              duration_seconds: sfxConfig.duration ?? null
+            });
+          }
+
+          if (audioResult) {
+            const sfxPath = path.join(tempDirPath, `sfx-${cuid()}.mp3`);
+            await fs.writeFile(sfxPath, Buffer.from(audioResult.audio));
+
+            overlays.push({
+              path: sfxPath,
+              startTime: sfxConfig.startTime,
+              volume: sfxConfig.volume ?? 0.5
+            });
+          }
+        }
+      }
+
+      logger.info({ overlayCount: overlays.length }, "✅ Sound effects generated");
+      return overlays;
+
+    } catch (error) {
+      logger.error({ error }, "❌ Failed to generate sound effects, continuing without them");
+      return [];
+    }
   }
 
   /**
@@ -134,6 +284,88 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
   }
 
   /**
+   * ⭐ Get all character images for a scene (supports N characters)
+   * @param characterIds - Array of character IDs for this scene
+   * @param imageMap - Map of characterId → image data
+   * @returns SceneCharacterImages with all available character images
+   */
+  private getSceneCharacterImages(
+    characterIds: string[],
+    imageMap: Map<string, { data: Buffer; mimeType: string; description: string }>
+  ): SceneCharacterImages {
+    const images: CharacterImageInfo[] = [];
+
+    for (const characterId of characterIds) {
+      const imageData = imageMap.get(characterId);
+      if (imageData) {
+        images.push({
+          characterId,
+          data: imageData.data,
+          mimeType: imageData.mimeType,
+          description: imageData.description
+        });
+      } else {
+        logger.warn({ characterId }, "⚠️ Character image not found in map");
+      }
+    }
+
+    const result: SceneCharacterImages = {
+      characterIds,
+      images,
+      isSingleCharacter: images.length === 1,
+      isMultiCharacter: images.length > 1,
+      characterCount: images.length
+    };
+
+    logger.debug({
+      requestedCharacters: characterIds.length,
+      foundCharacters: images.length,
+      characterIds: images.map(img => img.characterId)
+    }, "📸 Got scene character images");
+
+    return result;
+  }
+
+  /**
+   * ⭐ Build prompt for multi-character scene
+   * Combines all character descriptions with the scene prompt
+   * @param sceneCharacters - SceneCharacterImages with character info
+   * @param scenePrompt - Original scene prompt/description
+   * @param style - Image generation style
+   * @param mood - Image generation mood
+   * @returns Enhanced prompt for NANO BANANA
+   */
+  private buildMultiCharacterPrompt(
+    sceneCharacters: SceneCharacterImages,
+    scenePrompt: string,
+    style: string = "pixar",
+    mood: string = "dynamic"
+  ): string {
+    // Build character descriptions
+    const characterDescriptions = sceneCharacters.images
+      .map(img => `[${img.characterId}]: ${img.description}`)
+      .join('\n');
+
+    // Combine into enhanced prompt
+    const enhancedPrompt = `Scene with ${sceneCharacters.characterCount} characters together:
+${characterDescriptions}
+
+Scene: ${scenePrompt}
+Style: ${style}
+Mood: ${mood}
+
+IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the same scene. Maintain each character's unique appearance and features.`;
+
+    logger.debug({
+      characterCount: sceneCharacters.characterCount,
+      characterIds: sceneCharacters.characterIds,
+      promptLength: enhancedPrompt.length
+    }, "📝 Built multi-character prompt");
+
+    return enhancedPrompt;
+  }
+
+  /**
    * Validate scenes for Consistent Shorts workflow
    * Unlike base validation, we only require audio since we generate our own images/videos
    */
@@ -186,6 +418,11 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         throw new Error(`Failed to create video temp directory: ${videoTempDir}`);
       }
 
+      // 🔥 Subtitle support: collect captions with time offsets
+      const allCaptions: any[] = [];
+      const allEnglishCaptions: any[] = [];  // 🔥 이중 자막: 영어 캡션
+      let cumulativeDuration = 0;
+
       try {
         // Step 1: Generate images with CHARACTER CONSISTENCY
         logger.info({
@@ -207,15 +444,23 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
           sceneIndex: number;
         }> = [];
 
+        // ⭐ NEW: Map to store character images by characterId for direct VEO usage
+        const storedCharacterImageMap: Map<string, { data: Buffer; mimeType: string; description: string }> = new Map();
+
         // ⭐ NEW: Load stored character images if profileId is provided
         // This enables character persistence across multiple video sessions!
         const characterProfileId = context.metadata?.characterProfileId as string | undefined;
         const characterIds = context.metadata?.characterIds as string[] | undefined;
+        // ⭐ NEW: Option to use stored image directly for VEO (skip NANO BANANA)
+        const useStoredImageForVeo = context.metadata?.useStoredImageForVeo === true;
+        // 🔥 상단 제목 (숏츠 어그로용)
+        const titleText = context.metadata?.titleText as TitleTextConfig | undefined;
 
         // 🔍 DEBUG: Always log this check
         logger.info({
           characterProfileId,
           characterIds,
+          useStoredImageForVeo,
           hasCharacterStorage: !!this.characterStorage,
           characterStorageEnabled: this.characterStorage?.isEnabled?.() ?? false
         }, "🔍 DEBUG: Checking if should load stored character images");
@@ -223,7 +468,8 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         if (characterProfileId) {
           logger.info({
             characterProfileId,
-            characterIds
+            characterIds,
+            useStoredImageForVeo
           }, "🎭 Loading stored character reference images for consistency");
 
           const storedImages = await this.loadStoredCharacterImages(characterProfileId, characterIds);
@@ -236,11 +482,20 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
               mimeType: stored.mimeType,
               sceneIndex: -(idx + 1) // Negative index for stored images
             });
+
+            // ⭐ NEW: Also store in map for direct VEO access
+            storedCharacterImageMap.set(stored.characterId, {
+              data: stored.data,
+              mimeType: stored.mimeType,
+              description: stored.description
+            });
           }
 
           logger.info({
             storedImageCount: storedImages.length,
-            previousImagesTotal: previousImages.length
+            previousImagesTotal: previousImages.length,
+            storedCharacterIds: Array.from(storedCharacterImageMap.keys()),
+            useStoredImageForVeo
           }, "✅ Stored character images loaded as initial references");
         }
 
@@ -284,7 +539,8 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             totalScenes: inputScenes.length,
             hasPreviousImages: previousImages.length > 0,
             referenceImageCount: Math.min(previousImages.length, 3),
-            sceneCharacterIds
+            sceneCharacterIds,
+            useStoredImageForVeo
           }, "📸 Generating image for scene with character consistency");
 
           if (!scene.imageData) {
@@ -295,66 +551,179 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             };
           }
 
-          // Set NANO BANANA model (best for character consistency)
-          this.imageGenerationService.setModel(ImageModelType.NANO_BANANA);
+          // ⭐ Multi-Character Support: Get ALL character images for this scene
+          const sceneCharacterImages = this.getSceneCharacterImages(
+            sceneCharacterIds || [],
+            storedCharacterImageMap
+          );
 
-          // Enhanced prompt with character consistency
-          const enhancedPrompt = `${scene.imageData.prompt || scene.text}. Style: ${scene.imageData.style || "cinematic"}. Mood: ${scene.imageData.mood || "dynamic"}. Maintain consistent character appearance.`;
-          const aspectRatio = context.orientation === "portrait" ? "9:16" : "16:9";
+          let finalImage: { data: Buffer; mimeType: string };
+          let savedImagePath: string;
 
-          // ⭐ KEY FEATURE: Use previous images as references (max 3)
-          // This is like Chat Mode in ipynb - maintains character consistency!
-          // ⭐ UPDATED: If we have stored character images, use them even for scene 0
-          const referenceImages = previousImages.length > 0
-            ? previousImages.slice(-3).map(img => ({
-                data: img.data,
-                mimeType: img.mimeType
-              }))
-            : undefined;
+          // ⭐ Decision Tree for useStoredImageForVeo:
+          // 1. Single character + useStoredImageForVeo → Use stored image directly (skip NANO BANANA)
+          // 2. Multiple characters + useStoredImageForVeo → Use NANO BANANA with ALL character images as references
+          // 3. No useStoredImageForVeo → Original flow (NANO BANANA generates based on prompt)
+          const shouldUseDirectStoredImage = useStoredImageForVeo && sceneCharacterImages.isSingleCharacter;
+          const shouldUseMultiCharacterReference = useStoredImageForVeo && sceneCharacterImages.isMultiCharacter;
 
-          logger.debug({
-            sceneIndex: i,
-            referenceImageCount: referenceImages?.length || 0,
-            prompt: enhancedPrompt.substring(0, 100)
-          }, "🔗 Using reference images for consistency");
+          if (shouldUseDirectStoredImage) {
+            // ⭐ SINGLE CHARACTER: Use stored image directly (skip NANO BANANA)
+            const characterImage = sceneCharacterImages.images[0];
 
-          // Generate image with references
-          const result = await this.imageGenerationService.generateImages({
-            prompt: enhancedPrompt,
-            numberOfImages: 1,
-            aspectRatio: aspectRatio as "9:16" | "16:9",
-            referenceImages: referenceImages // ⭐ Chat Mode magic!
-          }, context.videoId, i);
+            logger.info({
+              sceneIndex: i + 1,
+              characterId: characterImage.characterId,
+              imageSize: characterImage.data.length
+            }, "🎯 Using STORED single character image directly for VEO (skipping NANO BANANA)");
 
-          if (!result.success || !result.images || result.images.length === 0) {
-            throw new Error(`Failed to generate consistent image for scene ${i + 1}`);
+            finalImage = {
+              data: characterImage.data,
+              mimeType: characterImage.mimeType
+            };
+
+            // Save stored image to temp directory
+            const simpleFilename = `stored_character_scene_${i + 1}_${context.videoId}.png`;
+            savedImagePath = path.join(videoTempDir, simpleFilename);
+            await fs.writeFile(savedImagePath, characterImage.data);
+
+            logger.info({
+              sceneIndex: i + 1,
+              characterId: characterImage.characterId,
+              imagePath: savedImagePath
+            }, "✅ Stored character image saved for VEO");
+
+          } else if (shouldUseMultiCharacterReference) {
+            // ⭐ MULTIPLE CHARACTERS: Use NANO BANANA with ALL character images as references
+            logger.info({
+              sceneIndex: i + 1,
+              characterCount: sceneCharacterImages.characterCount,
+              characterIds: sceneCharacterImages.characterIds,
+              imageSizes: sceneCharacterImages.images.map(img => img.data.length)
+            }, "🎭 Multi-character scene: Using NANO BANANA with ALL character images as references");
+
+            // Set NANO BANANA model
+            this.imageGenerationService.setModel(ImageModelType.NANO_BANANA);
+
+            // Build multi-character prompt
+            const multiCharPrompt = this.buildMultiCharacterPrompt(
+              sceneCharacterImages,
+              scene.imageData.prompt || scene.text,
+              scene.imageData.style || "pixar",
+              scene.imageData.mood || "dynamic"
+            );
+            const aspectRatio = context.orientation === "portrait" ? "9:16" : "16:9";
+
+            // Use ALL stored character images as references for NANO BANANA
+            const referenceImages = sceneCharacterImages.images.map(img => ({
+              data: img.data,
+              mimeType: img.mimeType
+            }));
+
+            logger.debug({
+              sceneIndex: i + 1,
+              referenceImageCount: referenceImages.length,
+              prompt: multiCharPrompt.substring(0, 150)
+            }, "🔗 Using ALL character images as references for multi-character scene");
+
+            // Generate combined image with all character references
+            const result = await this.imageGenerationService.generateImages({
+              prompt: multiCharPrompt,
+              numberOfImages: 1,
+              aspectRatio: aspectRatio as "9:16" | "16:9",
+              referenceImages: referenceImages
+            }, context.videoId, i);
+
+            if (!result.success || !result.images || result.images.length === 0) {
+              throw new Error(`Failed to generate multi-character image for scene ${i + 1}`);
+            }
+
+            const generatedImage = result.images[0];
+            finalImage = {
+              data: generatedImage.data,
+              mimeType: generatedImage.mimeType || "image/png"
+            };
+
+            // Save generated image
+            const simpleFilename = `multichar_scene_${i + 1}_${context.videoId}.png`;
+            savedImagePath = path.join(videoTempDir, simpleFilename);
+            await fs.writeFile(savedImagePath, generatedImage.data);
+
+            logger.info({
+              sceneIndex: i + 1,
+              characterIds: sceneCharacterImages.characterIds,
+              imagePath: savedImagePath,
+              usedReferences: referenceImages.length
+            }, "✅ Multi-character combined image generated and saved");
+
+          } else {
+            // Original flow: Generate with NANO BANANA (no useStoredImageForVeo or no characters)
+            // Set NANO BANANA model (best for character consistency)
+            this.imageGenerationService.setModel(ImageModelType.NANO_BANANA);
+
+            // Enhanced prompt with character consistency
+            const enhancedPrompt = `${scene.imageData.prompt || scene.text}. Style: ${scene.imageData.style || "cinematic"}. Mood: ${scene.imageData.mood || "dynamic"}. Maintain consistent character appearance.`;
+            const aspectRatio = context.orientation === "portrait" ? "9:16" : "16:9";
+
+            // ⭐ KEY FEATURE: Use previous images as references (max 3)
+            // This is like Chat Mode in ipynb - maintains character consistency!
+            // ⭐ UPDATED: If we have stored character images, use them even for scene 0
+            const referenceImages = previousImages.length > 0
+              ? previousImages.slice(-3).map(img => ({
+                  data: img.data,
+                  mimeType: img.mimeType
+                }))
+              : undefined;
+
+            logger.debug({
+              sceneIndex: i,
+              referenceImageCount: referenceImages?.length || 0,
+              prompt: enhancedPrompt.substring(0, 100)
+            }, "🔗 Using reference images for consistency");
+
+            // Generate image with references
+            const result = await this.imageGenerationService.generateImages({
+              prompt: enhancedPrompt,
+              numberOfImages: 1,
+              aspectRatio: aspectRatio as "9:16" | "16:9",
+              referenceImages: referenceImages // ⭐ Chat Mode magic!
+            }, context.videoId, i);
+
+            if (!result.success || !result.images || result.images.length === 0) {
+              throw new Error(`Failed to generate consistent image for scene ${i + 1}`);
+            }
+
+            const generatedImage = result.images[0];
+
+            finalImage = {
+              data: generatedImage.data,
+              mimeType: generatedImage.mimeType || "image/png"
+            };
+
+            // Save image
+            const simpleFilename = `consistent_scene_${i + 1}_${context.videoId}.png`;
+            savedImagePath = path.join(videoTempDir, simpleFilename);
+
+            await fs.writeFile(savedImagePath, generatedImage.data);
+
+            // Verify save
+            const fileExists = await fs.pathExists(savedImagePath);
+            const fileStats = fileExists ? await fs.stat(savedImagePath) : null;
+
+            logger.info({
+              sceneIndex: i + 1,
+              imagePath: savedImagePath,
+              filename: simpleFilename,
+              fileExists,
+              fileSize: fileStats?.size,
+              usedReferences: referenceImages?.length || 0
+            }, "✅ Consistent character image generated and saved");
           }
-
-          const generatedImage = result.images[0];
-
-          // Save image
-          const simpleFilename = `consistent_scene_${i + 1}_${context.videoId}.png`;
-          const savedImagePath = path.join(videoTempDir, simpleFilename);
-
-          await fs.writeFile(savedImagePath, generatedImage.data);
-
-          // Verify save
-          const fileExists = await fs.pathExists(savedImagePath);
-          const fileStats = fileExists ? await fs.stat(savedImagePath) : null;
-
-          logger.info({
-            sceneIndex: i + 1,
-            imagePath: savedImagePath,
-            filename: simpleFilename,
-            fileExists,
-            fileSize: fileStats?.size,
-            usedReferences: referenceImages?.length || 0
-          }, "✅ Consistent character image generated and saved");
 
           // ⭐ Add to previous images for next scene reference
           previousImages.push({
-            data: generatedImage.data,
-            mimeType: generatedImage.mimeType || "image/png",
+            data: finalImage.data,
+            mimeType: finalImage.mimeType,
             sceneIndex: i
           });
 
@@ -362,7 +731,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             imagePath: savedImagePath,
             duration: 3, // Will be updated with actual audio length
             sceneText: scene.text,
-            imageBuffer: generatedImage.data
+            imageBuffer: finalImage.data
           });
         }
 
@@ -525,15 +894,110 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
               await this.videoProcessor.trimVideo(result.path, trimmedPath, sceneDuration);
               trimmedVideoPaths.push(trimmedPath);
+
+              // 🔥 Collect captions with time offset for subtitles
+              const sceneData = scenes[i];
+              const inputScene = inputScenes[i];  // Get original input for textEnglish
+              if (sceneData?.captions && sceneData.captions.length > 0) {
+                const adjustedCaptions = sceneData.captions.map((caption: any) => ({
+                  ...caption,
+                  startMs: caption.startMs + (cumulativeDuration * 1000),
+                  endMs: caption.endMs + (cumulativeDuration * 1000),
+                }));
+                allCaptions.push(...adjustedCaptions);
+
+                // 🔥 이중 자막: 영어 캡션 수집
+                const textEnglish = (inputScene as any)?.textEnglish;
+                if (textEnglish) {
+                  const englishCaptions = this.generateSyncedEnglishCaptions(
+                    textEnglish,
+                    adjustedCaptions,
+                    sceneDuration
+                  );
+                  allEnglishCaptions.push(...englishCaptions);
+                  logger.debug({
+                    sceneIndex: i + 1,
+                    englishCaptionCount: englishCaptions.length
+                  }, "📝 Collected English captions for dual subtitles");
+                }
+
+                logger.debug({
+                  sceneIndex: i + 1,
+                  captionCount: adjustedCaptions.length,
+                  timeOffset: cumulativeDuration
+                }, "📝 Collected scene captions with time offset");
+              }
+              cumulativeDuration += sceneDuration;
+            }
+
+            // 🔥 Scene transition settings from metadata
+            const useSceneTransitions = context.metadata?.useSceneTransitions ?? true;
+            const sceneTransitionType = (context.metadata?.sceneTransitionType as string) || 'fade';
+            const sceneTransitionDuration = (context.metadata?.sceneTransitionDuration as number) || 0.5;
+
+            // 🔥 FIX: Adjust caption timing for xfade overlap
+            // xfade causes scenes to overlap, shortening total video duration
+            // Scene N starts earlier by (N-1) * transitionDuration
+            if (useSceneTransitions && trimmedVideoPaths.length > 1) {
+              const transitionCount = trimmedVideoPaths.length - 1;
+              const totalOverlap = transitionCount * sceneTransitionDuration;
+
+              // Recalculate caption timings to account for xfade overlap
+              let adjustedTime = 0;
+              let captionIndex = 0;
+              for (let i = 0; i < scenes.length; i++) {
+                const sceneData = scenes[i];
+                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
+                const overlapAdjustment = i > 0 ? sceneTransitionDuration : 0;
+
+                // Adjust all captions for this scene
+                while (captionIndex < allCaptions.length) {
+                  const caption = allCaptions[captionIndex];
+                  const originalSceneOffset = i === 0 ? 0 :
+                    scenes.slice(0, i).reduce((sum, s) => sum + Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION), 0);
+
+                  // Check if this caption belongs to current scene
+                  if (caption.startMs >= originalSceneOffset * 1000 &&
+                      caption.startMs < (originalSceneOffset + sceneDuration) * 1000) {
+                    // Adjust for xfade overlap (earlier scenes)
+                    const xfadeOffset = i * sceneTransitionDuration * 1000;
+                    caption.startMs -= xfadeOffset;
+                    caption.endMs -= xfadeOffset;
+                    captionIndex++;
+                  } else {
+                    break;
+                  }
+                }
+              }
+
+              logger.info({
+                transitionCount,
+                totalOverlap,
+                adjustedCaptionCount: allCaptions.length
+              }, "🎬 Adjusted caption timing for xfade overlap");
             }
 
             logger.info({
               clipCount: trimmedVideoPaths.length,
-              clips: trimmedVideoPaths
+              clips: trimmedVideoPaths,
+              useSceneTransitions,
+              sceneTransitionType,
+              sceneTransitionDuration
             }, "🎬 Combining trimmed VEO3 video clips");
 
             tempVideoPath = path.join(videoTempDir, `veo3_combined_${context.videoId}.mp4`);
-            await this.videoProcessor.combineVideoClips(trimmedVideoPaths, tempVideoPath);
+
+            if (useSceneTransitions && trimmedVideoPaths.length > 1) {
+              // 🔥 xfade 전환 효과로 부드러운 씬 전환
+              await this.videoProcessor.combineVideoClipsWithXfade(
+                trimmedVideoPaths,
+                tempVideoPath,
+                sceneTransitionDuration,
+                sceneTransitionType
+              );
+            } else {
+              await this.videoProcessor.combineVideoClips(trimmedVideoPaths, tempVideoPath);
+            }
 
           } else if (veo3SuccessCount === 0) {
             // 모든 scene VEO3 실패 → 정적 이미지 비디오
@@ -549,6 +1013,40 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
               tempVideoPath,
               dimensions
             );
+
+            // 🔥 Collect captions with time offset for subtitles (static mode)
+            for (let i = 0; i < scenes.length; i++) {
+              const sceneData = scenes[i];
+              const inputScene = inputScenes[i];  // Get original input for textEnglish
+              const sceneDuration = imageDataList[i]?.duration || Math.max(sceneData?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
+
+              if (sceneData?.captions && sceneData.captions.length > 0) {
+                const adjustedCaptions = sceneData.captions.map((caption: any) => ({
+                  ...caption,
+                  startMs: caption.startMs + (cumulativeDuration * 1000),
+                  endMs: caption.endMs + (cumulativeDuration * 1000),
+                }));
+                allCaptions.push(...adjustedCaptions);
+
+                // 🔥 이중 자막: 영어 캡션 수집 (static mode)
+                const textEnglish = (inputScene as any)?.textEnglish;
+                if (textEnglish) {
+                  const englishCaptions = this.generateSyncedEnglishCaptions(
+                    textEnglish,
+                    adjustedCaptions,
+                    sceneDuration
+                  );
+                  allEnglishCaptions.push(...englishCaptions);
+                }
+
+                logger.debug({
+                  sceneIndex: i + 1,
+                  captionCount: adjustedCaptions.length,
+                  timeOffset: cumulativeDuration
+                }, "📝 Collected scene captions with time offset (static mode)");
+              }
+              cumulativeDuration += sceneDuration;
+            }
 
           } else {
             // 혼합: 일부 성공, 일부 실패 → VEO3 비디오 트리밍 + 실패한 것은 이미지로
@@ -584,47 +1082,222 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
                 );
                 processedClips.push(imageVideoPath);
               }
+
+              // 🔥 Collect captions with time offset for subtitles (mixed mode)
+              const sceneData = scenes[i];
+              const inputScene = inputScenes[i];  // Get original input for textEnglish
+              if (sceneData?.captions && sceneData.captions.length > 0) {
+                const adjustedCaptions = sceneData.captions.map((caption: any) => ({
+                  ...caption,
+                  startMs: caption.startMs + (cumulativeDuration * 1000),
+                  endMs: caption.endMs + (cumulativeDuration * 1000),
+                }));
+                allCaptions.push(...adjustedCaptions);
+
+                // 🔥 이중 자막: 영어 캡션 수집 (mixed mode)
+                const textEnglish = (inputScene as any)?.textEnglish;
+                if (textEnglish) {
+                  const englishCaptions = this.generateSyncedEnglishCaptions(
+                    textEnglish,
+                    adjustedCaptions,
+                    sceneDuration
+                  );
+                  allEnglishCaptions.push(...englishCaptions);
+                }
+
+                logger.debug({
+                  sceneIndex: i + 1,
+                  captionCount: adjustedCaptions.length,
+                  timeOffset: cumulativeDuration
+                }, "📝 Collected scene captions with time offset (mixed mode)");
+              }
+              cumulativeDuration += sceneDuration;
             }
 
-            // 모든 처리된 클립 결합
+            // 모든 처리된 클립 결합 (xfade 전환 효과 적용)
+            const useSceneTransitionsMixed = context.metadata?.useSceneTransitions ?? true;
+            const sceneTransitionTypeMixed = (context.metadata?.sceneTransitionType as string) || 'fade';
+            const sceneTransitionDurationMixed = (context.metadata?.sceneTransitionDuration as number) || 0.5;
+
+            // 🔥 FIX: Adjust caption timing for xfade overlap (mixed mode)
+            if (useSceneTransitionsMixed && processedClips.length > 1) {
+              let captionIndex = 0;
+              for (let i = 0; i < scenes.length; i++) {
+                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
+                const originalSceneOffset = i === 0 ? 0 :
+                  scenes.slice(0, i).reduce((sum, s) => sum + Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION), 0);
+
+                while (captionIndex < allCaptions.length) {
+                  const caption = allCaptions[captionIndex];
+                  if (caption.startMs >= originalSceneOffset * 1000 &&
+                      caption.startMs < (originalSceneOffset + sceneDuration) * 1000) {
+                    const xfadeOffset = i * sceneTransitionDurationMixed * 1000;
+                    caption.startMs -= xfadeOffset;
+                    caption.endMs -= xfadeOffset;
+                    captionIndex++;
+                  } else {
+                    break;
+                  }
+                }
+              }
+
+              logger.info({
+                transitionCount: processedClips.length - 1,
+                adjustedCaptionCount: allCaptions.length
+              }, "🎬 Adjusted caption timing for xfade overlap (mixed mode)");
+            }
+
             tempVideoPath = path.join(videoTempDir, `mixed_combined_${context.videoId}.mp4`);
-            await this.videoProcessor.combineVideoClips(processedClips, tempVideoPath);
+
+            if (useSceneTransitionsMixed && processedClips.length > 1) {
+              // 🔥 xfade 전환 효과로 부드러운 씬 전환
+              await this.videoProcessor.combineVideoClipsWithXfade(
+                processedClips,
+                tempVideoPath,
+                sceneTransitionDurationMixed,
+                sceneTransitionTypeMixed
+              );
+            } else {
+              await this.videoProcessor.combineVideoClips(processedClips, tempVideoPath);
+            }
           }
 
           logger.info({
             clipCount: sceneResults.length,
-            outputPath: tempVideoPath
+            outputPath: tempVideoPath,
+            useSceneTransitions: context.metadata?.useSceneTransitions ?? true
           }, "✅ Video clips combined");
 
           // Step 3B: Combine with audio
           const audioFiles: string[] = [];
+          const sceneDurations: number[] = [];
           for (const scene of scenes) {
             if (scene.audio?.url) {
               const audioFileName = scene.audio.url.split('/').pop();
               if (audioFileName) {
                 audioFiles.push(path.join(this.videoProcessor.getConfig().tempDirPath, audioFileName));
               }
+              sceneDurations.push(scene.audio.duration || MIN_SCENE_DURATION);
+            }
+          }
+
+          // 🔥 Sound Effects Integration
+          const audioConfig = context.metadata?.audioConfig as AudioConfig | undefined;
+          let finalAudioPath: string | undefined;
+
+          if (audioConfig && context.systemConfig.elevenLabsApiKey) {
+            logger.info({ audioConfig }, "🎵 Sound effects configuration detected, processing...");
+
+            // 1. Concatenate TTS audio files first
+            const tempConcatAudioPath = path.join(videoTempDir, `concat_audio_${context.videoId}.mp3`);
+            if (audioFiles.length === 1) {
+              await fs.copyFile(audioFiles[0], tempConcatAudioPath);
+            } else if (audioFiles.length > 1) {
+              await this.videoProcessor.getFFmpeg().concatAudios(audioFiles, tempConcatAudioPath);
+            }
+
+            // 2. Generate sound effects
+            const soundEffectOverlays = await this.generateSoundEffects(
+              audioConfig,
+              videoTempDir,
+              sceneDurations,
+              context.systemConfig.elevenLabsApiKey
+            );
+
+            // 3. Mix sound effects with TTS audio if any overlays were generated
+            if (soundEffectOverlays.length > 0) {
+              const totalDuration = sceneDurations.reduce((sum, d) => sum + d, 0);
+              const mixedAudioPath = path.join(videoTempDir, `mixed_audio_${context.videoId}.mp3`);
+
+              await this.videoProcessor.getFFmpeg().mixAudioTracks(
+                tempConcatAudioPath,
+                soundEffectOverlays,
+                mixedAudioPath,
+                totalDuration
+              );
+
+              finalAudioPath = mixedAudioPath;
+              logger.info({
+                overlayCount: soundEffectOverlays.length,
+                outputPath: mixedAudioPath
+              }, "✅ Sound effects mixed with TTS audio");
+            } else {
+              finalAudioPath = tempConcatAudioPath;
             }
           }
 
           const tempFinalPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
-          await this.videoProcessor.combineVideoWithAudio(
-            tempVideoPath,
-            audioFiles,
-            tempFinalPath
-          );
 
-          // Copy final video to standard location for GCS upload
+          if (finalAudioPath) {
+            // Use mixed audio with sound effects
+            await this.videoProcessor.getFFmpeg().replaceVideoAudio(
+              tempVideoPath,
+              finalAudioPath,
+              tempFinalPath,
+              0
+            );
+          } else {
+            // Original flow: combine video with audio files
+            await this.videoProcessor.combineVideoWithAudio(
+              tempVideoPath,
+              audioFiles,
+              tempFinalPath
+            );
+          }
+
+          // 🔥 Apply synchronized subtitles to final video
           const standardVideoPath = path.join(
             this.videoProcessor.getConfig().videosDirPath,
             `${context.videoId}.mp4`
           );
 
-          await fs.promises.copyFile(tempFinalPath, standardVideoPath);
+          // 🔥 DEBUG: Log what we have before subtitle check
           logger.info({
-            from: tempFinalPath,
-            to: standardVideoPath
-          }, "✅ Final video copied to standard location for GCS upload");
+            allCaptionsLength: allCaptions.length,
+            allCaptionsFirst: allCaptions[0] ? JSON.stringify(allCaptions[0]) : null,
+            hasTitleText: !!titleText,
+            scenesCount: scenes.length,
+            sceneCaptions: scenes.map((s, i) => ({
+              sceneIndex: i,
+              hasCaptions: !!s.captions,
+              captionCount: s.captions?.length || 0
+            }))
+          }, "🔍 DEBUG: Pre-subtitle check state");
+
+          // 🔥 제목(titleText) + 자막 적용
+          if (allCaptions.length > 0 || titleText) {
+            logger.info({
+              hasTitleText: !!titleText,
+              titleTextKo: titleText?.ko,
+              koreanCaptionCount: allCaptions.length,
+              englishCaptionCount: allEnglishCaptions.length,
+              videoDuration: cumulativeDuration,
+              videoId: context.videoId
+            }, "🎬 Applying title and subtitles to video");
+
+            await this.videoProcessor.addTitleAndSubtitlesToVideo(
+              tempFinalPath,
+              standardVideoPath,
+              titleText || null,    // 상단 제목 (선택)
+              allCaptions,          // 한국어 자막
+              allEnglishCaptions.length > 0 ? allEnglishCaptions : null,  // 영어 자막 (선택)
+              context.orientation,
+              cumulativeDuration    // 영상 총 길이 (제목 duration 계산용)
+            );
+
+            logger.info({
+              outputPath: standardVideoPath,
+              hasTitleText: !!titleText,
+              hasDualSubtitles: allEnglishCaptions.length > 0
+            }, "✅ Final video with title and subtitles created");
+          } else {
+            // No subtitles or title, copy final video as-is
+            await fs.promises.copyFile(tempFinalPath, standardVideoPath);
+            logger.info({
+              from: tempFinalPath,
+              to: standardVideoPath
+            }, "✅ Final video copied to standard location for GCS upload (no overlay)");
+          }
 
           // Calculate total duration
           const totalDuration = this.calculateTotalDuration(scenes);
@@ -652,6 +1325,40 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
           logger.info("✅ Static video created from consistent character images");
 
+          // 🔥 Collect captions with time offset for subtitles (no VEO3 static mode)
+          for (let i = 0; i < scenes.length; i++) {
+            const sceneData = scenes[i];
+            const inputScene = inputScenes[i];  // Get original input for textEnglish
+            const sceneDuration = imageDataList[i]?.duration || Math.max(sceneData?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
+
+            if (sceneData?.captions && sceneData.captions.length > 0) {
+              const adjustedCaptions = sceneData.captions.map((caption: any) => ({
+                ...caption,
+                startMs: caption.startMs + (cumulativeDuration * 1000),
+                endMs: caption.endMs + (cumulativeDuration * 1000),
+              }));
+              allCaptions.push(...adjustedCaptions);
+
+              // 🔥 이중 자막: 영어 캡션 수집 (no VEO3 static mode)
+              const textEnglish = (inputScene as any)?.textEnglish;
+              if (textEnglish) {
+                const englishCaptions = this.generateSyncedEnglishCaptions(
+                  textEnglish,
+                  adjustedCaptions,
+                  sceneDuration
+                );
+                allEnglishCaptions.push(...englishCaptions);
+              }
+
+              logger.debug({
+                sceneIndex: i + 1,
+                captionCount: adjustedCaptions.length,
+                timeOffset: cumulativeDuration
+              }, "📝 Collected scene captions with time offset (no VEO3 static mode)");
+            }
+            cumulativeDuration += sceneDuration;
+          }
+
           // Step 4: Combine with audio
           const audioFiles: string[] = [];
           for (const scene of scenes) {
@@ -670,17 +1377,46 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             tempFinalPath
           );
 
-          // Copy final video to standard location for GCS upload
+          // 🔥 Apply synchronized subtitles to final video
           const standardVideoPath = path.join(
             this.videoProcessor.getConfig().videosDirPath,
             `${context.videoId}.mp4`
           );
 
-          await fs.promises.copyFile(tempFinalPath, standardVideoPath);
-          logger.info({
-            from: tempFinalPath,
-            to: standardVideoPath
-          }, "✅ Final video copied to standard location for GCS upload");
+          // 🔥 Apply title text and/or subtitles (no VEO3 static mode)
+          if (allCaptions.length > 0 || titleText) {
+            logger.info({
+              hasTitleText: !!titleText,
+              titleTextKo: titleText?.ko,
+              koreanCaptionCount: allCaptions.length,
+              englishCaptionCount: allEnglishCaptions.length,
+              videoDuration: cumulativeDuration,
+              videoId: context.videoId
+            }, "📝 Applying title text and subtitles (no VEO3 static mode)");
+
+            await this.videoProcessor.addTitleAndSubtitlesToVideo(
+              tempFinalPath,
+              standardVideoPath,
+              titleText || null,
+              allCaptions,
+              allEnglishCaptions.length > 0 ? allEnglishCaptions : null,
+              context.orientation,
+              cumulativeDuration
+            );
+
+            logger.info({
+              outputPath: standardVideoPath,
+              hasTitleText: !!titleText,
+              hasDualSubtitles: allEnglishCaptions.length > 0
+            }, "✅ Final video with title and subtitles created (no VEO3 static mode)");
+          } else {
+            // No subtitles or title, copy final video as-is
+            await fs.promises.copyFile(tempFinalPath, standardVideoPath);
+            logger.info({
+              from: tempFinalPath,
+              to: standardVideoPath
+            }, "✅ Final video copied to standard location for GCS upload (no subtitles/title)");
+          }
 
           // Calculate total duration
           const totalDuration = this.calculateTotalDuration(scenes);

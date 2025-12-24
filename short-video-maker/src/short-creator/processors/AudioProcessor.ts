@@ -48,22 +48,61 @@ export class AudioProcessor {
 
       if (ttsResult.alignment) {
         // Use alignment data from ElevenLabs (fast, no Whisper needed)
-        logger.debug({ hasAlignment: true }, "Using ElevenLabs alignment for captions");
+        logger.info({ hasAlignment: true }, "🎤 Using ElevenLabs alignment for captions");
         captions = this.convertAlignmentToCaptions(text, ttsResult.alignment);
       } else {
         // Fallback to Whisper (slower, may timeout in Cloud Run)
-        logger.debug({ hasAlignment: false }, "No alignment data, falling back to Whisper");
+        logger.info({ hasAlignment: false }, "🎤 No alignment data, falling back to Whisper");
         try {
           captions = await this.whisper.CreateCaption(tempWavPath);
+          logger.info({ captionCount: captions.length }, "🎤 Whisper captions generated");
+
+          // 🔥 FIX: Whisper with English model (base.en) can't transcribe Korean
+          // Check if Whisper returned unreliable captions:
+          // 1. Empty captions
+          // 2. Original text contains Korean but Whisper returned non-Korean (garbage)
+          const hasKorean = /[\uac00-\ud7af]/.test(text);  // Check if input has Korean characters
+
+          // 🔥 DEBUG: Log raw Unicode code points to verify encoding
+          const firstCharCode = text.charCodeAt(0);
+          const textHex = text.substring(0, 5).split('').map(c => c.charCodeAt(0).toString(16)).join(',');
+          logger.info({
+            firstCharCode,
+            textHex,
+            textLength: text.length,
+            hasKoreanDetected: hasKorean
+          }, "🔥 DEBUG: Korean detection check");
+          const whisperText = captions.map(c => c.text).join('');
+          const whisperHasKorean = /[\uac00-\ud7af]/.test(whisperText);
+
+          if (captions.length === 0 || (hasKorean && !whisperHasKorean)) {
+            logger.warn({
+              hasKorean,
+              whisperHasKorean,
+              whisperText: whisperText.substring(0, 30),
+              originalText: text.substring(0, 30)
+            }, "🎤 Whisper returned unreliable captions for Korean audio, using simple text-based captions");
+            captions = this.generateSimpleCaptions(text, ttsResult.audioLength);
+            logger.info({ captionCount: captions.length }, "🎤 Simple captions generated as fallback (Korean detected)");
+          }
         } catch (whisperError) {
-          logger.warn({ error: whisperError }, "Whisper failed, using simple text-based captions");
+          logger.warn({ error: whisperError }, "🎤 Whisper failed, using simple text-based captions");
           // Last resort: simple text-based captions
           captions = this.generateSimpleCaptions(text, ttsResult.audioLength);
+          logger.info({ captionCount: captions.length }, "🎤 Simple captions generated");
         }
       }
 
       // Create URL for the audio file
       const audioUrl = `http://localhost:${this.config.port}/api/tmp/${tempMp3FileName}`;
+
+      // 🔥 Log final caption result before returning
+      logger.info({
+        captionCount: captions.length,
+        firstCaption: captions[0] ? JSON.stringify(captions[0]) : null,
+        lastCaption: captions.length > 0 ? JSON.stringify(captions[captions.length - 1]) : null,
+        audioDuration: ttsResult.audioLength
+      }, "🎤 AudioProcessor returning captions");
 
       return {
         url: audioUrl,
@@ -106,10 +145,12 @@ export class AudioProcessor {
       // Check if this is a word boundary (space or punctuation)
       if (char === ' ' || char === '\n') {
         if (currentWord.trim()) {
+          // 🔥 FIX: Return startMs/endMs in MILLISECONDS (not start/end in seconds)
+          // FFmpeg createDualLanguageSubtitleFilter expects startMs/endMs format
           captions.push({
             text: currentWord.trim(),
-            start: wordStartTime,
-            end: wordEndTime
+            startMs: Math.round(wordStartTime * 1000),
+            endMs: Math.round(wordEndTime * 1000)
           });
         }
         currentWord = '';
@@ -121,10 +162,11 @@ export class AudioProcessor {
 
     // Add the last word if exists
     if (currentWord.trim()) {
+      // 🔥 FIX: Return startMs/endMs in MILLISECONDS
       captions.push({
         text: currentWord.trim(),
-        start: wordStartTime,
-        end: wordEndTime
+        startMs: Math.round(wordStartTime * 1000),
+        endMs: Math.round(wordEndTime * 1000)
       });
     }
 
@@ -140,6 +182,7 @@ export class AudioProcessor {
   /**
    * Generate simple text-based captions when no alignment data is available
    * Distributes words evenly across the audio duration
+   * 🔥 FIX: Returns startMs/endMs in MILLISECONDS to match FFmpeg expectation
    */
   private generateSimpleCaptions(text: string, duration: number): any[] {
     const words = text.split(/\s+/).filter(w => w.trim());
@@ -149,10 +192,11 @@ export class AudioProcessor {
     const captions: any[] = [];
 
     for (let i = 0; i < words.length; i++) {
+      // 🔥 FIX: Use startMs/endMs in milliseconds
       captions.push({
         text: words[i],
-        start: i * timePerWord,
-        end: (i + 1) * timePerWord
+        startMs: Math.round(i * timePerWord * 1000),
+        endMs: Math.round((i + 1) * timePerWord * 1000)
       });
     }
 
@@ -179,5 +223,52 @@ export class AudioProcessor {
       logger.error(error, "Failed to concatenate audio files");
       throw new Error(`Audio concatenation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * 🔥 Generate English captions synced to Korean audio timing
+   * Uses Korean TTS captions timing with English text
+   */
+  generateSyncedEnglishCaptions(
+    englishText: string,
+    koreanCaptions: any[],
+    totalDuration: number
+  ): any[] {
+    if (!englishText || !koreanCaptions || koreanCaptions.length === 0) {
+      return [];
+    }
+
+    // Split English text into words
+    const englishWords = englishText.split(/\s+/).filter(w => w.trim());
+    if (englishWords.length === 0) return [];
+
+    // Option 1: Distribute English words evenly across Korean caption timing
+    const firstCaption = koreanCaptions[0];
+    const lastCaption = koreanCaptions[koreanCaptions.length - 1];
+    const koreanStartTime = firstCaption?.startMs ?? (firstCaption?.start ? firstCaption.start * 1000 : 0);
+    const koreanEndTime = lastCaption?.endMs ?? (lastCaption?.end ? lastCaption.end * 1000 : totalDuration * 1000);
+    const totalTime = koreanEndTime - koreanStartTime;
+    const timePerWord = totalTime / englishWords.length;
+
+    const englishCaptions: any[] = [];
+
+    for (let i = 0; i < englishWords.length; i++) {
+      englishCaptions.push({
+        text: englishWords[i],
+        startMs: koreanStartTime + (i * timePerWord),
+        endMs: koreanStartTime + ((i + 1) * timePerWord),
+        // Also include start/end in seconds for compatibility
+        start: (koreanStartTime + (i * timePerWord)) / 1000,
+        end: (koreanStartTime + ((i + 1) * timePerWord)) / 1000
+      });
+    }
+
+    logger.debug({
+      englishWordCount: englishWords.length,
+      koreanCaptionCount: koreanCaptions.length,
+      totalDuration: totalTime / 1000
+    }, "🔥 Generated synced English captions");
+
+    return englishCaptions;
   }
 }

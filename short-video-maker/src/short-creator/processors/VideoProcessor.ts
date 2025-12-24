@@ -5,7 +5,7 @@ import { FFMpeg } from "../libraries/FFmpeg";
 import { OrientationEnum } from "../../types/shorts";
 import { VIDEO_DIMENSIONS } from "../utils/Constants";
 import { logger } from "../../logger";
-import type { RenderConfig } from "../../types/shorts";
+import type { RenderConfig, TitleTextConfig } from "../../types/shorts";
 
 export interface VideoProcessingConfig {
   tempDirPath: string;
@@ -27,6 +27,13 @@ export class VideoProcessor {
     private ffmpeg: FFMpeg,
     private config: VideoProcessingConfig
   ) {}
+
+  /**
+   * Get the FFmpeg instance for direct operations
+   */
+  getFFmpeg(): FFMpeg {
+    return this.ffmpeg;
+  }
 
   async processSingleScene(
     videoUrl: string,
@@ -302,6 +309,92 @@ export class VideoProcessor {
     }
   }
 
+  /**
+   * 이중 언어 자막 추가 (한국어 + 영어)
+   */
+  async addDualLanguageSubtitles(
+    videoPath: string,
+    outputPath: string,
+    primaryCaptions: any[],  // 한국어
+    secondaryCaptions: any[], // 영어
+    orientation: OrientationEnum
+  ): Promise<VideoProcessingResult> {
+    try {
+      logger.debug({
+        videoPath,
+        outputPath,
+        primaryCount: primaryCaptions.length,
+        secondaryCount: secondaryCaptions?.length || 0
+      }, "Adding dual language subtitles to video");
+
+      await this.ffmpeg.addDualLanguageSubtitles(
+        videoPath,
+        outputPath,
+        primaryCaptions,
+        secondaryCaptions,
+        orientation
+      );
+
+      const stats = fs.statSync(outputPath);
+      const duration = Math.max(stats.size / (1024 * 1024), 1);
+
+      return {
+        outputPath,
+        duration
+      };
+    } catch (error) {
+      logger.error(error, "Failed to add dual language subtitles");
+      throw new Error(`Dual language subtitle addition failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * 🔥 상단 제목(titleText)과 이중 자막을 함께 적용
+   * Title text (hook) and dual language subtitles combined
+   */
+  async addTitleAndSubtitlesToVideo(
+    videoPath: string,
+    outputPath: string,
+    titleText: TitleTextConfig | null,
+    primaryCaptions: any[],  // 한국어
+    secondaryCaptions: any[] | null, // 영어 (optional)
+    orientation: OrientationEnum,
+    videoDuration: number
+  ): Promise<VideoProcessingResult> {
+    try {
+      logger.debug({
+        videoPath,
+        outputPath,
+        hasTitleText: !!titleText,
+        titleTextKo: titleText?.ko,
+        primaryCount: primaryCaptions.length,
+        secondaryCount: secondaryCaptions?.length || 0,
+        videoDuration
+      }, "Adding title text and subtitles to video");
+
+      await this.ffmpeg.addTitleAndSubtitlesToVideo(
+        videoPath,
+        outputPath,
+        titleText,
+        primaryCaptions,
+        secondaryCaptions,
+        orientation,
+        videoDuration
+      );
+
+      const stats = fs.statSync(outputPath);
+      const duration = Math.max(stats.size / (1024 * 1024), 1);
+
+      return {
+        outputPath,
+        duration
+      };
+    } catch (error) {
+      logger.error(error, "Failed to add title and subtitles");
+      throw new Error(`Title and subtitle addition failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async createStaticVideoFromImage(
     imagePath: string,
     duration: number,
@@ -462,6 +555,42 @@ export class VideoProcessor {
     } catch (error) {
       logger.error(error, "Failed to combine video clips");
       throw new Error(`Video clips combination failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * 🔥 xfade 전환 효과로 비디오 클립 결합
+   *
+   * @param videoPaths - 결합할 비디오 파일 경로들
+   * @param outputPath - 출력 파일 경로
+   * @param transitionDuration - 전환 효과 지속 시간 (초, 기본값 0.5)
+   * @param transitionType - 전환 효과 타입 (fade, dissolve, wipeleft, etc.)
+   */
+  async combineVideoClipsWithXfade(
+    videoPaths: string[],
+    outputPath: string,
+    transitionDuration: number = 0.5,
+    transitionType: string = 'fade'
+  ): Promise<void> {
+    try {
+      logger.debug({
+        videoPaths,
+        outputPath,
+        transitionDuration,
+        transitionType
+      }, "Combining video clips with xfade transition");
+
+      await this.ffmpeg.concatVideosWithXfade(
+        videoPaths,
+        outputPath,
+        transitionDuration,
+        transitionType
+      );
+
+      logger.info({ outputPath, transitionType }, "✅ Video clips combined with xfade transition");
+    } catch (error) {
+      logger.error(error, "Failed to combine video clips with xfade");
+      throw new Error(`Video clips xfade combination failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
