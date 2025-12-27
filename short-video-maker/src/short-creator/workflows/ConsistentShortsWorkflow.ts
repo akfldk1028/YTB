@@ -11,7 +11,7 @@ import { ImageModelType } from "../../image-generation/models/imageModels";
 import { CharacterStorageService } from "../../character-store/CharacterStorageService";
 import type { CharacterProfile, Character } from "../../character-store/types";
 import type { Scene, SceneInput, AudioConfig, SoundEffectConfig, SceneCharacterImages, CharacterImageInfo, TitleTextConfig } from "../../types/shorts";
-import { ElevenLabsSoundEffects, SoundEffectPresets } from "../libraries/elevenlabs-tts";
+import { FreesoundSoundEffects, FreesoundPresets } from "../libraries/freesound";
 
 /**
  * Minimum scene duration in seconds.
@@ -94,7 +94,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
   }
 
   /**
-   * 🔥 Generate sound effects using ElevenLabs API
+   * 🔥 Generate sound effects using Freesound API (무료)
    * Returns array of audio file paths with timing info
    */
   private async generateSoundEffects(
@@ -107,7 +107,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
       return [];
     }
 
-    const soundEffects = new ElevenLabsSoundEffects({ apiKey });
+    const soundEffects = new FreesoundSoundEffects({ apiKey });
     const overlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean }> = [];
 
     // Calculate cumulative scene start times
@@ -124,7 +124,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         const transitionType = audioConfig.transitionSound.type;
         const transitionVolume = audioConfig.transitionSound.volume ?? 0.5;
 
-        logger.info({ transitionType, sceneCount: sceneDurations.length }, "🎵 Generating transition sounds");
+        logger.info({ transitionType, sceneCount: sceneDurations.length }, "🎵 Generating transition sounds from Freesound");
 
         const transitionResult = await soundEffects.generateTransition(transitionType);
 
@@ -146,31 +146,39 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
       // 2. Generate custom sound effects
       if (audioConfig.soundEffects && audioConfig.soundEffects.length > 0) {
-        logger.info({ count: audioConfig.soundEffects.length }, "🎵 Generating custom sound effects");
+        logger.info({ count: audioConfig.soundEffects.length }, "🎵 Generating custom sound effects from Freesound");
 
         for (const sfxConfig of audioConfig.soundEffects) {
           let audioResult;
 
           if (sfxConfig.type === 'preset') {
-            // Use preset from SoundEffectPresets
-            const presetKey = sfxConfig.value as keyof typeof SoundEffectPresets;
-            if (SoundEffectPresets[presetKey]) {
+            // Use preset from FreesoundPresets
+            const presetValue = sfxConfig.value ?? '';
+            const presetKey = presetValue as keyof typeof FreesoundPresets;
+            if (presetValue && FreesoundPresets[presetKey]) {
               audioResult = await soundEffects.generate({
-                text: SoundEffectPresets[presetKey],
-                duration_seconds: sfxConfig.duration ?? null,
-                prompt_influence: 0.3
+                text: FreesoundPresets[presetKey],
+                duration_seconds: sfxConfig.duration ?? null
               });
             } else {
-              logger.warn({ preset: sfxConfig.value }, "Unknown sound effect preset, using as custom prompt");
+              logger.warn({ preset: sfxConfig.value }, "Unknown sound effect preset, using as custom search query");
               audioResult = await soundEffects.generate({
-                text: sfxConfig.value,
+                text: presetValue || 'ambient sound',
                 duration_seconds: sfxConfig.duration ?? null
               });
             }
-          } else {
-            // Custom description
+          } else if (sfxConfig.type === 'freesound') {
+            // 🔥 Freesound custom search query using 'prompt' field
+            const searchQuery = sfxConfig.prompt ?? sfxConfig.value ?? 'ambient sound';
+            logger.info({ searchQuery, type: 'freesound' }, "🎵 Freesound custom search");
             audioResult = await soundEffects.generate({
-              text: sfxConfig.value,
+              text: searchQuery,
+              duration_seconds: sfxConfig.duration ?? null
+            });
+          } else {
+            // Custom description (used as search query) - legacy support
+            audioResult = await soundEffects.generate({
+              text: sfxConfig.prompt ?? sfxConfig.value ?? 'ambient sound',
               duration_seconds: sfxConfig.duration ?? null
             });
           }
@@ -179,21 +187,165 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             const sfxPath = path.join(tempDirPath, `sfx-${cuid()}.mp3`);
             await fs.writeFile(sfxPath, Buffer.from(audioResult.audio));
 
+            // 🔥 Calculate start time based on sceneIndex or absolute startTime
+            let calculatedStartTime: number;
+            if (sfxConfig.sceneIndex !== undefined && sfxConfig.sceneIndex < sceneStartTimes.length) {
+              // Scene-based timing (recommended): sceneStartTime + offset
+              calculatedStartTime = sceneStartTimes[sfxConfig.sceneIndex] + (sfxConfig.offset ?? 0);
+              logger.info({
+                sceneIndex: sfxConfig.sceneIndex,
+                sceneStartTime: sceneStartTimes[sfxConfig.sceneIndex],
+                offset: sfxConfig.offset ?? 0,
+                calculatedStartTime
+              }, "🎯 Sound effect synced to scene");
+            } else {
+              // Absolute timing (legacy)
+              calculatedStartTime = sfxConfig.startTime ?? 0;
+            }
+
             overlays.push({
               path: sfxPath,
-              startTime: sfxConfig.startTime,
+              startTime: Math.max(0, calculatedStartTime),
               volume: sfxConfig.volume ?? 0.5
             });
+
+            logger.info({
+              preset: sfxConfig.value,
+              soundName: audioResult.soundName,
+              soundId: audioResult.soundId,
+              startTime: calculatedStartTime
+            }, "✅ Sound effect from Freesound");
           }
         }
       }
 
-      logger.info({ overlayCount: overlays.length }, "✅ Sound effects generated");
+      logger.info({ overlayCount: overlays.length }, "✅ Sound effects generated from Freesound");
       return overlays;
 
     } catch (error) {
-      logger.error({ error }, "❌ Failed to generate sound effects, continuing without them");
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }, "❌ Failed to generate sound effects, continuing without them");
       return [];
+    }
+  }
+
+  /**
+   * 🔥 Mix audio files with sound effects (modularized for reuse)
+   *
+   * This method handles:
+   * 1. Concatenating TTS audio files
+   * 2. Generating sound effects (transitions + custom)
+   * 3. Mixing everything together with FFmpeg
+   *
+   * @returns Path to mixed audio file, or undefined if no sound effects
+   */
+  private async mixAudioWithSoundEffects(params: {
+    audioFiles: string[];
+    sceneDurations: number[];
+    audioConfig: AudioConfig | undefined;
+    apiKey: string | undefined;
+    tempDirPath: string;
+    videoId: string;
+    skipTTS?: boolean;  // 🔥 NEW: skipTTS mode support
+  }): Promise<string | undefined> {
+    const { audioFiles, sceneDurations, audioConfig, apiKey, tempDirPath, videoId, skipTTS } = params;
+
+    // Skip if no audio config or no API key
+    if (!audioConfig || !apiKey) {
+      logger.warn({
+        hasAudioConfig: !!audioConfig,
+        hasApiKey: !!apiKey,
+        skipTTS
+      }, "⚠️ Skipping sound effects: missing audioConfig or apiKey");
+      return undefined;
+    }
+
+    const hasTTSAudio = audioFiles.length > 0;
+
+    // Skip if no audio files AND not in skipTTS mode (no sound effects to generate)
+    if (!hasTTSAudio && !skipTTS) {
+      logger.warn("No audio files to mix with sound effects");
+      return undefined;
+    }
+
+    logger.info({
+      audioConfig,
+      hasTTSAudio,
+      skipTTS
+    }, "🎵 Sound effects configuration detected, processing...");
+
+    try {
+      const totalDuration = sceneDurations.reduce((sum, d) => sum + d, 0);
+      let baseAudioPath: string;
+
+      // 1. Generate sound effects first
+      const soundEffectOverlays = await this.generateSoundEffects(
+        audioConfig,
+        tempDirPath,
+        sceneDurations,
+        apiKey
+      );
+
+      // 2. Handle differently based on TTS mode
+      if (hasTTSAudio) {
+        // 2A. TTS mode: Concatenate TTS audio files, then mix with sound effects
+        let baseAudioPath = path.join(tempDirPath, `concat_audio_${videoId}.mp3`);
+        if (audioFiles.length === 1) {
+          await fs.copyFile(audioFiles[0], baseAudioPath);
+        } else if (audioFiles.length > 1) {
+          await this.videoProcessor.getFFmpeg().concatAudios(audioFiles, baseAudioPath);
+        }
+
+        if (soundEffectOverlays.length > 0) {
+          const mixedAudioPath = path.join(tempDirPath, `mixed_audio_${videoId}.mp3`);
+          await this.videoProcessor.getFFmpeg().mixAudioTracks(
+            baseAudioPath,
+            soundEffectOverlays,
+            mixedAudioPath,
+            totalDuration
+          );
+          logger.info({
+            overlayCount: soundEffectOverlays.length,
+            outputPath: mixedAudioPath
+          }, "✅ Sound effects mixed with TTS audio");
+          return mixedAudioPath;
+        } else {
+          return baseAudioPath;
+        }
+      } else {
+        // 2B. 🔥 skipTTS mode: Create audio directly from sound effects (no silent base mixing)
+        if (soundEffectOverlays.length > 0) {
+          const sfxAudioPath = path.join(tempDirPath, `sfx_audio_${videoId}.mp3`);
+
+          // Use new method that doesn't mix with silent base (avoids amix volume reduction)
+          await this.videoProcessor.getFFmpeg().createAudioFromSoundEffects(
+            soundEffectOverlays,
+            sfxAudioPath,
+            totalDuration
+          );
+
+          logger.info({
+            overlayCount: soundEffectOverlays.length,
+            outputPath: sfxAudioPath,
+            skipTTS: true
+          }, "✅ Sound effects audio created (skipTTS mode - no mixing)");
+
+          return sfxAudioPath;
+        } else {
+          // No sound effects, generate silent audio
+          const silentPath = path.join(tempDirPath, `silent_audio_${videoId}.mp3`);
+          await this.videoProcessor.getFFmpeg().generateSilentAudio(silentPath, totalDuration);
+          return silentPath;
+        }
+      }
+    } catch (error) {
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }, "❌ Failed to mix audio with sound effects, continuing without them");
+      return undefined;
     }
   }
 
@@ -667,19 +819,30 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
 
             // ⭐ KEY FEATURE: Use previous images as references (max 3)
             // This is like Chat Mode in ipynb - maintains character consistency!
-            // ⭐ UPDATED: If we have stored character images, use them even for scene 0
-            const referenceImages = previousImages.length > 0
-              ? previousImages.slice(-3).map(img => ({
+            // 🔥 FIX: Always include stored character images to prevent drift
+            // Stored images have sceneIndex < 0, generated images have sceneIndex >= 0
+            const storedImages = previousImages.filter(img => img.sceneIndex < 0);
+            const generatedImages = previousImages.filter(img => img.sceneIndex >= 0);
+            // Always include ALL stored character images + only most recent generated images
+            // Total max 3 to not overwhelm NANO BANANA
+            const maxGenerated = Math.max(0, 3 - storedImages.length);
+            const recentGenerated = generatedImages.slice(-maxGenerated);
+            const combinedRefs = [...storedImages, ...recentGenerated];
+            const referenceImages = combinedRefs.length > 0
+              ? combinedRefs.map(img => ({
                   data: img.data,
                   mimeType: img.mimeType
                 }))
               : undefined;
 
-            logger.debug({
+            logger.info({
               sceneIndex: i,
-              referenceImageCount: referenceImages?.length || 0,
-              prompt: enhancedPrompt.substring(0, 100)
-            }, "🔗 Using reference images for consistency");
+              storedImageCount: storedImages.length,
+              generatedImageCount: generatedImages.length,
+              usedGeneratedCount: recentGenerated.length,
+              totalReferenceCount: combinedRefs.length,
+              prompt: enhancedPrompt.substring(0, 80)
+            }, "🔗 Reference images (stored chars ALWAYS included to prevent drift)");
 
             // Generate image with references
             const result = await this.imageGenerationService.generateImages({
@@ -782,19 +945,38 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
             const scene = inputScenes[i];
             const duration = imageData.duration || scenes[i]?.audio?.duration || 8;
 
-            // ⭐ VEO 3.1: Use next scene's image as lastFrame for smooth transition
+            // ⭐ VEO 3.1 First+Last Frame: Check if same characters in next scene
             const hasNextScene = i < imageDataList.length - 1;
-            const nextSceneImage = hasNextScene ? imageDataList[i + 1] : null;
+            const currentCharacterIds = inputScenes[i].characterIds || [];
+            const nextCharacterIds = hasNextScene ? (inputScenes[i + 1].characterIds || []) : [];
+
+            // 🔥 FIX: Only use next scene as lastFrame if SAME characters
+            // Otherwise, character morphing causes face distortion!
+            const sameCharactersInNextScene = hasNextScene &&
+              currentCharacterIds.length === nextCharacterIds.length &&
+              currentCharacterIds.every(id => nextCharacterIds.includes(id));
+
+            const nextSceneImage = (hasNextScene && sameCharactersInNextScene) ? imageDataList[i + 1] : null;
+
+            // 🔥 NEW: For character consistency, use SAME image as both first and last frame
+            // This tells VEO to keep the character consistent throughout the scene
+            const useSameImageForLastFrame = useFrameInterpolation && !sameCharactersInNextScene;
 
             logger.info({
               sceneIndex: i + 1,
               duration,
               useFrameInterpolation,
               hasNextScene,
-              willUseLastFrame: useFrameInterpolation && hasNextScene
-            }, useFrameInterpolation && hasNextScene
-              ? "🔄 Converting with VEO 3.1 First+Last Frame interpolation"
-              : "🔄 Converting image to video with VEO3");
+              sameCharactersInNextScene,
+              useSameImageForLastFrame,
+              currentCharacterIds,
+              nextCharacterIds,
+              willUseLastFrame: useFrameInterpolation
+            }, useFrameInterpolation
+              ? (sameCharactersInNextScene
+                  ? "🔄 VEO 3.1: Using NEXT scene image as lastFrame (same characters)"
+                  : "🔄 VEO 3.1: Using SAME image as lastFrame (different characters - prevents morphing)")
+              : "🔄 Converting image to video with VEO3 (no frame interpolation)");
 
             try {
               // Convert image to base64 for VEO3
@@ -804,11 +986,11 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               const videoPrompt = scene.videoPrompt || scene.text || `Scene ${i + 1}`;
 
               // ⭐ Prepare lastImage for VEO 3.1 First+Last Frame interpolation
-              const lastImage = (useFrameInterpolation && nextSceneImage)
-                ? {
-                    data: nextSceneImage.imageBuffer.toString('base64'),
-                    mimeType: "image/png"
-                  }
+              // 🔥 FIX: Use same image as lastFrame when characters differ between scenes
+              const lastImage = useFrameInterpolation
+                ? (nextSceneImage
+                    ? { data: nextSceneImage.imageBuffer.toString('base64'), mimeType: "image/png" }
+                    : { data: imageBase64, mimeType: "image/png" })  // Same image as first frame
                 : undefined;
 
               const video = await this.veoAPI.findVideo(
@@ -1171,60 +1353,42 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           // Step 3B: Combine with audio
           const audioFiles: string[] = [];
           const sceneDurations: number[] = [];
+          const skipTTSMode = context.config?.skipTTS === true;
+
           for (const scene of scenes) {
+            // Always collect scene durations (needed for skipTTS mode sound effects)
+            if (scene.audio?.duration) {
+              sceneDurations.push(scene.audio.duration);
+            } else {
+              sceneDurations.push(MIN_SCENE_DURATION);
+            }
+
+            // Only collect audio files if URL exists (skip for skipTTS mode)
             if (scene.audio?.url) {
               const audioFileName = scene.audio.url.split('/').pop();
               if (audioFileName) {
                 audioFiles.push(path.join(this.videoProcessor.getConfig().tempDirPath, audioFileName));
               }
-              sceneDurations.push(scene.audio.duration || MIN_SCENE_DURATION);
             }
           }
 
-          // 🔥 Sound Effects Integration
+          logger.info({
+            sceneDurations,
+            audioFilesCount: audioFiles.length,
+            skipTTSMode
+          }, "📊 Scene audio data collected");
+
+          // 🔥 Sound Effects Integration (using modularized method)
           const audioConfig = context.metadata?.audioConfig as AudioConfig | undefined;
-          let finalAudioPath: string | undefined;
-
-          if (audioConfig && context.systemConfig.elevenLabsApiKey) {
-            logger.info({ audioConfig }, "🎵 Sound effects configuration detected, processing...");
-
-            // 1. Concatenate TTS audio files first
-            const tempConcatAudioPath = path.join(videoTempDir, `concat_audio_${context.videoId}.mp3`);
-            if (audioFiles.length === 1) {
-              await fs.copyFile(audioFiles[0], tempConcatAudioPath);
-            } else if (audioFiles.length > 1) {
-              await this.videoProcessor.getFFmpeg().concatAudios(audioFiles, tempConcatAudioPath);
-            }
-
-            // 2. Generate sound effects
-            const soundEffectOverlays = await this.generateSoundEffects(
-              audioConfig,
-              videoTempDir,
-              sceneDurations,
-              context.systemConfig.elevenLabsApiKey
-            );
-
-            // 3. Mix sound effects with TTS audio if any overlays were generated
-            if (soundEffectOverlays.length > 0) {
-              const totalDuration = sceneDurations.reduce((sum, d) => sum + d, 0);
-              const mixedAudioPath = path.join(videoTempDir, `mixed_audio_${context.videoId}.mp3`);
-
-              await this.videoProcessor.getFFmpeg().mixAudioTracks(
-                tempConcatAudioPath,
-                soundEffectOverlays,
-                mixedAudioPath,
-                totalDuration
-              );
-
-              finalAudioPath = mixedAudioPath;
-              logger.info({
-                overlayCount: soundEffectOverlays.length,
-                outputPath: mixedAudioPath
-              }, "✅ Sound effects mixed with TTS audio");
-            } else {
-              finalAudioPath = tempConcatAudioPath;
-            }
-          }
+          const finalAudioPath = await this.mixAudioWithSoundEffects({
+            audioFiles,
+            sceneDurations,
+            audioConfig,
+            apiKey: context.systemConfig.freesoundApiKey,
+            tempDirPath: videoTempDir,
+            videoId: context.videoId,
+            skipTTS: skipTTSMode
+          });
 
           const tempFinalPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
 
@@ -1236,13 +1400,17 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               tempFinalPath,
               0
             );
-          } else {
+          } else if (audioFiles.length > 0) {
             // Original flow: combine video with audio files
             await this.videoProcessor.combineVideoWithAudio(
               tempVideoPath,
               audioFiles,
               tempFinalPath
             );
+          } else {
+            // 🔥 skipTTS mode with no audio: just copy video
+            logger.info({ videoId: context.videoId }, "🔇 No audio files (skipTTS mode), copying video as-is");
+            await fs.promises.copyFile(tempVideoPath, tempFinalPath);
           }
 
           // 🔥 Apply synchronized subtitles to final video
@@ -1359,9 +1527,20 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
             cumulativeDuration += sceneDuration;
           }
 
-          // Step 4: Combine with audio
+          // Step 4: Combine with audio (+ Sound Effects Integration)
           const audioFiles: string[] = [];
+          const sceneDurations: number[] = [];
+          const skipTTSMode = context.config?.skipTTS === true;
+
           for (const scene of scenes) {
+            // Always collect scene durations (needed for skipTTS mode sound effects)
+            if (scene.audio?.duration) {
+              sceneDurations.push(scene.audio.duration);
+            } else {
+              sceneDurations.push(MIN_SCENE_DURATION);
+            }
+
+            // Only collect audio files if URL exists (skip for skipTTS mode)
             if (scene.audio?.url) {
               const audioFileName = scene.audio.url.split('/').pop();
               if (audioFileName) {
@@ -1370,12 +1549,46 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
             }
           }
 
-          const tempFinalPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
-          await this.videoProcessor.combineVideoWithAudio(
-            tempVideoPath,
+          logger.info({
+            sceneDurations,
+            audioFilesCount: audioFiles.length,
+            skipTTSMode
+          }, "📊 Scene audio data collected (non-VEO path)");
+
+          // 🔥 Sound Effects Integration (using modularized method)
+          const audioConfig = context.metadata?.audioConfig as AudioConfig | undefined;
+          const finalAudioPath = await this.mixAudioWithSoundEffects({
             audioFiles,
-            tempFinalPath
-          );
+            sceneDurations,
+            audioConfig,
+            apiKey: context.systemConfig.freesoundApiKey,
+            tempDirPath: videoTempDir,
+            videoId: context.videoId,
+            skipTTS: skipTTSMode
+          });
+
+          const tempFinalPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
+
+          if (finalAudioPath) {
+            // Use mixed audio with sound effects
+            await this.videoProcessor.getFFmpeg().replaceVideoAudio(
+              tempVideoPath,
+              finalAudioPath,
+              tempFinalPath,
+              0
+            );
+          } else if (audioFiles.length > 0) {
+            // Original flow: combine video with audio files
+            await this.videoProcessor.combineVideoWithAudio(
+              tempVideoPath,
+              audioFiles,
+              tempFinalPath
+            );
+          } else {
+            // 🔥 skipTTS mode with no audio: just copy video
+            logger.info({ videoId: context.videoId }, "🔇 No audio files (skipTTS mode), copying video as-is");
+            await fs.promises.copyFile(tempVideoPath, tempFinalPath);
+          }
 
           // 🔥 Apply synchronized subtitles to final video
           const standardVideoPath = path.join(

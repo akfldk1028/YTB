@@ -125,6 +125,10 @@ export const renderConfig = z.object({
     .enum(["pexels", "veo", "leonardo", "both", "ffmpeg"])
     .optional()
     .describe("Video source for this specific request"),
+  skipTTS: z
+    .boolean()
+    .optional()
+    .describe("Skip TTS generation - use only BGM and sound effects without voice narration"),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 
@@ -144,15 +148,36 @@ export type Caption = {
 
 /**
  * 🔥 Sound Effect Configuration
- * Supports ElevenLabs Sound Effects API
+ * Supports Freesound API (무료) for sound effects
+ *
+ * Two timing modes:
+ * 1. Scene-based (recommended): sceneIndex + offset
+ * 2. Absolute: startTime (legacy)
+ *
+ * Type options:
+ * - 'preset': Use FreesoundPresets (e.g., CAT_MEOW, WHOOSH)
+ * - 'freesound': Search Freesound with custom prompt
+ * - 'custom': Legacy custom description (same as freesound)
+ * - 'transition': Scene transition sounds
  */
 export type SoundEffectConfig = {
-  /** Sound effect type: preset, custom, or transition */
-  type: 'preset' | 'custom' | 'transition';
-  /** Preset name (WHOOSH, CAT_MEOW, etc.) or custom description */
-  value: string;
-  /** Start time in seconds (relative to scene or video) */
-  startTime: number;
+  /** Sound effect type */
+  type: 'preset' | 'freesound' | 'custom' | 'transition';
+  /** Preset name (WHOOSH, CAT_MEOW, etc.) - for preset type */
+  value?: string;
+  /** Custom search prompt - for freesound/custom type */
+  prompt?: string;
+
+  // === Timing Option 1: Scene-based (recommended) ===
+  /** Scene index (0-based) to sync with */
+  sceneIndex?: number;
+  /** Offset from scene start in seconds (default: 0) */
+  offset?: number;
+
+  // === Timing Option 2: Absolute ===
+  /** Absolute start time in seconds (used if sceneIndex not provided) */
+  startTime?: number;
+
   /** Duration in seconds (optional, auto if not specified) */
   duration?: number;
   /** Volume level (0.0 to 1.0, default 0.5) */
