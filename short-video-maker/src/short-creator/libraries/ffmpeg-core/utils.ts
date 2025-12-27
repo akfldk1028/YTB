@@ -30,14 +30,36 @@ let ffmpegPath: string | null = null;
 
 /**
  * Initialize FFmpeg path
+ * On Linux (Docker/GCP), use system FFmpeg for newer features (xfade, etc.)
+ * On other platforms, use @ffmpeg-installer/ffmpeg
  */
 export async function initFFmpeg(): Promise<void> {
   if (ffmpegPath) return;
 
-  const ffmpegInstaller = await import("@ffmpeg-installer/ffmpeg");
-  ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-  ffmpegPath = ffmpegInstaller.path;
-  logger.info(`FFmpeg path set to: ${ffmpegInstaller.path}`);
+  const isLinux = process.platform === 'linux';
+  const systemFfmpegPath = '/usr/bin/ffmpeg';
+
+  if (isLinux) {
+    // Use system FFmpeg on Linux (has xfade filter, FFmpeg 5.x+)
+    const fs = await import('fs');
+    if (fs.existsSync(systemFfmpegPath)) {
+      ffmpeg.setFfmpegPath(systemFfmpegPath);
+      ffmpegPath = systemFfmpegPath;
+      logger.info(`FFmpeg path set to system: ${systemFfmpegPath} (Linux)`);
+    } else {
+      // Fallback to npm installer if system FFmpeg not found
+      const ffmpegInstaller = await import("@ffmpeg-installer/ffmpeg");
+      ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+      ffmpegPath = ffmpegInstaller.path;
+      logger.warn(`System FFmpeg not found, using npm installer: ${ffmpegInstaller.path}`);
+    }
+  } else {
+    // Use npm installer on Windows/Mac
+    const ffmpegInstaller = await import("@ffmpeg-installer/ffmpeg");
+    ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+    ffmpegPath = ffmpegInstaller.path;
+    logger.info(`FFmpeg path set to npm installer: ${ffmpegInstaller.path}`);
+  }
 
   // Log the font path that will be used
   const fontPath = findAvailableFontPath();
@@ -107,9 +129,11 @@ export async function runFFmpegSpawn(args: string[], timeoutMs: number): Promise
     let stderr = '';
     let killed = false;
 
-    // Get FFmpeg path
-    const ffmpegInstaller = await import("@ffmpeg-installer/ffmpeg");
-    const ffPath = ffmpegInstaller.path;
+    // Use initialized FFmpeg path (system on Linux, npm installer on Windows/Mac)
+    if (!ffmpegPath) {
+      await initFFmpeg();
+    }
+    const ffPath = ffmpegPath!;
 
     logger.debug({ ffmpegPath: ffPath, args, timeoutMs }, "Starting FFmpeg spawn process");
 
