@@ -12,6 +12,7 @@ import { CharacterStorageService } from "../../character-store/CharacterStorageS
 import type { CharacterProfile, Character } from "../../character-store/types";
 import type { Scene, SceneInput, AudioConfig, SoundEffectConfig, SceneCharacterImages, CharacterImageInfo, TitleTextConfig } from "../../types/shorts";
 import { FreesoundSoundEffects, FreesoundPresets } from "../libraries/freesound";
+import { LoudlyBGM } from "../libraries/loudly";
 
 /**
  * Minimum scene duration in seconds.
@@ -232,14 +233,87 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
   }
 
   /**
-   * 🔥 Mix audio files with sound effects (modularized for reuse)
+   * 🎵 Generate background music using Loudly API (or local fallback)
+   * Returns audio overlay info for mixing with other audio
+   */
+  private async generateBackgroundMusic(
+    audioConfig: AudioConfig | undefined,
+    tempDirPath: string,
+    totalDuration: number,
+    videoId: string
+  ): Promise<{ path: string; startTime: number; volume: number; loop: boolean } | null> {
+    if (!audioConfig?.backgroundMusic) {
+      return null;
+    }
+
+    const bgmConfig = audioConfig.backgroundMusic;
+
+    logger.info({
+      source: bgmConfig.source,
+      volume: bgmConfig.volume,
+      loop: bgmConfig.loop,
+      totalDuration
+    }, "🎵 Generating background music");
+
+    try {
+      const loudlyBGM = new LoudlyBGM();
+
+      // Generate BGM based on source type
+      let bgmResult;
+
+      if (typeof bgmConfig.source === 'string') {
+        // Check if it's a preset or mood
+        if (bgmConfig.source.startsWith('preset:')) {
+          // Use preset: "preset:CAT_CUTE"
+          const presetName = bgmConfig.source.replace('preset:', '');
+          bgmResult = await loudlyBGM.generateFromPreset(presetName as any, totalDuration);
+        } else {
+          // Use as mood or text prompt
+          bgmResult = await loudlyBGM.generateForMood(bgmConfig.source, totalDuration);
+        }
+      } else {
+        // MusicMoodEnum
+        bgmResult = await loudlyBGM.generateForMood(bgmConfig.source, totalDuration);
+      }
+
+      // Save BGM to file
+      const bgmPath = path.join(tempDirPath, `bgm_${videoId}.mp3`);
+      await fs.writeFile(bgmPath, Buffer.from(bgmResult.audio));
+
+      logger.info({
+        bgmPath,
+        trackTitle: bgmResult.trackTitle,
+        source: bgmResult.source,
+        license: bgmResult.license,
+        duration: bgmResult.duration
+      }, "✅ Background music generated");
+
+      return {
+        path: bgmPath,
+        startTime: 0,  // BGM starts at beginning
+        volume: bgmConfig.volume ?? 0.3,  // Default lower volume for BGM
+        loop: bgmConfig.loop ?? true  // Default to loop
+      };
+
+    } catch (error) {
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        source: bgmConfig.source
+      }, "❌ Failed to generate background music, continuing without it");
+      return null;
+    }
+  }
+
+  /**
+   * 🔥 Mix audio files with sound effects and BGM (modularized for reuse)
    *
    * This method handles:
    * 1. Concatenating TTS audio files
    * 2. Generating sound effects (transitions + custom)
-   * 3. Mixing everything together with FFmpeg
+   * 3. Generating background music (Loudly API or local)
+   * 4. Mixing everything together with FFmpeg
    *
-   * @returns Path to mixed audio file, or undefined if no sound effects
+   * @returns Path to mixed audio file, or undefined if no audio processing needed
    */
   private async mixAudioWithSoundEffects(params: {
     audioFiles: string[];
@@ -248,49 +322,75 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
     apiKey: string | undefined;
     tempDirPath: string;
     videoId: string;
-    skipTTS?: boolean;  // 🔥 NEW: skipTTS mode support
+    skipTTS?: boolean;  // 🔥 skipTTS mode support
   }): Promise<string | undefined> {
     const { audioFiles, sceneDurations, audioConfig, apiKey, tempDirPath, videoId, skipTTS } = params;
+    const totalDuration = sceneDurations.reduce((sum, d) => sum + d, 0);
 
-    // Skip if no audio config or no API key
-    if (!audioConfig || !apiKey) {
+    // Check if we have any audio processing to do
+    const hasTTSAudio = audioFiles.length > 0;
+    const hasSoundEffects = audioConfig && (audioConfig.soundEffects?.length || audioConfig.transitionSound);
+    const hasBGM = audioConfig?.backgroundMusic;
+
+    // Skip if no audio config and not in skipTTS mode
+    if (!audioConfig && !skipTTS) {
       logger.warn({
         hasAudioConfig: !!audioConfig,
-        hasApiKey: !!apiKey,
         skipTTS
-      }, "⚠️ Skipping sound effects: missing audioConfig or apiKey");
+      }, "⚠️ No audio configuration, skipping audio processing");
       return undefined;
     }
 
-    const hasTTSAudio = audioFiles.length > 0;
-
-    // Skip if no audio files AND not in skipTTS mode (no sound effects to generate)
-    if (!hasTTSAudio && !skipTTS) {
-      logger.warn("No audio files to mix with sound effects");
+    // Skip if no audio files AND not in skipTTS mode AND no BGM
+    if (!hasTTSAudio && !skipTTS && !hasBGM) {
+      logger.warn("No audio files to mix");
       return undefined;
     }
 
     logger.info({
-      audioConfig,
       hasTTSAudio,
-      skipTTS
-    }, "🎵 Sound effects configuration detected, processing...");
+      hasSoundEffects,
+      hasBGM,
+      skipTTS,
+      totalDuration
+    }, "🎵 Audio configuration detected, processing...");
 
     try {
-      const totalDuration = sceneDurations.reduce((sum, d) => sum + d, 0);
-      let baseAudioPath: string;
+      // 1. Generate sound effects (if API key available)
+      let soundEffectOverlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean }> = [];
+      if (hasSoundEffects && apiKey) {
+        soundEffectOverlays = await this.generateSoundEffects(
+          audioConfig,
+          tempDirPath,
+          sceneDurations,
+          apiKey
+        );
+      }
 
-      // 1. Generate sound effects first
-      const soundEffectOverlays = await this.generateSoundEffects(
+      // 2. Generate background music
+      const bgmOverlay = await this.generateBackgroundMusic(
         audioConfig,
         tempDirPath,
-        sceneDurations,
-        apiKey
+        totalDuration,
+        videoId
       );
 
-      // 2. Handle differently based on TTS mode
+      // Combine all overlays (BGM first, then sound effects)
+      const allOverlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean }> = [];
+      if (bgmOverlay) {
+        allOverlays.push(bgmOverlay);
+      }
+      allOverlays.push(...soundEffectOverlays);
+
+      logger.info({
+        bgmIncluded: !!bgmOverlay,
+        sfxCount: soundEffectOverlays.length,
+        totalOverlays: allOverlays.length
+      }, "🎵 Audio overlays prepared");
+
+      // 3. Handle differently based on TTS mode
       if (hasTTSAudio) {
-        // 2A. TTS mode: Concatenate TTS audio files, then mix with sound effects
+        // 3A. TTS mode: Concatenate TTS audio files, then mix with overlays
         let baseAudioPath = path.join(tempDirPath, `concat_audio_${videoId}.mp3`);
         if (audioFiles.length === 1) {
           await fs.copyFile(audioFiles[0], baseAudioPath);
@@ -298,43 +398,45 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
           await this.videoProcessor.getFFmpeg().concatAudios(audioFiles, baseAudioPath);
         }
 
-        if (soundEffectOverlays.length > 0) {
+        if (allOverlays.length > 0) {
           const mixedAudioPath = path.join(tempDirPath, `mixed_audio_${videoId}.mp3`);
           await this.videoProcessor.getFFmpeg().mixAudioTracks(
             baseAudioPath,
-            soundEffectOverlays,
+            allOverlays,
             mixedAudioPath,
             totalDuration
           );
           logger.info({
-            overlayCount: soundEffectOverlays.length,
+            overlayCount: allOverlays.length,
+            hasBGM: !!bgmOverlay,
             outputPath: mixedAudioPath
-          }, "✅ Sound effects mixed with TTS audio");
+          }, "✅ Audio mixed (TTS + SFX + BGM)");
           return mixedAudioPath;
         } else {
           return baseAudioPath;
         }
       } else {
-        // 2B. 🔥 skipTTS mode: Create audio directly from sound effects (no silent base mixing)
-        if (soundEffectOverlays.length > 0) {
-          const sfxAudioPath = path.join(tempDirPath, `sfx_audio_${videoId}.mp3`);
+        // 3B. 🔥 skipTTS mode: Create audio from overlays only
+        if (allOverlays.length > 0) {
+          const overlayAudioPath = path.join(tempDirPath, `overlay_audio_${videoId}.mp3`);
 
-          // Use new method that doesn't mix with silent base (avoids amix volume reduction)
+          // Use createAudioFromSoundEffects which handles multiple overlays on silent base
           await this.videoProcessor.getFFmpeg().createAudioFromSoundEffects(
-            soundEffectOverlays,
-            sfxAudioPath,
+            allOverlays,
+            overlayAudioPath,
             totalDuration
           );
 
           logger.info({
-            overlayCount: soundEffectOverlays.length,
-            outputPath: sfxAudioPath,
+            overlayCount: allOverlays.length,
+            hasBGM: !!bgmOverlay,
+            outputPath: overlayAudioPath,
             skipTTS: true
-          }, "✅ Sound effects audio created (skipTTS mode - no mixing)");
+          }, "✅ Audio created from overlays (skipTTS mode)");
 
-          return sfxAudioPath;
+          return overlayAudioPath;
         } else {
-          // No sound effects, generate silent audio
+          // No overlays, generate silent audio
           const silentPath = path.join(tempDirPath, `silent_audio_${videoId}.mp3`);
           await this.videoProcessor.getFFmpeg().generateSilentAudio(silentPath, totalDuration);
           return silentPath;
@@ -344,7 +446,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
       logger.error({
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
-      }, "❌ Failed to mix audio with sound effects, continuing without them");
+      }, "❌ Failed to mix audio, continuing without effects");
       return undefined;
     }
   }
