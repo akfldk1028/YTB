@@ -47,8 +47,13 @@ export class Config {
   public googleTtsApiKey?: string; // For Google Cloud Text-to-Speech
   public googleTtsProjectId?: string; // For Google Cloud TTS project
   public elevenLabsApiKey?: string; // For ElevenLabs Text-to-Speech
+  public freesoundApiKey?: string; // For Freesound Sound Effects (무료)
+  public freesoundClientId?: string; // Freesound Client ID
+  public runwayApiKey?: string; // For Runway Gen-3 Turbo (VEO alternative)
+  public runwayModel: "gen3a_turbo" | "veo3.1" = "gen3a_turbo"; // Runway model selection
+  public runwayVeoAudio: boolean = false; // Use VEO 3.1 auto-generated audio (only for veo3.1 model)
   public ttsProvider: "kokoro" | "google" | "elevenlabs" = "kokoro"; // TTS provider selection
-  public videoSource: "pexels" | "veo" | "leonardo" | "both" | "ffmpeg" = "pexels";
+  public videoSource: "pexels" | "veo" | "runway" | "leonardo" | "both" | "ffmpeg" = "pexels";
   public veo3UseNativeAudio: boolean = false; // false: use TTS audio (숏츠용), true: use VEO3 audio (대화/연기용)
   public youtubeClientSecretPath: string; // Path to YouTube OAuth client secret JSON file
 
@@ -107,8 +112,13 @@ export class Config {
     this.googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY;
     this.googleTtsProjectId = process.env.GOOGLE_TTS_PROJECT_ID;
     this.elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
+    this.freesoundApiKey = process.env.FREESOUND_API_KEY;
+    this.freesoundClientId = process.env.FREESOUND_CLIENT_ID;
+    this.runwayApiKey = process.env.RUNWAY_API_KEY;
+    this.runwayModel = (process.env.RUNWAY_MODEL as "gen3a_turbo" | "veo3.1") || "gen3a_turbo";
+    this.runwayVeoAudio = process.env.RUNWAY_VEO_AUDIO === "true";
     this.ttsProvider = (process.env.TTS_PROVIDER as "kokoro" | "google" | "elevenlabs") || "kokoro";
-    this.videoSource = (process.env.VIDEO_SOURCE as "pexels" | "veo" | "leonardo" | "both" | "ffmpeg") || "pexels";
+    this.videoSource = (process.env.VIDEO_SOURCE as "pexels" | "veo" | "runway" | "leonardo" | "both" | "ffmpeg") || "pexels";
     this.veo3UseNativeAudio = process.env.VEO3_USE_NATIVE_AUDIO === "true";
     this.youtubeClientSecretPath = process.env.YOUTUBE_CLIENT_SECRET_PATH || path.join(this.dataDirPath, "client_secret.json");
 
@@ -167,6 +177,14 @@ export class Config {
       if (!this.leonardoApiKey) {
         throw new Error(
           "LEONARDO_API_KEY environment variable is missing. Please get your API key from https://leonardo.ai/api/",
+        );
+      }
+    }
+
+    if (this.videoSource === "runway") {
+      if (!this.runwayApiKey) {
+        throw new Error(
+          "RUNWAY_API_KEY environment variable is missing. Please get your API key from https://app.runwayml.com/",
         );
       }
     }

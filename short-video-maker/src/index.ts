@@ -9,6 +9,7 @@ import { Whisper } from "./short-creator/libraries/Whisper";
 import { FFMpeg } from "./short-creator/libraries/FFmpeg";
 import { PexelsAPI } from "./short-creator/libraries/Pexels";
 import { GoogleVeoAPI } from "./short-creator/libraries/GoogleVeo";
+import { RunwayAPI } from "./short-creator/libraries/RunwayAPI";
 import { LeonardoAI } from "./short-creator/libraries/LeonardoAI";
 import { ImageGenerationService } from "./image-generation/services/ImageGenerationService";
 import { ImageModelType } from "./image-generation/models/imageModels";
@@ -98,7 +99,7 @@ async function main() {
   const pexelsApi = new PexelsAPI(config.pexelsApiKey);
   
   // Initialize Veo API if configured
-  let veoApi: GoogleVeoAPI | null = null;
+  let veoApi: GoogleVeoAPI | RunwayAPI | null = null;
   if (config.videoSource === "veo" || config.videoSource === "both") {
     if (config.googleGeminiApiKey) {
       logger.debug("initializing google veo api via gemini");
@@ -113,13 +114,29 @@ async function main() {
     }
   }
 
-  // Debug logging for VeoAPI initialization
+  // Initialize Runway API if configured (alternative to VEO)
+  // Supports both gen3a_turbo and veo3.1 models
+  if (config.videoSource === "runway") {
+    if (config.runwayApiKey) {
+      logger.debug({ model: config.runwayModel, veoAudio: config.runwayVeoAudio }, "initializing runway api");
+      veoApi = new RunwayAPI(config.runwayApiKey, config.runwayModel, config.runwayVeoAudio);
+      const modelName = config.runwayModel === 'veo3.1' ? 'VEO 3.1 (via Runway)' : 'Gen-3 Alpha Turbo';
+      logger.info(`🎬 Using Runway ${modelName} as video generation provider`);
+    } else {
+      logger.warn("RUNWAY_API_KEY not configured, but VIDEO_SOURCE is 'runway'");
+    }
+  }
+
+  // Debug logging for Video API initialization
   logger.info({
     videoSource: config.videoSource,
     hasGeminiKey: !!config.googleGeminiApiKey,
     geminiKeyLength: config.googleGeminiApiKey?.length || 0,
-    veoApiInitialized: !!veoApi
-  }, "VeoAPI initialization status");
+    hasRunwayKey: !!config.runwayApiKey,
+    runwayKeyLength: config.runwayApiKey?.length || 0,
+    videoApiInitialized: !!veoApi,
+    videoApiType: veoApi ? (veoApi instanceof RunwayAPI ? 'runway' : 'veo') : 'none'
+  }, "Video API initialization status");
 
   // Initialize Leonardo.AI API if configured
   let leonardoApi: LeonardoAI | null = null;
