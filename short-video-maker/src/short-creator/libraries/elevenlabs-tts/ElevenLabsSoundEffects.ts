@@ -132,7 +132,11 @@ export class ElevenLabsSoundEffects {
         prompt: request.text
       };
     } catch (error) {
-      logger.error({ error, prompt: request.text }, '❌ Failed to generate sound effect');
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        prompt: request.text
+      }, '❌ Failed to generate sound effect');
       throw error;
     }
   }

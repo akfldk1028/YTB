@@ -151,7 +151,7 @@ uploadVideo(videoId, channelName, metadata, notifySubscribers, subChannel?)
 > [!example] ATT 채널에 업로드
 
 ```bash
-curl -X POST https://short-video-maker-550996044521.us-central1.run.app/api/youtube/upload \
+curl -X POST https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/upload \
   -H "Content-Type: application/json" \
   -d '{
     "videoId": "cmj...",
@@ -181,7 +181,7 @@ curl -X POST .../api/youtube/upload \
 > [!example] 서브채널 목록 조회
 
 ```bash
-curl https://short-video-maker-550996044521.us-central1.run.app/api/youtube/channels/segong/sub-channels
+curl https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/channels/segong/sub-channels
 ```
 
 > [!success] 응답
@@ -249,7 +249,7 @@ gcloud builds submit --config=cloudbuild.yaml \
   --substitutions=SHORT_SHA=v20251221
 
 # 4. 검증
-curl https://short-video-maker-550996044521.us-central1.run.app/api/youtube/auth/health-check
+curl https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/auth/health-check
 ```
 
 ---

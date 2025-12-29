@@ -129,7 +129,7 @@ flowchart TB
 ### 1. API로 채널 추가
 
 ```bash
-curl -X POST https://short-video-maker-550996044521.us-central1.run.app/api/youtube/channels \
+curl -X POST https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/channels \
   -H "Content-Type: application/json" \
   -d '{"channelName": "why_cat"}'
 ```
@@ -166,7 +166,7 @@ gcloud run services update short-video-maker \
 ### /api/video/pexels (Pexels 영상)
 
 ```bash
-curl -X POST https://short-video-maker-550996044521.us-central1.run.app/api/video/pexels \
+curl -X POST https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/pexels \
   -H "Content-Type: application/json" \
   -d '{
     "format_type": "timeline",
@@ -185,7 +185,7 @@ curl -X POST https://short-video-maker-550996044521.us-central1.run.app/api/vide
 ### /api/youtube/upload (직접 업로드)
 
 ```bash
-curl -X POST https://short-video-maker-550996044521.us-central1.run.app/api/youtube/upload \
+curl -X POST https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/upload \
   -H "Content-Type: application/json" \
   -d '{
     "videoId": "cmjxxx...",

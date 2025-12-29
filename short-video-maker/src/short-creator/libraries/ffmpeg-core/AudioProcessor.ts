@@ -134,8 +134,9 @@ export class AudioProcessor {
   /**
    * Create audio track from sound effects only (skipTTS mode)
    * Creates a silent base track and mixes sound effects on top
+   * Now supports looping for background music
    *
-   * @param soundEffects - Array of sound effects with timing
+   * @param soundEffects - Array of sound effects with timing (includes BGM with loop option)
    * @param outputPath - Output file path
    * @param totalDuration - Total duration of output audio (seconds)
    */
@@ -144,15 +145,21 @@ export class AudioProcessor {
       path: string;
       startTime: number;
       volume: number;
+      loop?: boolean;  // 🔥 Added loop support for BGM
     }>,
     outputPath: string,
     totalDuration: number
   ): Promise<string> {
+    // Separate BGM (loop=true) from regular sound effects
+    const bgmTracks = soundEffects.filter(sfx => sfx.loop === true);
+    const sfxTracks = soundEffects.filter(sfx => sfx.loop !== true);
+
     logger.info({
-      soundEffectCount: soundEffects.length,
+      bgmCount: bgmTracks.length,
+      sfxCount: sfxTracks.length,
       totalDuration,
       outputPath
-    }, "Creating audio from sound effects only (skipTTS mode)");
+    }, "Creating audio from sound effects (skipTTS mode)");
 
     return new Promise((resolve, reject) => {
       try {
@@ -164,28 +171,55 @@ export class AudioProcessor {
           .inputFormat('lavfi')
           .inputOption(`-t ${totalDuration}`);
 
-        // Add all sound effect inputs
-        soundEffects.forEach((sfx) => {
+        // 🔥 Add BGM inputs with loop option
+        bgmTracks.forEach((bgm) => {
+          ffmpegCommand.input(bgm.path).inputOption('-stream_loop -1');
+        });
+
+        // Add regular sound effect inputs (no loop)
+        sfxTracks.forEach((sfx) => {
           ffmpegCommand.input(sfx.path);
         });
 
-        // Build filter: delay each sfx, then mix with silent base
+        // Build filter: delay each input, then mix with silent base
         const filterParts: string[] = [];
         const mixInputs: string[] = ['[0:a]']; // Silent base is [0:a]
+        let inputIndex = 1;
 
-        soundEffects.forEach((sfx, index) => {
-          const inputIndex = index + 1; // SFX inputs start from [1:a]
-          const delayMs = Math.floor(sfx.startTime * 1000);
-          const boostedVolume = sfx.volume * 3; // Boost for audibility
+        // 🔥 Process BGM tracks - BGM should be the foundation in skipTTS mode
+        // YouTube Shorts: BGM is main audio without narration
+        // Target: -14 LUFS (YouTube standard), BGM should be prominent
+        bgmTracks.forEach((bgm) => {
+          const delayMs = Math.floor(bgm.startTime * 1000);
+          // BGM needs to be LOUD - it's the main audio! (0.2 input → 1.6+ output)
+          // User sets 0.15-0.25, we boost to 1.2-2.0 for proper audibility
+          const boostedVolume = Math.max(bgm.volume * 8, 1.5);
 
           filterParts.push(
             `[${inputIndex}:a]adelay=${delayMs}|${delayMs},volume=${boostedVolume}[a${inputIndex}]`
           );
           mixInputs.push(`[a${inputIndex}]`);
+          inputIndex++;
         });
 
-        // Mix all streams (base + delayed sfx)
-        const mixFilter = `${mixInputs.join('')}amix=inputs=${mixInputs.length}:duration=first:dropout_transition=3[out]`;
+        // Process sound effects - should be noticeable but not overwhelming
+        // SFX are accent sounds, not the main audio
+        sfxTracks.forEach((sfx) => {
+          const delayMs = Math.floor(sfx.startTime * 1000);
+          // SFX should pop but not dominate (0.5 input → 0.75 output)
+          // Reduced to x1.5 max 1.0 so BGM stays prominent
+          const boostedVolume = Math.min(sfx.volume * 1.5, 1.0);
+
+          filterParts.push(
+            `[${inputIndex}:a]adelay=${delayMs}|${delayMs},volume=${boostedVolume}[a${inputIndex}]`
+          );
+          mixInputs.push(`[a${inputIndex}]`);
+          inputIndex++;
+        });
+
+        // 🔥 Mix all streams with normalize=0 to prevent automatic volume division
+        // This keeps each track's volume as set above instead of dividing by input count
+        const mixFilter = `${mixInputs.join('')}amix=inputs=${mixInputs.length}:duration=first:dropout_transition=3:normalize=0[out]`;
         filterParts.push(mixFilter);
 
         ffmpegCommand
@@ -197,7 +231,11 @@ export class AudioProcessor {
             logger.debug('FFmpeg createAudioFromSoundEffects command: ' + commandLine);
           })
           .on('end', () => {
-            logger.info({ outputPath, count: soundEffects.length }, "Sound effects audio created");
+            logger.info({
+              outputPath,
+              bgmCount: bgmTracks.length,
+              sfxCount: sfxTracks.length
+            }, "Sound effects audio created (with BGM loop support)");
             resolve(outputPath);
           })
           .on('error', (error) => {

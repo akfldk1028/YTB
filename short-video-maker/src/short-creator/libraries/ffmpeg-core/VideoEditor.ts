@@ -40,6 +40,9 @@ export class VideoEditor {
   ): Promise<string> {
     logger.debug({ videoPath, audioPath, outputPath }, "Combining video with audio using FFmpeg");
 
+    const tempDir = path.dirname(outputPath);
+    let subtitleTextFilePaths: string[] = [];
+
     return new Promise((resolve, reject) => {
       const ffmpegCommand = ffmpeg()
         .input(videoPath)
@@ -50,9 +53,10 @@ export class VideoEditor {
 
       // Add subtitle filter if available (unless skipped)
       if (!skipSubtitles && captions && captions.length > 0) {
-        const subtitleFilterStr = this.subtitleFilter.createSubtitleFilter(captions, orientation);
-        if (subtitleFilterStr) {
-          ffmpegCommand.complexFilter(`[0:v]${subtitleFilterStr}[v]`);
+        const subtitleResult = this.subtitleFilter.createSubtitleFilter(captions, orientation, tempDir);
+        if (subtitleResult) {
+          subtitleTextFilePaths = subtitleResult.textFilePaths;
+          ffmpegCommand.complexFilter(`[0:v]${subtitleResult.filter}[v]`);
           ffmpegCommand.outputOptions([
             '-map', '[v]',
             '-map', '1:a:0',
@@ -78,10 +82,31 @@ export class VideoEditor {
 
       ffmpegCommand
         .on('end', () => {
+          // Clean up subtitle text files
+          if (subtitleTextFilePaths.length > 0) {
+            subtitleTextFilePaths.forEach((filePath) => {
+              try {
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                }
+              } catch (e) {
+                logger.warn({ filePath }, "Failed to clean up subtitle text file");
+              }
+            });
+            logger.debug({ cleanedFiles: subtitleTextFilePaths.length }, "Cleaned up subtitle text files");
+          }
           logger.debug({ outputPath }, "Video combination complete");
           resolve(outputPath);
         })
         .on('error', (error: any) => {
+          // Clean up subtitle text files on error too
+          subtitleTextFilePaths.forEach((filePath) => {
+            try {
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
+            } catch (e) { /* ignore */ }
+          });
           logger.error(error, "Error combining video with audio");
           reject(error);
         })
@@ -91,14 +116,21 @@ export class VideoEditor {
 
   /**
    * Trim video to specified duration
+   * Uses re-encoding for compatibility with VEO 3.1 and other AI-generated videos
    */
   async trimVideo(inputPath: string, outputPath: string, duration: number): Promise<void> {
-    logger.debug({ inputPath, outputPath, duration }, "Trimming video with FFmpeg");
+    logger.debug({ inputPath, outputPath, duration }, "Trimming video with FFmpeg (re-encoding for VEO 3.1 compatibility)");
 
     return new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .setDuration(duration)
-        .outputOptions(['-c', 'copy'])
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+          '-preset', 'fast',
+          '-crf', '23',
+          '-pix_fmt', 'yuv420p'
+        ])
         .on('start', (commandLine) => {
           logger.debug('FFmpeg trim command: ' + commandLine);
         })
@@ -125,6 +157,9 @@ export class VideoEditor {
   ): Promise<string> {
     logger.debug({ inputVideoPath, outputVideoPath, captionCount: captions.length }, "Adding synchronized subtitles to video");
 
+    const tempDir = path.dirname(outputVideoPath);
+    let subtitleTextFilePaths: string[] = [];
+
     return new Promise((resolve, reject) => {
       const ffmpegCommand = ffmpeg()
         .input(inputVideoPath)
@@ -132,18 +167,40 @@ export class VideoEditor {
         .audioCodec('aac');
 
       if (captions && captions.length > 0) {
-        const subtitleFilterStr = this.subtitleFilter.createSubtitleFilter(captions, orientation);
-        if (subtitleFilterStr) {
-          ffmpegCommand.videoFilters(subtitleFilterStr);
+        const subtitleResult = this.subtitleFilter.createSubtitleFilter(captions, orientation, tempDir);
+        if (subtitleResult) {
+          subtitleTextFilePaths = subtitleResult.textFilePaths;
+          ffmpegCommand.videoFilters(subtitleResult.filter);
         }
       }
 
       ffmpegCommand
         .on('end', () => {
+          // Clean up subtitle text files
+          if (subtitleTextFilePaths.length > 0) {
+            subtitleTextFilePaths.forEach((filePath) => {
+              try {
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                }
+              } catch (e) {
+                logger.warn({ filePath }, "Failed to clean up subtitle text file");
+              }
+            });
+            logger.debug({ cleanedFiles: subtitleTextFilePaths.length }, "Cleaned up subtitle text files");
+          }
           logger.debug({ outputVideoPath }, "Subtitle addition complete");
           resolve(outputVideoPath);
         })
         .on('error', (error: any) => {
+          // Clean up subtitle text files on error too
+          subtitleTextFilePaths.forEach((filePath) => {
+            try {
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
+            } catch (e) { /* ignore */ }
+          });
           logger.error(error, "Error adding subtitles to video");
           reject(error);
         })
@@ -448,6 +505,7 @@ export class VideoEditor {
 
   /**
    * Replace video's audio track with new audio
+   * Uses re-encoding for VEO 3.1 compatibility
    */
   async replaceVideoAudio(
     videoPath: string,
@@ -460,7 +518,7 @@ export class VideoEditor {
       audioPath,
       outputPath,
       audioDuration
-    }, "Replacing video audio with TTS audio");
+    }, "Replacing video audio with TTS audio (re-encoding for VEO 3.1 compatibility)");
 
     return new Promise((resolve, reject) => {
       ffmpeg()
@@ -469,7 +527,10 @@ export class VideoEditor {
         .outputOptions([
           '-map 0:v',
           '-map 1:a',
-          '-c:v copy',
+          '-c:v libx264',
+          '-preset fast',
+          '-crf 23',
+          '-pix_fmt yuv420p',
           '-c:a aac',
           '-strict experimental'
         ])

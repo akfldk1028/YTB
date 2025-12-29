@@ -114,14 +114,18 @@ export class RunwayAPI {
     }
 
     // Add keyframes if provided
-    // Runway Gen-3 API: promptImage for first frame, lastFrame for end frame
-    // VEO 3.1: promptImage only (no lastFrame support yet)
-    if (firstImage) {
+    // Runway SDK format: promptImage as array with position indicators
+    // Supported models: gen3a_turbo, veo3.1, veo3.1_fast (first + last frame)
+    // gen4_turbo, veo3: only first frame supported
+    if (firstImage && lastImage && (this.model === 'gen3a_turbo' || this.model === 'veo3.1')) {
+      // Both first and last frame - use array format
+      body.promptImage = [
+        { position: "first", uri: firstImage },
+        { position: "last", uri: lastImage }
+      ];
+    } else if (firstImage) {
+      // Single first frame only
       body.promptImage = firstImage;
-    }
-    if (lastImage && this.model === 'gen3a_turbo') {
-      // Only gen3a_turbo supports lastFrame
-      body.lastFrame = { type: "image", value: lastImage };
     }
 
     logger.info({

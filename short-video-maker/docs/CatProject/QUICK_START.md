@@ -3,7 +3,7 @@
 ## 1. API 호출 (Consistent Shorts)
 
 ```bash
-curl -X POST "https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts" \
+curl -X POST "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts" \
   -H "Content-Type: application/json" \
   -d '{
     "profile": "cat-couple",
@@ -19,7 +19,7 @@ curl -X POST "https://short-video-maker-550996044521.us-central1.run.app/api/vid
 ## 2. 상태 확인
 
 ```bash
-curl "https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts/{videoId}/status"
+curl "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts/{videoId}/status"
 ```
 
 ## 3. VEO 3.1 핵심 규칙
@@ -77,3 +77,23 @@ Pixar animation style. MAINTAIN EXACT same appearance.
 ```bash
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=short-video-maker" --limit=30 --format="json" | grep -E "(VEO|interpolation|duration)"
 ```
+
+---
+
+## 8. 관련 문서
+
+### CatProject 폴더
+| 문서 | 설명 |
+|------|------|
+| [COMMAND_REFERENCE.md](./COMMAND_REFERENCE.md) | 모든 curl 명령어 |
+| [Consistent-Shorts-API-Guide.md](./Consistent-Shorts-API-Guide.md) | API 상세 가이드 |
+| [SOUND-EFFECTS-GUIDE.md](./SOUND-EFFECTS-GUIDE.md) | 효과음 (Freesound) |
+| [N8N-CAT-COUPLE-AUTOMATION.md](./N8N-CAT-COUPLE-AUTOMATION.md) | N8N 자동화 |
+| [N8N-WORKFLOW-MODIFICATION-GUIDE.md](./N8N-WORKFLOW-MODIFICATION-GUIDE.md) | N8N 워크플로우 수정 |
+
+### 상위 docs 폴더
+| 문서 | 설명 |
+|------|------|
+| [../YOUTUBE_NEW_CHANNEL_GUIDE.md](../YOUTUBE_NEW_CHANNEL_GUIDE.md) | 새 YouTube 채널 추가 |
+| [../environment-variables-guide.md](../environment-variables-guide.md) | 환경변수 설정 |
+| [../CHARACTER-MANAGEMENT-GUIDE.md](../CHARACTER-MANAGEMENT-GUIDE.md) | 캐릭터 관리 |

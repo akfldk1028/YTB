@@ -236,7 +236,7 @@ try {
 | 필드 | 값 |
 |------|-----|
 | **Method** | POST |
-| **URL** | `https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts` |
+| **URL** | `https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts` |
 | **Authentication** | None |
 | **Send Headers** | Off |
 | **Send Body** | On |
@@ -251,7 +251,7 @@ API 응답에서 `videoId`를 받은 후 상태 확인:
 | 필드 | 값 |
 |------|-----|
 | **Method** | GET |
-| **URL** | `https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts/{{ $json.videoId }}/status` |
+| **URL** | `https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts/{{ $json.videoId }}/status` |
 
 ---
 
@@ -324,7 +324,7 @@ API 응답에서 `videoId`를 받은 후 상태 확인:
     {
       "parameters": {
         "method": "POST",
-        "url": "https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts",
+        "url": "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}"
@@ -420,7 +420,7 @@ Good: "A small blue robot with round body, large expressive LED eyes, silver met
 | VEO3 | `/api/video/veo3` |
 | Nano Banana | `/api/video/nano-banana` |
 
-Base URL: `https://short-video-maker-550996044521.us-central1.run.app`
+Base URL: `https://short-video-maker-7qtnitbuvq-uc.a.run.app`
 
 ---
 

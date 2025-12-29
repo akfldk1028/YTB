@@ -4,6 +4,9 @@
 # This file automates building and deploying to Google Cloud Run
 # ============================================================================
 
+substitutions:
+  _VERSION: 'latest'
+
 steps:
   # Step 1: Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
@@ -14,17 +17,17 @@ steps:
       - '-f'
       - 'gcp.Dockerfile'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/short-video-maker:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/short-video-maker:${_VERSION}'
       - '-t'
       - 'gcr.io/$PROJECT_ID/short-video-maker:latest'
       - '.'
-    timeout: '1800s'
+    timeout: '900s'
 
   # Step 2: Push the Docker image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/short-video-maker:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/short-video-maker:${_VERSION}'
 
   - name: 'gcr.io/cloud-builders/docker'
     args:
@@ -39,7 +42,7 @@ steps:
       - 'deploy'
       - 'short-video-maker'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/short-video-maker:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/short-video-maker:${_VERSION}'
       - '--region'
       - 'us-central1'
       - '--platform'
@@ -62,7 +65,7 @@ steps:
       - '--set-env-vars'
       - 'DOCKER=true,LOG_LEVEL=info,CONCURRENCY=1,VIDEO_CACHE_SIZE_IN_BYTES=2097152000,WHISPER_MODEL=base.en,TTS_PROVIDER=elevenlabs,VIDEO_SOURCE=veo,VEO3_USE_NATIVE_AUDIO=false,VEO_MODEL=veo-3.1-fast-generate-preview,GCS_BUCKET_NAME=dkdk-474008-short-videos,GCS_REGION=us-central1,GCS_SIGNED_URL_EXPIRY_HOURS=24,GCS_AUTO_DELETE_DAYS=30,GOOGLE_TTS_PROJECT_ID=dkdk-474008'
       - '--set-secrets'
-      - 'PEXELS_API_KEY=PEXELS_API_KEY:latest,GOOGLE_GEMINI_API_KEY=GOOGLE_GEMINI_API_KEY:latest,GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest,YOUTUBE_DATA=YOUTUBE_DATA:latest,ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest'
+      - 'PEXELS_API_KEY=PEXELS_API_KEY:latest,GOOGLE_GEMINI_API_KEY=GOOGLE_GEMINI_API_KEY:latest,GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest,YOUTUBE_DATA=YOUTUBE_DATA:latest,ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest,FREESOUND_API_KEY=FREESOUND_API_KEY:latest,RUNWAY_API_KEY=RUNWAY_API_KEY:latest'
 
 # Build configuration
 timeout: '3600s'
@@ -73,7 +76,7 @@ options:
 
 # Images to push to Container Registry
 images:
-  - 'gcr.io/$PROJECT_ID/short-video-maker:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/short-video-maker:${_VERSION}'
   - 'gcr.io/$PROJECT_ID/short-video-maker:latest'
 
 # ============================================================================

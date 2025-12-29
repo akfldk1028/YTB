@@ -1,5 +1,5 @@
 import path from "path";
-import { OrientationEnum } from "../types/shorts";
+import { OrientationEnum, Caption } from "../types/shorts";
 import { GoogleTTS } from "./libraries/google-tts";
 import { ElevenLabsTTS } from "./libraries/elevenlabs-tts";
 import { TTSProvider } from "./libraries/TTSProvider";
@@ -7,6 +7,7 @@ import { Whisper } from "./libraries/Whisper";
 import { FFMpeg } from "./libraries/FFmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
 import { GoogleVeoAPI } from "./libraries/GoogleVeo";
+import { RunwayAPI } from "./libraries/RunwayAPI";
 import { LeonardoAI } from "./libraries/LeonardoAI";
 import { ImageGenerationService } from "../image-generation/services/ImageGenerationService";
 import { ImageModelType } from "../image-generation/models/imageModels";
@@ -96,7 +97,7 @@ export class ShortCreatorRefactored {
     private ffmpeg: FFMpeg,
     private pexelsApi: PexelsAPI,
     private musicManager: MusicManager,
-    private googleVeoApi?: GoogleVeoAPI,
+    private googleVeoApi?: GoogleVeoAPI | RunwayAPI,
     private leonardoApi?: LeonardoAI,
     private imageGenerationService?: ImageGenerationService,
     private gcsService?: GoogleCloudStorageService,
@@ -427,11 +428,41 @@ export class ShortCreatorRefactored {
         });
       }
 
-      // Always generate TTS audio first (for controlled narration)
-      const audioResult = await this.audioProcessor.generateTTSAudio(
-        scene.text,
-        config.voice ?? DEFAULT_VOICE
-      );
+      // Generate TTS audio unless skipTTS is enabled
+      let audioResult: { url: string; duration: number; captions?: Caption[] };
+
+      if (config.skipTTS) {
+        // Skip TTS - use default duration for scene (or custom if provided in metadata)
+        const defaultDuration = metadata?.sceneDuration || 5; // 5 seconds default
+
+        // 🔥 Generate synthetic captions for subtitle display even without TTS
+        // This allows subtitles to appear on screen without voice narration
+        const syntheticCaptions: Caption[] = scene.text ? [{
+          text: scene.text,
+          startMs: 0,
+          endMs: defaultDuration * 1000
+        }] : [];
+
+        logger.info({
+          sceneIndex: index + 1,
+          videoId,
+          defaultDuration,
+          hasCaptions: syntheticCaptions.length > 0,
+          captionText: scene.text?.substring(0, 50)
+        }, "🔇 Skipping TTS generation (skipTTS=true), using synthetic captions for subtitles");
+
+        audioResult = {
+          url: '', // No audio URL
+          duration: defaultDuration,
+          captions: syntheticCaptions  // 🔥 Use synthetic captions instead of empty array
+        };
+      } else {
+        // Generate TTS audio (default behavior)
+        audioResult = await this.audioProcessor.generateTTSAudio(
+          scene.text,
+          config.voice ?? DEFAULT_VOICE
+        );
+      }
 
       // Update workflow: Transcribing
       if (this.workflowManager) {
@@ -941,6 +972,13 @@ export class ShortCreatorRefactored {
         { videoId, youtubeVideoId, videoUrl },
         '✅ YouTube upload completed successfully'
       );
+
+      // Save YouTube metadata to StatusManager for status API
+      this.statusManager.saveVideoMetadata(videoId, {
+        youtubeVideoId,
+        youtubeUrl: videoUrl,
+        uploadedAt: new Date().toISOString()
+      });
 
       // Update workflow: YouTube uploaded
       if (this.workflowManager) {

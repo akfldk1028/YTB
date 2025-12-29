@@ -4,6 +4,7 @@ import cuid from "cuid";
 import { BaseWorkflow, WorkflowContext, WorkflowResult } from "./BaseWorkflow";
 import { VideoProcessor } from "../processors/VideoProcessor";
 import { GoogleVeoAPI } from "../libraries/GoogleVeo";
+import { RunwayAPI } from "../libraries/RunwayAPI";
 import { VIDEO_DIMENSIONS } from "../utils/Constants";
 import { logger } from "../../logger";
 import { ImageGenerationService } from "../../image-generation/services/ImageGenerationService";
@@ -44,7 +45,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
   constructor(
     private videoProcessor: VideoProcessor,
     private imageGenerationService?: ImageGenerationService,
-    private veoAPI?: GoogleVeoAPI,
+    private veoAPI?: GoogleVeoAPI | RunwayAPI,
     private characterStorage?: CharacterStorageService
   ) {
     super();

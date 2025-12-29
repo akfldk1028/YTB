@@ -26,7 +26,7 @@ status: active
 
 >[!info] API 엔드포인트
 >```
->POST https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts
+>POST https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts
 >```
 
 ### 필수 필드
@@ -229,7 +229,7 @@ status: active
 ## 8. 상태 확인
 
 ```bash
-curl https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts/{videoId}/status
+curl https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts/{videoId}/status
 ```
 
 ---

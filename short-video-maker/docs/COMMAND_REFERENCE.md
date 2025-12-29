@@ -6,7 +6,7 @@
 > | **작성일** | 2025-12-21 |
 > | **최종 수정** | 2025-12-22 |
 > | **용도** | API 및 GCP 명령어 빠른 참조 |
-> | **서비스 URL** | https://short-video-maker-550996044521.us-central1.run.app |
+> | **서비스 URL** | https://short-video-maker-7qtnitbuvq-uc.a.run.app |
 
 ---
 
@@ -21,13 +21,13 @@
 ### Health Check
 
 ```bash
-curl -s https://short-video-maker-550996044521.us-central1.run.app/health
+curl -s https://short-video-maker-7qtnitbuvq-uc.a.run.app/health
 ```
 
 ### YouTube Auth Health Check
 
 ```bash
-curl -s https://short-video-maker-550996044521.us-central1.run.app/api/youtube/auth/health-check
+curl -s https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/auth/health-check
 ```
 
 ---
@@ -37,7 +37,7 @@ curl -s https://short-video-maker-550996044521.us-central1.run.app/api/youtube/a
 ### Pexels 영상 생성 (유튜브 업로드 포함)
 
 ```bash
-curl -s -X POST https://short-video-maker-550996044521.us-central1.run.app/api/video/pexels \
+curl -s -X POST https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/pexels \
   -H "Content-Type: application/json" \
   -d '{
     "format_type": "timeline",
@@ -70,7 +70,7 @@ curl -s -X POST https://short-video-maker-550996044521.us-central1.run.app/api/v
 ### 영상 상태 확인
 
 ```bash
-curl -s https://short-video-maker-550996044521.us-central1.run.app/api/video/pexels/{videoId}/status
+curl -s https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/pexels/{videoId}/status
 ```
 
 ---
@@ -80,13 +80,13 @@ curl -s https://short-video-maker-550996044521.us-central1.run.app/api/video/pex
 ### 채널 목록 조회
 
 ```bash
-curl -s https://short-video-maker-550996044521.us-central1.run.app/api/youtube/channels
+curl -s https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/channels
 ```
 
 ### 수동 업로드
 
 ```bash
-curl -s -X POST https://short-video-maker-550996044521.us-central1.run.app/api/youtube/upload \
+curl -s -X POST https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/upload \
   -H "Content-Type: application/json" \
   -d '{
     "videoId": "{videoId}",

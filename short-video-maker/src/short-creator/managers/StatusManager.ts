@@ -20,13 +20,74 @@ export interface DetailedStatus {
   modifiedAt?: string;
   processingParameters?: any;
   errorInfo?: any;
+  youtubeVideoId?: string;
+  youtubeUrl?: string;
+}
+
+export interface VideoMetadata {
+  youtubeVideoId?: string;
+  youtubeUrl?: string;
+  uploadedAt?: string;
+  gcsUrl?: string;
 }
 
 export class StatusManager {
+  private metadataCache: Map<string, VideoMetadata> = new Map();
+
   constructor(
     private videoQueue: VideoQueue,
     private videosDirPath: string
   ) {}
+
+  private getMetadataPath(videoId: string): string {
+    return path.join(this.videosDirPath, `${videoId}.meta.json`);
+  }
+
+  public saveVideoMetadata(videoId: string, metadata: Partial<VideoMetadata>): void {
+    const metadataPath = this.getMetadataPath(videoId);
+    let existing: VideoMetadata = {};
+
+    // Load existing metadata if exists
+    if (fs.existsSync(metadataPath)) {
+      try {
+        existing = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+      } catch (error) {
+        logger.warn({ videoId, error }, 'Failed to read existing metadata, starting fresh');
+      }
+    }
+
+    // Merge with new metadata
+    const merged = { ...existing, ...metadata };
+
+    // Save to file
+    fs.writeFileSync(metadataPath, JSON.stringify(merged, null, 2));
+
+    // Update cache
+    this.metadataCache.set(videoId, merged);
+
+    logger.debug({ videoId, metadata: merged }, 'Saved video metadata');
+  }
+
+  public getVideoMetadata(videoId: string): VideoMetadata | null {
+    // Check cache first
+    if (this.metadataCache.has(videoId)) {
+      return this.metadataCache.get(videoId)!;
+    }
+
+    // Load from file
+    const metadataPath = this.getMetadataPath(videoId);
+    if (fs.existsSync(metadataPath)) {
+      try {
+        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+        this.metadataCache.set(videoId, metadata);
+        return metadata;
+      } catch (error) {
+        logger.warn({ videoId, error }, 'Failed to read video metadata');
+      }
+    }
+
+    return null;
+  }
 
   public getStatus(videoId: string): VideoStatus {
     const videoPath = this.getVideoPath(videoId);
@@ -71,6 +132,13 @@ export class StatusManager {
       result.fileSize = stats.size;
       result.createdAt = stats.birthtime.toISOString();
       result.modifiedAt = stats.mtime.toISOString();
+
+      // Include YouTube upload info if available
+      const videoMeta = this.getVideoMetadata(videoId);
+      if (videoMeta) {
+        result.youtubeVideoId = videoMeta.youtubeVideoId;
+        result.youtubeUrl = videoMeta.youtubeUrl;
+      }
     }
 
     // Failed video error info

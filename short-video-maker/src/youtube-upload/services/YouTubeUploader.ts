@@ -283,7 +283,7 @@ export class YouTubeUploader {
           description: metadata.description,
           tags: metadata.tags || [],
           categoryId: metadata.categoryId || '22', // Default: People & Blogs
-          defaultLanguage: metadata.defaultLanguage || 'en',
+          defaultLanguage: metadata.defaultLanguage || 'ko',
         },
         status: {
           privacyStatus: metadata.privacyStatus,

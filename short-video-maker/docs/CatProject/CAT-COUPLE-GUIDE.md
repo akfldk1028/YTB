@@ -27,7 +27,7 @@
 
 ### Base URL
 ```
-https://short-video-maker-550996044521.us-central1.run.app
+https://short-video-maker-7qtnitbuvq-uc.a.run.app
 ```
 
 ### Endpoint
@@ -179,7 +179,7 @@ Scene 3 이미지 ──┘
 ## 실행 예시 (curl)
 
 ```bash
-curl -X POST "https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts" \
+curl -X POST "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts" \
   -H "Content-Type: application/json" \
   -d '{
     "characterReference": {
@@ -210,7 +210,7 @@ curl -X POST "https://short-video-maker-550996044521.us-central1.run.app/api/vid
 ## 상태 확인
 
 ```bash
-curl "https://short-video-maker-550996044521.us-central1.run.app/api/video/consistent-shorts/{videoId}/status"
+curl "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-shorts/{videoId}/status"
 ```
 
 ---

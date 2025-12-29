@@ -17,14 +17,21 @@ export class SubtitleFilter {
   /**
    * TikTok/Shorts style subtitle filter
    * Highlights current word in yellow
+   *
+   * NOTE: Korean text uses textfile method for UTF-8 support
    */
-  createSubtitleFilter(captions: any[], orientation: OrientationEnum): string | null {
+  createSubtitleFilter(
+    captions: any[],
+    orientation: OrientationEnum,
+    tempDir?: string
+  ): { filter: string; textFilePaths: string[] } | null {
     try {
       if (!captions || captions.length === 0) return null;
 
       const fontSize = orientation === OrientationEnum.portrait ? 52 : 60;
       const yPosition = orientation === OrientationEnum.portrait ? 'h*0.72' : 'h*0.78';
       const fontPath = findAvailableFontPath();
+      const textFilePaths: string[] = [];
 
       const normalColor = 'FFFFFF';
       const highlightColor = 'FFEB3B';
@@ -35,42 +42,68 @@ export class SubtitleFilter {
       const wordGroups = this.groupWordsForDisplay(captions, 3);
       const drawTextFilters: string[] = [];
 
-      wordGroups.forEach((group) => {
+      wordGroups.forEach((group, groupIndex) => {
         const groupStartTime = group[0].startMs / 1000;
         const groupEndTime = group[group.length - 1].endMs / 1000;
 
-        group.forEach((word) => {
+        group.forEach((word, wordIndex) => {
           const wordStartTime = word.startMs / 1000;
           const wordEndTime = word.endMs / 1000;
-
-          const text = word.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
 
           // fontcolor_expr for time-based color change
           const fontcolorExpr = `if(between(t\\,${wordStartTime}\\,${wordEndTime})\\,0x${highlightColor}\\,0x${normalColor})`;
 
-          drawTextFilters.push(
-            `drawtext=fontfile=${fontPath}:` +
-            `text='${text} ':` +
-            `fontcolor_expr=${fontcolorExpr}:` +
-            `fontsize=${fontSize}:` +
-            `x=(w-tw)/2:` +
-            `y=${yPosition}:` +
-            `borderw=${borderWidth}:` +
-            `bordercolor=${borderColor}:` +
-            `enable=between(t\\,${groupStartTime}\\,${groupEndTime})`
-          );
+          if (tempDir) {
+            // textfile method for Korean UTF-8 support
+            const textFilePath = path.join(tempDir, `subtitle_word_${Date.now()}_${groupIndex}_${wordIndex}.txt`);
+            fs.writeFileSync(textFilePath, word.text.toUpperCase() + ' ', 'utf-8');
+            textFilePaths.push(textFilePath);
+
+            drawTextFilters.push(
+              `drawtext=fontfile=${fontPath}:` +
+              `textfile='${textFilePath}':` +
+              `fontcolor_expr=${fontcolorExpr}:` +
+              `fontsize=${fontSize}:` +
+              `x=(w-tw)/2:` +
+              `y=${yPosition}:` +
+              `borderw=${borderWidth}:` +
+              `bordercolor=${borderColor}:` +
+              `enable=between(t\\,${groupStartTime}\\,${groupEndTime})`
+            );
+          } else {
+            // Fallback: inline text (Korean may show as boxes)
+            const text = word.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
+            drawTextFilters.push(
+              `drawtext=fontfile=${fontPath}:` +
+              `text='${text} ':` +
+              `fontcolor_expr=${fontcolorExpr}:` +
+              `fontsize=${fontSize}:` +
+              `x=(w-tw)/2:` +
+              `y=${yPosition}:` +
+              `borderw=${borderWidth}:` +
+              `bordercolor=${borderColor}:` +
+              `enable=between(t\\,${groupStartTime}\\,${groupEndTime})`
+            );
+          }
         });
       });
 
       // Too many filters can cause performance issues
       if (drawTextFilters.length > 50) {
-        return this.createSimplifiedSubtitleFilter(captions, orientation);
+        return this.createSimplifiedSubtitleFilter(captions, orientation, tempDir);
       }
 
-      return drawTextFilters.join(',');
+      logger.info({
+        captionCount: captions.length,
+        filterCount: drawTextFilters.length,
+        textFileCount: textFilePaths.length,
+        usingTextFiles: !!tempDir
+      }, "Created TikTok style subtitle filter");
+
+      return { filter: drawTextFilters.join(','), textFilePaths };
     } catch (error) {
       logger.warn(error, "Could not create subtitle filter, falling back to simplified version");
-      return this.createSimplifiedSubtitleFilter(captions, orientation);
+      return this.createSimplifiedSubtitleFilter(captions, orientation, tempDir);
     }
   }
 
@@ -102,29 +135,52 @@ export class SubtitleFilter {
 
   /**
    * Simplified TikTok style subtitle filter (single word, yellow)
+   *
+   * NOTE: Korean text uses textfile method for UTF-8 support
    */
-  private createSimplifiedSubtitleFilter(captions: any[], orientation: OrientationEnum): string | null {
+  private createSimplifiedSubtitleFilter(
+    captions: any[],
+    orientation: OrientationEnum,
+    tempDir?: string
+  ): { filter: string; textFilePaths: string[] } | null {
     try {
       if (!captions || captions.length === 0) return null;
 
       const fontSize = orientation === OrientationEnum.portrait ? 56 : 64;
       const yPosition = orientation === OrientationEnum.portrait ? 'h*0.72' : 'h*0.78';
       const fontPath = findAvailableFontPath();
+      const textFilePaths: string[] = [];
 
       const fontColor = 'FFEB3B'; // Yellow
       const borderColor = 'black';
       const borderWidth = 5;
       const shadowColor = 'black@0.7';
 
-      const drawTextFilters = captions.map((caption) => {
+      const drawTextFilters = captions.map((caption, index) => {
         const startTime = caption.startMs / 1000;
         const endTime = caption.endMs / 1000;
-        const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
 
-        return `drawtext=fontfile=${fontPath}:text='${text}':fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`;
+        if (tempDir) {
+          // textfile method for Korean UTF-8 support
+          const textFilePath = path.join(tempDir, `subtitle_simple_${Date.now()}_${index}.txt`);
+          fs.writeFileSync(textFilePath, caption.text.toUpperCase(), 'utf-8');
+          textFilePaths.push(textFilePath);
+
+          return `drawtext=fontfile=${fontPath}:textfile='${textFilePath}':fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`;
+        } else {
+          // Fallback: inline text (Korean may show as boxes)
+          const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
+          return `drawtext=fontfile=${fontPath}:text='${text}':fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`;
+        }
       });
 
-      return drawTextFilters.join(',');
+      logger.info({
+        captionCount: captions.length,
+        textFileCount: textFilePaths.length,
+        usingTextFiles: !!tempDir
+      }, "Created simplified TikTok style subtitle filter");
+
+      return { filter: drawTextFilters.join(','), textFilePaths };
     } catch (error) {
       logger.warn(error, "Could not create simplified subtitle filter");
       return null;
@@ -165,11 +221,18 @@ export class SubtitleFilter {
 
       const drawTextFilters: string[] = [];
 
+      // Verify font file exists and log its size
+      const fontExists = fs.existsSync(fontPath);
+      const fontStats = fontExists ? fs.statSync(fontPath) : null;
+
       logger.info({
         tempDir: tempDir || 'UNDEFINED',
         captionCount: primaryCaptions.length,
-        fontPath
-      }, "Creating dual language subtitle filter");
+        fontPath,
+        fontExists,
+        fontSizeBytes: fontStats?.size || 0,
+        fontSizeMB: fontStats ? (fontStats.size / 1024 / 1024).toFixed(2) : 0
+      }, "Creating dual language subtitle filter - font verification");
 
       // Korean subtitles (primary) - use textfile for UTF-8 support
       primaryCaptions.forEach((caption, index) => {
@@ -183,11 +246,24 @@ export class SubtitleFilter {
           textFilePaths.push(textFilePath);
 
           if (index === 0) {
+            // Debug: Log hex bytes to verify Korean encoding
+            const textBuffer = Buffer.from(caption.text, 'utf-8');
+            const hexBytes = textBuffer.toString('hex').substring(0, 60);
+
+            // Verify what was actually written to file
+            const writtenContent = fs.readFileSync(textFilePath, 'utf-8');
+            const writtenBuffer = Buffer.from(writtenContent, 'utf-8');
+            const writtenHex = writtenBuffer.toString('hex').substring(0, 60);
+
             logger.info({
               textFilePath,
               captionText: caption.text.substring(0, 30),
-              encoding: 'utf-8'
-            }, "First subtitle text file created");
+              captionHex: hexBytes,
+              writtenText: writtenContent.substring(0, 30),
+              writtenHex: writtenHex,
+              encoding: 'utf-8',
+              bytesMatch: hexBytes === writtenHex
+            }, "First subtitle text file created - encoding verification");
           }
 
           drawTextFilters.push(

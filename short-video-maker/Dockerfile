@@ -28,6 +28,12 @@ RUN sh ./download-ggml-model.sh base.en
 # Stage 2: Base image with system dependencies
 FROM node:22-bookworm-slim AS base
 ENV DEBIAN_FRONTEND=noninteractive
+
+# 🔥 CRITICAL: Set UTF-8 locale for Korean text support
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV PYTHONIOENCODING=UTF-8
+
 WORKDIR /app
 
 # Install all required system dependencies

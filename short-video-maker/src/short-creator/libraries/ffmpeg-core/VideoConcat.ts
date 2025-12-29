@@ -13,49 +13,76 @@ import { ffmpeg, getVideoDuration, runFFmpegSpawn } from "./utils";
 
 export class VideoConcat {
   /**
-   * Concatenate videos using FFmpeg concat demuxer
-   * No re-encoding for fastest concatenation
+   * Concatenate videos using FFmpeg concat filter
+   * Uses re-encoding for VEO 3.1 compatibility
    */
   async concatVideos(inputPaths: string[], outputPath: string): Promise<string> {
-    logger.info({ inputPaths, outputPath }, "Concatenating videos with FFmpeg spawn");
+    logger.info({ inputPaths, outputPath }, "Concatenating videos with FFmpeg (re-encoding for VEO 3.1 compatibility)");
 
     if (inputPaths.length === 0) {
       throw new Error("No input paths provided");
     }
 
     if (inputPaths.length === 1) {
-      // Single file, just copy
-      fs.copyFileSync(inputPaths[0], outputPath);
+      // Single file - re-encode for consistency
+      await runFFmpegSpawn([
+        '-i', inputPaths[0],
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-preset', 'fast',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-y',
+        outputPath
+      ], 300000);
       return outputPath;
     }
 
-    // Create concat demuxer list file
-    const concatListPath = path.join(path.dirname(outputPath), `concat_list_${Date.now()}.txt`);
-    const concatListContent = inputPaths.map(p => `file '${p}'`).join('\n');
-    fs.writeFileSync(concatListPath, concatListContent);
-
-    logger.debug({ concatListPath, concatListContent }, "Created concat list file");
-
     try {
-      // FFmpeg concat demuxer (no re-encoding)
+      // Build concat filter for multiple videos
+      const inputArgs = inputPaths.flatMap(p => ['-i', p]);
+      const filterInputs = inputPaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
+      const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=1:a=1[outv][outa]`;
+
       await runFFmpegSpawn([
-        '-f', 'concat',
-        '-safe', '0',
-        '-i', concatListPath,
-        '-c', 'copy',
+        ...inputArgs,
+        '-filter_complex', filterComplex,
+        '-map', '[outv]',
+        '-map', '[outa]',
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-preset', 'fast',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
         '-y',
         outputPath
       ], 300000); // 5 minute timeout
 
-      logger.info({ outputPath }, "Video merge complete via spawn");
+      logger.info({ outputPath }, "Video concat complete with re-encoding");
       return outputPath;
-    } finally {
-      // Cleanup concat list file
-      try {
-        fs.unlinkSync(concatListPath);
-      } catch (cleanupError) {
-        logger.warn({ cleanupError }, "Could not clean up concat list file");
-      }
+    } catch (error) {
+      // Fallback: try video-only concat if audio concat fails
+      logger.warn({ error }, "Audio concat failed, trying video-only concat");
+
+      const inputArgs = inputPaths.flatMap(p => ['-i', p]);
+      const filterInputs = inputPaths.map((_, i) => `[${i}:v]`).join('');
+      const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=1:a=0[outv]`;
+
+      await runFFmpegSpawn([
+        ...inputArgs,
+        '-filter_complex', filterComplex,
+        '-map', '[outv]',
+        '-c:v', 'libx264',
+        '-preset', 'fast',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-an',
+        '-y',
+        outputPath
+      ], 300000);
+
+      logger.info({ outputPath }, "Video-only concat complete");
+      return outputPath;
     }
   }
 
@@ -67,18 +94,21 @@ export class VideoConcat {
    * @param outputPath - Output file path
    * @param transitionDuration - Transition duration in seconds (default 0.5)
    * @param transitionType - Transition type (fade, dissolve, wipeleft, etc.)
+   * @param targetDimensions - Target dimensions for scaling (default: 1080x1920 for portrait)
    */
   async concatVideosWithXfade(
     inputPaths: string[],
     outputPath: string,
     transitionDuration: number = 0.5,
-    transitionType: string = 'fade'
+    transitionType: string = 'fade',
+    targetDimensions: string = '1080x1920' // Portrait default for Shorts
   ): Promise<string> {
     logger.info({
       inputPaths,
       outputPath,
       transitionDuration,
-      transitionType
+      transitionType,
+      targetDimensions
     }, "Concatenating videos with xfade transition");
 
     if (inputPaths.length === 0) {
@@ -91,6 +121,10 @@ export class VideoConcat {
     }
 
     try {
+      // Parse target dimensions
+      const [targetWidth, targetHeight] = targetDimensions.split('x').map(Number);
+      logger.debug({ targetWidth, targetHeight }, "Target dimensions for video normalization");
+
       // Get duration of each video
       const durations: number[] = await Promise.all(
         inputPaths.map(p => getVideoDuration(p))
@@ -98,10 +132,17 @@ export class VideoConcat {
 
       logger.debug({ durations }, "Video durations for xfade calculation");
 
-      // Build xfade filter chain
-      const inputLabels = inputPaths.map((_, i) => `[${i}:v]`);
-      let filterComplex = '';
-      let currentLabel = inputLabels[0];
+      // Build scale filters to normalize all videos to same dimensions
+      // This is critical for xfade to work with VEO videos of different resolutions
+      let scaleFilters = '';
+      for (let i = 0; i < inputPaths.length; i++) {
+        scaleFilters += `[${i}:v]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:-1:-1:color=black,setsar=1,fps=30[v${i}];`;
+      }
+
+      // Build xfade filter chain using scaled inputs
+      const scaledLabels = inputPaths.map((_, i) => `[v${i}]`);
+      let xfadeFilters = '';
+      let currentLabel = scaledLabels[0];
       let cumulativeOffset = 0;
 
       for (let i = 1; i < inputPaths.length; i++) {
@@ -109,15 +150,18 @@ export class VideoConcat {
         const offset = cumulativeOffset + durations[i - 1] - transitionDuration;
         const outputLabel = i === inputPaths.length - 1 ? '[vout]' : `[vx${i}]`;
 
-        filterComplex += `${currentLabel}${inputLabels[i]}xfade=transition=${transitionType}:duration=${transitionDuration}:offset=${offset.toFixed(3)}${outputLabel}`;
+        xfadeFilters += `${currentLabel}${scaledLabels[i]}xfade=transition=${transitionType}:duration=${transitionDuration}:offset=${offset.toFixed(3)}${outputLabel}`;
 
         if (i < inputPaths.length - 1) {
-          filterComplex += ';';
+          xfadeFilters += ';';
         }
 
         currentLabel = outputLabel;
         cumulativeOffset = offset;
       }
+
+      // Combine scale and xfade filters
+      const filterComplex = scaleFilters + xfadeFilters;
 
       // Check if first video has audio stream
       const hasAudio = await this.checkHasAudio(inputPaths[0]);

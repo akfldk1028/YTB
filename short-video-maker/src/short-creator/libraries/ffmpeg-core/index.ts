@@ -98,8 +98,12 @@ export class FFMpeg {
 
   // ===== Subtitle Filter Operations =====
 
-  createSubtitleFilter(captions: any[], orientation: OrientationEnum): string | null {
-    return this.subtitleFilter.createSubtitleFilter(captions, orientation);
+  createSubtitleFilter(
+    captions: any[],
+    orientation: OrientationEnum,
+    tempDir?: string
+  ): { filter: string; textFilePaths: string[] } | null {
+    return this.subtitleFilter.createSubtitleFilter(captions, orientation, tempDir);
   }
 
   createDualLanguageSubtitleFilter(
