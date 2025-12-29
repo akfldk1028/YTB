@@ -1255,11 +1255,46 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
                 }
               }
 
+              // 🔥 FIX: Prevent subtitle overlap during xfade transitions
+              // Each scene's last caption should end before the transition starts
+              // This prevents both scenes' subtitles from showing simultaneously
+              const transitionGapMs = sceneTransitionDuration * 1000;
+              let currentSceneEndMs = 0;
+
+              for (let i = 0; i < scenes.length; i++) {
+                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
+                const xfadeOffset = i * sceneTransitionDuration;
+                currentSceneEndMs = (currentSceneEndMs + sceneDuration - (i > 0 ? sceneTransitionDuration : 0)) * 1000;
+
+                // Find and adjust last caption of this scene (except for last scene)
+                if (i < scenes.length - 1) {
+                  const nextSceneStartMs = currentSceneEndMs;
+
+                  // Adjust any caption that extends into the transition zone
+                  for (const caption of allCaptions) {
+                    // If caption ends during or after the transition zone, cut it short
+                    if (caption.endMs > nextSceneStartMs - transitionGapMs &&
+                        caption.endMs <= nextSceneStartMs + transitionGapMs &&
+                        caption.startMs < nextSceneStartMs) {
+                      const originalEnd = caption.endMs;
+                      caption.endMs = Math.max(caption.startMs + 100, nextSceneStartMs - transitionGapMs);
+                      logger.debug({
+                        sceneIndex: i + 1,
+                        originalEnd,
+                        newEnd: caption.endMs,
+                        transitionGapMs
+                      }, "🔧 Adjusted caption end to prevent xfade overlap");
+                    }
+                  }
+                }
+              }
+
               logger.info({
                 transitionCount,
                 totalOverlap,
+                transitionGapMs,
                 adjustedCaptionCount: allCaptions.length
-              }, "🎬 Adjusted caption timing for xfade overlap");
+              }, "🎬 Adjusted caption timing for xfade overlap (with gap)");
             }
 
             logger.info({
@@ -1426,10 +1461,31 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
                 }
               }
 
+              // 🔥 FIX: Prevent subtitle overlap during xfade transitions (mixed mode)
+              const transitionGapMsMixed = sceneTransitionDurationMixed * 1000;
+              let currentSceneEndMsMixed = 0;
+
+              for (let i = 0; i < scenes.length; i++) {
+                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
+                currentSceneEndMsMixed = (currentSceneEndMsMixed + sceneDuration - (i > 0 ? sceneTransitionDurationMixed : 0)) * 1000;
+
+                if (i < scenes.length - 1) {
+                  const nextSceneStartMs = currentSceneEndMsMixed;
+                  for (const caption of allCaptions) {
+                    if (caption.endMs > nextSceneStartMs - transitionGapMsMixed &&
+                        caption.endMs <= nextSceneStartMs + transitionGapMsMixed &&
+                        caption.startMs < nextSceneStartMs) {
+                      caption.endMs = Math.max(caption.startMs + 100, nextSceneStartMs - transitionGapMsMixed);
+                    }
+                  }
+                }
+              }
+
               logger.info({
                 transitionCount: processedClips.length - 1,
+                transitionGapMs: transitionGapMsMixed,
                 adjustedCaptionCount: allCaptions.length
-              }, "🎬 Adjusted caption timing for xfade overlap (mixed mode)");
+              }, "🎬 Adjusted caption timing for xfade overlap (mixed mode, with gap)");
             }
 
             tempVideoPath = path.join(videoTempDir, `mixed_combined_${context.videoId}.mp4`);
