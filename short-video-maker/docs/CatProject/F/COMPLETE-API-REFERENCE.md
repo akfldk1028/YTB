@@ -6,7 +6,7 @@
 |------|----------|------|
 | **캐릭터 일관성** | `characterReference` | 저장된 캐릭터 프로필 사용 |
 | **상단 제목** | `titleText` | 숏츠 어그로용 대문짝 제목 |
-| **이중 자막** | `text` + `textEn` + `dualLanguageSubtitles: true` | 한국어 + 영어 자막 (문장 단위) |
+| **이중 자막** | `text` + `textEnglish` | 한국어 + 영어 자막 (자동 생성) |
 | **AI 비디오** | `generateVideos` + `useFrameInterpolation` | Runway VEO 3.1 First+Last Frame |
 | **장면 전환** | `useSceneTransitions` | fade, dissolve 등 효과 |
 | **배경음악** | `audio_config.backgroundMusic` | Loudly BGM 자동 생성 |
@@ -66,9 +66,9 @@
     "useSceneTransitions": true,
     "sceneTransitionType": "fade",
     "sceneTransitionDuration": 0.5,
-    "dualLanguageSubtitles": true,
     "skipTTS": true
   },
+  // ⚠️ 이중 자막: textEnglish 필드 제공하면 자동 생성 (별도 config 불필요)
 
   // TTS 완전 스킵 - BGM + 효과음만 사용 (권장!)
   // elevenlabs_config 생략 + skipTTS: true
@@ -110,34 +110,40 @@
 
 ## ⚠️ 서버 환경변수 설정 (중요!)
 
-**VIDEO_SOURCE 설정 - 반드시 `runway` 사용!**
+**VIDEO_SOURCE 설정:**
 
 ```bash
-# ✅ 올바른 설정 (Runway VEO 3.1)
+# ✅ Runway 사용 (크레딧 있을 때)
 VIDEO_SOURCE=runway
 RUNWAY_MODEL=veo3.1
-RUNWAY_API_KEY=<Secret Manager에서 관리>
 
-# ❌ 잘못된 설정 (Google VEO 직접 호출 - 실패함!)
+# ✅ Google VEO 사용 (Runway 크레딧 소진 시 대안)
 VIDEO_SOURCE=veo
 VEO_MODEL=veo-3.1-fast-generate-preview
 ```
 
-**왜 중요한가?**
-- `VIDEO_SOURCE=veo`: Google Vertex AI VEO API 직접 호출 → `personGeneration` 오류 발생
-- `VIDEO_SOURCE=runway`: Runway API를 통한 VEO 3.1 → **정상 작동!**
+**🚨 Runway 크레딧 소진 주의!**
+- 크레딧 부족 시 에러: `"You do not have enough credits to run this task."`
+- **증상**: 영상 대신 정적 이미지로 생성됨 (파일 크기 700KB 정도로 작음)
+- **해결**: Runway 대시보드에서 크레딧 충전 또는 VEO로 임시 전환
+- **확인**: https://app.runwayml.com/ → Settings → Billing
 
 **Cloud Run 환경변수 업데이트 명령어:**
 ```bash
+# Runway 사용
 gcloud run services update short-video-maker \
   --update-env-vars="VIDEO_SOURCE=runway,RUNWAY_MODEL=veo3.1"
+
+# VEO 사용 (Runway 크레딧 소진 시)
+gcloud run services update short-video-maker \
+  --update-env-vars="VIDEO_SOURCE=veo"
 ```
 
 **VIDEO_SOURCE 옵션:**
 | 값 | 설명 | 상태 |
 |----|------|------|
-| `runway` | Runway API (VEO 3.1 또는 Gen-3 Turbo) | ✅ 권장 |
-| `veo` | Google Vertex AI VEO 직접 | ❌ 사용 금지 |
+| `runway` | Runway API (VEO 3.1) | ✅ 권장 (크레딧 필요) |
+| `veo` | Google Vertex AI VEO | ✅ 대안 (Runway 크레딧 소진 시) |
 | `pexels` | Pexels 스톡 비디오 | OK (테스트용) |
 | `leonardo` | Leonardo AI | OK |
 | `ffmpeg` | 이미지만 사용 | OK |
@@ -210,8 +216,8 @@ gcloud run services update short-video-maker \
     "useSceneTransitions": true,     // 장면 전환 효과
     "sceneTransitionType": "fade",   // fade | dissolve | wipeleft | slideright
     "sceneTransitionDuration": 0.5,  // 전환 시간 (초)
-    "skipTTS": true,                 // TTS 스킵 (권장!) - BGM+효과음만
-    "dualLanguageSubtitles": true    // 이중 자막 (한/영)
+    "skipTTS": true                  // TTS 스킵 (권장!) - BGM+효과음만
+    // ⚠️ dualLanguageSubtitles 설정은 없음! textEnglish 필드 제공하면 자동
   }
 }
 ```
@@ -270,7 +276,7 @@ gcloud run services update short-video-maker \
         "type": "preset",    // preset: 미리 정의된 효과음
         "value": "CAT_MEOW",
         "startTime": 1.5,    // 시작 시간 (초)
-        "volume": 0.4        // 0.3~0.5 권장 (서버에서 x1.5 증폭)
+        "volume": 0.25       // 0.2~0.3 권장 (서버에서 x1.5 증폭)
       },
       {
         "type": "freesound", // freesound: 검색 기반
@@ -301,12 +307,12 @@ gcloud run services update short-video-maker \
 **✅ 효과음 배치 가이드 (숏츠 최적화):**
 ```json
 "soundEffects": [
-  { "type": "preset", "value": "CAT_MEOW", "startTime": 1, "volume": 0.4 },
-  { "type": "preset", "value": "WHOOSH", "startTime": 3.5, "volume": 0.3 },
-  { "type": "preset", "value": "POP", "startTime": 5, "volume": 0.4 },
-  { "type": "preset", "value": "WHOOSH", "startTime": 7, "volume": 0.3 },
-  { "type": "preset", "value": "CAT_PURR", "startTime": 9, "volume": 0.4 },
-  { "type": "preset", "value": "POP", "startTime": 11, "volume": 0.4 }
+  { "type": "preset", "value": "CAT_MEOW", "startTime": 1, "volume": 0.25 },
+  { "type": "preset", "value": "WHOOSH", "startTime": 3.5, "volume": 0.2 },
+  { "type": "preset", "value": "POP", "startTime": 5, "volume": 0.25 },
+  { "type": "preset", "value": "WHOOSH", "startTime": 7, "volume": 0.2 },
+  { "type": "preset", "value": "CAT_PURR", "startTime": 9, "volume": 0.25 },
+  { "type": "preset", "value": "POP", "startTime": 11, "volume": 0.25 }
 ]
 ```
 - **짧게**: 1-2초 효과음만 사용
@@ -314,11 +320,86 @@ gcloud run services update short-video-maker \
 - **다양하게**: MEOW, WHOOSH, POP, PURR 섞어서
 - **장면 전환**: WHOOSH로 전환 강조
 
-**BGM source 옵션:**
-- `chill`: 편안한 음악
-- `upbeat`: 신나는 음악
-- `dramatic`: 극적인 음악
-- `ambient`: 배경 분위기
+**BGM source 옵션 (MusicMoodEnum):**
+
+| source | 분위기 | 추천 상황 |
+|--------|--------|----------|
+| `happy` | 밝고 경쾌한 | 일상, 귀여운 장면 ✅ |
+| `euphoric/high` | 신나고 들뜬 | **새해, 축하, 파티** ✅✅ |
+| `excited` | 흥분된, 활기찬 | 액션, 놀라움 |
+| `chill` | 편안하고 차분한 | 휴식, 일상 ✅ |
+| `hopeful` | 희망적인 | 새해, 새출발 ✅ |
+| `contemplative` | 사색적인 | 감성, 회상 |
+| `sad` | 슬픈 | 이별, 그리움 |
+| `melancholic` | 우울한 | 감성, 비오는날 |
+| `uneasy` | 불안한 | 긴장, 서스펜스 |
+| `angry` | 화난 | 짜증, 분노 |
+| `dark` | 어두운 | 공포, 미스터리 |
+
+**커스텀 BGM 사용 (URL):**
+```json
+{
+  "audio_config": {
+    "backgroundMusic": {
+      "source": "https://your-server.com/music/custom-bgm.mp3",
+      "volume": 0.25,
+      "loop": true
+    }
+  }
+}
+```
+
+---
+
+## 🎵 저작권 & 수익화 가이드
+
+### ⚠️ 캐롤/유명곡 사용 시 주의
+
+| 음악 유형 | 수익화 | 저작권 상태 |
+|----------|:------:|------------|
+| **시스템 BGM** (Loudly API) | ✅ 가능 | 로열티 프리 |
+| **Freesound 효과음** | ✅ 가능 | CC0/CC-BY 라이선스 |
+| **캐롤 (Jingle Bells 등)** | ⚠️ 주의 | 원곡은 퍼블릭 도메인이지만 **녹음본**은 저작권 있음 |
+| **K-POP, 유명곡** | ❌ 불가 | 저작권 침해 |
+| **AI 생성 음악** | ✅ 가능 | Suno, Udio 등 |
+
+### 캐롤 사용법
+
+**❌ 하면 안 되는 것:**
+- 아티스트가 부른 캐롤 MP3 사용
+- YouTube에서 다운로드한 캐롤
+- 스트리밍 서비스 음원
+
+**✅ 가능한 것:**
+- **퍼블릭 도메인 캐롤의 새 녹음** (직접 연주/녹음)
+- **로열티 프리 캐롤** (Epidemic Sound, Artlist 유료 구독)
+- **AI 생성 캐롤** (Suno에서 "christmas carol instrumental" 생성)
+- **Loudly API의 "hopeful" 또는 "euphoric/high"** 대안 사용
+
+### 추천: AI 생성 음악
+
+```bash
+# Suno AI로 캐롤 스타일 생성 (무료 크레딧)
+https://suno.ai
+프롬프트: "cheerful christmas instrumental, jingle bells style, no vocals, happy"
+```
+
+생성된 MP3를 GCS에 업로드 후 URL로 사용:
+```json
+{
+  "backgroundMusic": {
+    "source": "https://storage.googleapis.com/your-bucket/suno-carol.mp3",
+    "volume": 0.25
+  }
+}
+```
+
+### Loudly API (기본 BGM)
+
+시스템은 Loudly API로 BGM을 자동 생성합니다:
+- **장점**: 로열티 프리, 저작권 걱정 없음
+- **단점**: 캐롤/특정 곡 스타일 불가
+- **대안**: `euphoric/high` + `hopeful` 조합으로 축제 분위기 연출
 
 ### 7. youtubeUpload (자동 업로드)
 
@@ -454,36 +535,38 @@ curl "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-sho
 
 ## 🔤 자막 스타일
 
-### 1. Word-by-word (기본 - TTS 기반)
+### 1. Word-by-word (TTS 기반)
 ```json
 {
-  "config": {
-    "dualLanguageSubtitles": false  // 기본값
-  },
-  "elevenlabs_config": { ... }  // TTS 필수!
+  "elevenlabs_config": { ... },  // TTS 사용 시
+  "scenes": [
+    { "text": "한국어 자막" }
+  ]
 }
 ```
 - TikTok/Shorts 스타일
 - 단어별로 노란색 하이라이트
 - TTS 음성의 타이밍에 맞춰 표시
-- **TTS 필수** - elevenlabs_config 없으면 자막 없음
+- **TTS 필수** - elevenlabs_config 없으면 word-by-word 불가
 
-### 2. Dual Language (문장 단위)
+### 2. Dual Language (문장 단위) - ✅ 권장!
 ```json
 {
   "config": {
-    "dualLanguageSubtitles": true
+    "skipTTS": true
   },
   "scenes": [
     {
       "text": "한국어 자막",
-      "textEn": "English subtitle"  // 또는 textEnglish
+      "textEnglish": "English subtitle"  // ⚠️ textEn 아님!
     }
   ]
 }
 ```
-- 문장 단위로 표시
-- 한국어 (위) + 영어 (아래)
+- **`textEnglish`** 필드 제공하면 자동으로 이중 자막 생성
+- ❌ `dualLanguageSubtitles` config는 없음 (존재하지 않는 설정!)
+- ❌ `textEn` 아님 → ✅ `textEnglish` 사용
+- 문장 단위로 표시 (한국어 위 + 영어 아래)
 - 영어 없으면 한국어만 표시
 
 ---
@@ -524,10 +607,15 @@ curl "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/video/consistent-sho
 
 ## 📅 최종 업데이트
 
+2025-12-29 (v9)
+- ✅ **자막 겹침 수정** - xfade 장면 전환 시 자막이 겹치지 않도록 수정
+- ✅ **효과음 볼륨 조정** - SFX 0.2~0.3 권장 (기존 0.4는 너무 큼)
+- ⚠️ **Runway 크레딧 소진 주의** - 크레딧 없으면 정적 이미지로 fallback
+- ✅ **VEO 대안 추가** - Runway 크레딧 소진 시 VIDEO_SOURCE=veo 사용 가능
+
 2025-12-29 (v8)
-- ✅ **VIDEO_SOURCE 설정 명확화** - 반드시 `runway` 사용!
+- ✅ **VIDEO_SOURCE 설정 명확화** - Runway 또는 VEO 선택 가능
 - ✅ Cloud Run 환경변수 설정 가이드 추가
-- ⚠️ `VIDEO_SOURCE=veo` 사용 금지 (Google VEO 직접 호출 실패)
 - ✅ 성공 로그 패턴 문서화: `🎬 RunwayAPI initialized` → `✅ Runway task completed`
 
 2025-12-29 (v7)

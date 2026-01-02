@@ -263,8 +263,23 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
       let bgmResult;
 
       if (typeof bgmConfig.source === 'string') {
-        // Check if it's a preset or mood
-        if (bgmConfig.source.startsWith('preset:')) {
+        // Check if it's a URL, preset, or mood
+        if (bgmConfig.source.startsWith('http://') || bgmConfig.source.startsWith('https://')) {
+          // Direct URL: download and use as BGM
+          logger.info({ url: bgmConfig.source }, '📥 Downloading BGM from URL...');
+          const response = await fetch(bgmConfig.source);
+          if (!response.ok) {
+            throw new Error(`Failed to download BGM: ${response.status} ${response.statusText}`);
+          }
+          const audioBuffer = await response.arrayBuffer();
+          bgmResult = {
+            audio: new Uint8Array(audioBuffer),
+            trackTitle: 'Custom URL BGM',
+            source: 'url',
+            license: 'user-provided',
+            duration: totalDuration
+          };
+        } else if (bgmConfig.source.startsWith('preset:')) {
           // Use preset: "preset:CAT_CUTE"
           const presetName = bgmConfig.source.replace('preset:', '');
           bgmResult = await loudlyBGM.generateFromPreset(presetName as any, totalDuration);
@@ -279,7 +294,11 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
       // Save BGM to file
       const bgmPath = path.join(tempDirPath, `bgm_${videoId}.mp3`);
-      await fs.writeFile(bgmPath, Buffer.from(bgmResult.audio));
+      // Handle both Uint8Array and ArrayBuffer types
+      const audioBuffer = bgmResult.audio instanceof Uint8Array
+        ? Buffer.from(bgmResult.audio.buffer, bgmResult.audio.byteOffset, bgmResult.audio.byteLength)
+        : Buffer.from(bgmResult.audio);
+      await fs.writeFile(bgmPath, audioBuffer);
 
       logger.info({
         bgmPath,
@@ -1007,11 +1026,16 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
         }, "🎉 All images generated with consistent character!");
 
         // Step 2: Update durations from audio data (with minimum scene duration)
+        // 🔥 Fix: skipTTS 모드에서 inputScenes[i].duration 사용
         for (let i = 0; i < scenes.length; i++) {
           const scene = scenes[i];
+          const inputDuration = (inputScenes[i] as any)?.duration;
           if (scene.audio?.duration) {
             // 최소 씬 길이 보장: TTS가 짧아도 충분한 콘텐츠 제공
             imageDataList[i].duration = Math.max(scene.audio.duration, MIN_SCENE_DURATION);
+          } else if (inputDuration) {
+            // skipTTS 모드: inputScenes에서 duration 가져옴
+            imageDataList[i].duration = Math.max(inputDuration, MIN_SCENE_DURATION);
           }
         }
 
@@ -1046,7 +1070,8 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           for (let i = 0; i < imageDataList.length; i++) {
             const imageData = imageDataList[i];
             const scene = inputScenes[i];
-            const duration = imageData.duration || scenes[i]?.audio?.duration || 8;
+            // 🔥 FIX: Also check inputScenes[i].duration for skipTTS mode
+            const duration = imageData.duration || scenes[i]?.audio?.duration || inputScenes[i]?.duration || 8;
 
             // ⭐ VEO 3.1 First+Last Frame: Check if same characters in next scene
             const hasNextScene = i < imageDataList.length - 1;
@@ -1114,17 +1139,30 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               const videoPath = path.join(videoTempDir, `veo3_scene_${i + 1}_${context.videoId}.mp4`);
               await this.videoProcessor.downloadVideo(video.url, videoPath);
 
+              // 🔥 Fix: Get ACTUAL video duration from ffprobe (VEO may return different length)
+              const actualDuration = await this.videoProcessor.getFFmpeg().getVideoDuration(videoPath);
+
+              logger.info({
+                sceneIndex: i + 1,
+                requestedDuration: duration,
+                actualDuration,
+                difference: duration - actualDuration
+              }, actualDuration !== duration
+                ? "⚠️ VEO3 returned different duration than requested!"
+                : "✅ VEO3 duration matches request");
+
               sceneResults.push({
                 type: 'video',
                 path: videoPath,
-                duration
+                duration: actualDuration  // 🔥 Use ACTUAL duration, not requested!
               });
 
               veo3SuccessCount++;
 
               logger.info({
                 sceneIndex: i + 1,
-                videoPath
+                videoPath,
+                actualDuration
               }, "✅ VEO3 video generated from consistent image");
 
             } catch (veoError) {
@@ -1162,7 +1200,9 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
 
             for (let i = 0; i < sceneResults.length; i++) {
               const result = sceneResults[i];
-              const audioDuration = scenes[i]?.audio?.duration || result.duration;
+              // 🔥 Fix: skipTTS 모드에서 inputScenes[i].duration 사용
+              const inputDuration = (inputScenes[i] as any)?.duration;
+              const audioDuration = scenes[i]?.audio?.duration || inputDuration || result.duration;
               // 최소 씬 길이 보장: TTS가 짧아도 VEO3 콘텐츠 활용
               const sceneDuration = Math.max(audioDuration, MIN_SCENE_DURATION);
 
@@ -1383,7 +1423,9 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
 
             for (let i = 0; i < sceneResults.length; i++) {
               const result = sceneResults[i];
-              const audioDuration = scenes[i]?.audio?.duration || result.duration;
+              // 🔥 Fix: skipTTS 모드에서 inputScenes[i].duration 사용
+              const inputDuration = (inputScenes[i] as any)?.duration;
+              const audioDuration = scenes[i]?.audio?.duration || inputDuration || result.duration;
               // 최소 씬 길이 보장: TTS가 짧아도 충분한 콘텐츠 제공
               const sceneDuration = Math.max(audioDuration, MIN_SCENE_DURATION);
 
@@ -1514,10 +1556,14 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           const sceneDurations: number[] = [];
           const skipTTSMode = context.config?.skipTTS === true;
 
-          for (const scene of scenes) {
-            // Always collect scene durations (needed for skipTTS mode sound effects)
+          for (let sceneIdx = 0; sceneIdx < scenes.length; sceneIdx++) {
+            const scene = scenes[sceneIdx];
+            // 🔥 FIX: Also check inputScenes[i].duration for skipTTS mode
+            const inputDuration = inputScenes[sceneIdx]?.duration;
             if (scene.audio?.duration) {
               sceneDurations.push(scene.audio.duration);
+            } else if (inputDuration) {
+              sceneDurations.push(inputDuration);
             } else {
               sceneDurations.push(MIN_SCENE_DURATION);
             }
@@ -1691,10 +1737,14 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           const sceneDurations: number[] = [];
           const skipTTSMode = context.config?.skipTTS === true;
 
-          for (const scene of scenes) {
-            // Always collect scene durations (needed for skipTTS mode sound effects)
+          for (let sceneIdx = 0; sceneIdx < scenes.length; sceneIdx++) {
+            const scene = scenes[sceneIdx];
+            // 🔥 FIX: Also check inputScenes[i].duration for skipTTS mode
+            const inputDuration = inputScenes[sceneIdx]?.duration;
             if (scene.audio?.duration) {
               sceneDurations.push(scene.audio.duration);
+            } else if (inputDuration) {
+              sceneDurations.push(inputDuration);
             } else {
               sceneDurations.push(MIN_SCENE_DURATION);
             }

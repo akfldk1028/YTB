@@ -55,6 +55,8 @@ export const sceneInput = z.object({
   videoPrompt: z.string().optional().describe("Prompt for video generation"),
   // ⭐ Scene-level character specification for multi-character stories
   characterIds: z.array(z.string()).optional().describe("Character IDs to use in this scene (e.g., ['kkam-i'] or ['kkam-i', 'ddal-gi'])"),
+  // 🔥 Scene duration for skipTTS mode (when no audio, explicit duration is needed)
+  duration: z.number().optional().describe("Scene duration in seconds (used when skipTTS is true)"),
 });
 export type SceneInput = z.infer<typeof sceneInput>;
 

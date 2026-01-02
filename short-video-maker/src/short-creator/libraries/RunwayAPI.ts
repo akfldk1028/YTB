@@ -236,9 +236,18 @@ export class RunwayAPI {
     // veo3.1: 4, 6, or 8 seconds
     let duration: number;
     if (this.model === 'veo3.1') {
-      if (minDurationSeconds <= 5) duration = 4;
-      else if (minDurationSeconds <= 7) duration = 6;
-      else duration = 8;
+      // ⭐ VEO 3.1 First+Last Frame interpolation works best with duration=8
+      // When using frame interpolation, force 8 seconds for smooth animation
+      if (isFrameInterpolation) {
+        duration = 8;
+        logger.info({ forcedDuration: 8 }, "🎯 VEO 3.1 First+Last Frame mode: using duration=8 for best results");
+      } else if (minDurationSeconds <= 5) {
+        duration = 4;
+      } else if (minDurationSeconds <= 7) {
+        duration = 6;
+      } else {
+        duration = 8;
+      }
     } else {
       duration = minDurationSeconds <= 7 ? 5 : 10;
     }

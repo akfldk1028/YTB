@@ -32,3 +32,17 @@ tmp/
 # Generated videos and audio
 videos/
 output/
+
+# Screenshots (Korean filename)
+*캡처*.png
+
+# Test scripts
+send-*.js
+test-*.js
+
+# Windows null file
+nul
+
+# Character reference images
+docs/CatProject/character/*.png
+docs/CatProject/F/*.mp4

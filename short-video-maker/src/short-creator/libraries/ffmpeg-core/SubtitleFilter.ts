@@ -325,7 +325,8 @@ export class SubtitleFilter {
       // Settings
       const style = titleText.style || 'highlight';
       const position = titleText.position || 'top';
-      const fontSize = titleText.fontSize || (orientation === OrientationEnum.portrait ? 42 : 48);
+      // 🔥 HUGE font for Shorts-style attention grabbing (56 → 72)
+      const fontSize = titleText.fontSize || (orientation === OrientationEnum.portrait ? 72 : 64);
 
       // Style-based colors
       let textColor: string;
@@ -376,7 +377,8 @@ export class SubtitleFilter {
       }
 
       if (useBox) {
-        filter += `:box=1:boxcolor=0x${backgroundColor}@0.95:boxborderw=15`;
+        // 🔥 HUGE box padding for Shorts-style (15 → 28)
+        filter += `:box=1:boxcolor=0x${backgroundColor}@0.95:boxborderw=28`;
       } else {
         filter += ':borderw=4:bordercolor=black:shadowcolor=black@0.7:shadowx=2:shadowy=2';
       }
