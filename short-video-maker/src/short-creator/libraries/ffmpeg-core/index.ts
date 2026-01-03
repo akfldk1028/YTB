@@ -72,7 +72,7 @@ export class FFMpeg {
   }
 
   async createAudioFromSoundEffects(
-    soundEffects: Array<{ path: string; startTime: number; volume: number }>,
+    soundEffects: Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }>,
     outputPath: string,
     totalDuration: number
   ): Promise<string> {
@@ -81,7 +81,7 @@ export class FFMpeg {
 
   async mixAudioTracks(
     mainAudioPath: string,
-    overlayAudioPaths: Array<{ path: string; startTime: number; volume: number; loop?: boolean }>,
+    overlayAudioPaths: Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }>,
     outputPath: string,
     totalDuration: number
   ): Promise<string> {

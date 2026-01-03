@@ -198,6 +198,8 @@ export type AudioConfig = {
     volume?: number;
     /** Loop music throughout video */
     loop?: boolean;
+    /** Skip first N seconds of audio (for skipping BGM intros) */
+    seekStart?: number;
   };
   /** Sound effects to overlay on TTS audio */
   soundEffects?: SoundEffectConfig[];

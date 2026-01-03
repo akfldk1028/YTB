@@ -104,13 +104,13 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
     tempDirPath: string,
     sceneDurations: number[],
     apiKey: string
-  ): Promise<Array<{ path: string; startTime: number; volume: number; loop?: boolean }>> {
+  ): Promise<Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }>> {
     if (!audioConfig || (!audioConfig.soundEffects?.length && !audioConfig.transitionSound)) {
       return [];
     }
 
     const soundEffects = new FreesoundSoundEffects({ apiKey });
-    const overlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean }> = [];
+    const overlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }> = [];
 
     // Calculate cumulative scene start times
     const sceneStartTimes: number[] = [];
@@ -242,7 +242,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
     tempDirPath: string,
     totalDuration: number,
     videoId: string
-  ): Promise<{ path: string; startTime: number; volume: number; loop: boolean } | null> {
+  ): Promise<{ path: string; startTime: number; volume: number; loop: boolean; seekStart?: number } | null> {
     if (!audioConfig?.backgroundMusic) {
       return null;
     }
@@ -312,7 +312,8 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
         path: bgmPath,
         startTime: 0,  // BGM starts at beginning
         volume: bgmConfig.volume ?? 0.3,  // Default lower volume for BGM
-        loop: bgmConfig.loop ?? true  // Default to loop
+        loop: bgmConfig.loop ?? true,  // Default to loop
+        seekStart: bgmConfig.seekStart ?? 0  // 🔥 Skip first N seconds (for BGM intro skip)
       };
 
     } catch (error) {
@@ -377,7 +378,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
     try {
       // 1. Generate sound effects (if API key available)
-      let soundEffectOverlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean }> = [];
+      let soundEffectOverlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }> = [];
       if (hasSoundEffects && apiKey) {
         soundEffectOverlays = await this.generateSoundEffects(
           audioConfig,
@@ -396,7 +397,7 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
       );
 
       // Combine all overlays (BGM first, then sound effects)
-      const allOverlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean }> = [];
+      const allOverlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }> = [];
       if (bgmOverlay) {
         allOverlays.push(bgmOverlay);
       }

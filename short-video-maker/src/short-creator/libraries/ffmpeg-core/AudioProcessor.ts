@@ -146,6 +146,7 @@ export class AudioProcessor {
       startTime: number;
       volume: number;
       loop?: boolean;  // 🔥 Added loop support for BGM
+      seekStart?: number;  // 🔥 Skip first N seconds of audio (for BGM intro skip)
     }>,
     outputPath: string,
     totalDuration: number
@@ -171,9 +172,14 @@ export class AudioProcessor {
           .inputFormat('lavfi')
           .inputOption(`-t ${totalDuration}`);
 
-        // 🔥 Add BGM inputs with loop option
+        // 🔥 Add BGM inputs with loop option and optional seek
         bgmTracks.forEach((bgm) => {
-          ffmpegCommand.input(bgm.path).inputOption('-stream_loop -1');
+          // If seekStart is specified, skip first N seconds of BGM (for intro skip)
+          if (bgm.seekStart && bgm.seekStart > 0) {
+            ffmpegCommand.input(bgm.path).inputOption(`-ss ${bgm.seekStart}`).inputOption('-stream_loop -1');
+          } else {
+            ffmpegCommand.input(bgm.path).inputOption('-stream_loop -1');
+          }
         });
 
         // Add regular sound effect inputs (no loop)
