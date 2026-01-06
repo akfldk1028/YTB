@@ -359,7 +359,8 @@ export class VideoProcessor {
     primaryCaptions: any[],  // 한국어
     secondaryCaptions: any[] | null, // 영어 (optional)
     orientation: OrientationEnum,
-    videoDuration: number
+    videoDuration: number,
+    language?: 'english' | 'korean'
   ): Promise<VideoProcessingResult> {
     try {
       logger.debug({
@@ -367,6 +368,8 @@ export class VideoProcessor {
         outputPath,
         hasTitleText: !!titleText,
         titleTextKo: titleText?.ko,
+        titleTextEn: titleText?.en,
+        language,
         primaryCount: primaryCaptions.length,
         secondaryCount: secondaryCaptions?.length || 0,
         videoDuration
@@ -379,7 +382,8 @@ export class VideoProcessor {
         primaryCaptions,
         secondaryCaptions,
         orientation,
-        videoDuration
+        videoDuration,
+        language
       );
 
       const stats = fs.statSync(outputPath);

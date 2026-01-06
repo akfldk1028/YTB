@@ -124,9 +124,10 @@ export class FFMpeg {
     titleText: TitleTextConfig,
     orientation: OrientationEnum,
     videoDuration: number,
-    tempDir?: string
+    tempDir?: string,
+    language?: 'english' | 'korean'
   ): { filter: string; textFilePath?: string } | null {
-    return this.subtitleFilter.createTitleTextFilter(titleText, orientation, videoDuration, tempDir);
+    return this.subtitleFilter.createTitleTextFilter(titleText, orientation, videoDuration, tempDir, language);
   }
 
   // ===== Video Concatenation Operations =====
@@ -204,7 +205,8 @@ export class FFMpeg {
     primaryCaptions: any[],
     secondaryCaptions: any[] | null,
     orientation: OrientationEnum,
-    videoDuration: number
+    videoDuration: number,
+    language?: 'english' | 'korean'
   ): Promise<string> {
     return this.videoEditor.addTitleAndSubtitlesToVideo(
       inputVideoPath,
@@ -213,7 +215,8 @@ export class FFMpeg {
       primaryCaptions,
       secondaryCaptions,
       orientation,
-      videoDuration
+      videoDuration,
+      language
     );
   }
 

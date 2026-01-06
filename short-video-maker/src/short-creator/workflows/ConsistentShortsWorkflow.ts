@@ -843,30 +843,65 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           const shouldUseMultiCharacterReference = useStoredImageForVeo && sceneCharacterImages.isMultiCharacter;
 
           if (shouldUseDirectStoredImage) {
-            // ⭐ SINGLE CHARACTER: Use stored image directly (skip NANO BANANA)
+            // ⭐ SINGLE CHARACTER: Use NANO BANANA with stored image as REFERENCE
+            // 🔥 FIX: Previously used stored image directly as first frame (bad for VEO)
+            // Now: Generate scene-specific image with stored character as reference
             const characterImage = sceneCharacterImages.images[0];
 
             logger.info({
               sceneIndex: i + 1,
               characterId: characterImage.characterId,
               imageSize: characterImage.data.length
-            }, "🎯 Using STORED single character image directly for VEO (skipping NANO BANANA)");
+            }, "🎯 Using NANO BANANA with stored character image as REFERENCE (not direct use)");
 
-            finalImage = {
+            // Set NANO BANANA model
+            this.imageGenerationService.setModel(ImageModelType.NANO_BANANA);
+
+            // Build scene-specific prompt
+            const scenePrompt = `${scene.imageData?.prompt || scene.text}. Style: ${scene.imageData?.style || "pixar"}. Mood: ${scene.imageData?.mood || "dynamic"}. Maintain consistent character appearance.`;
+            const aspectRatio = context.orientation === "portrait" ? "9:16" : "16:9";
+
+            // Use stored character image as REFERENCE only
+            const referenceImages = [{
               data: characterImage.data,
               mimeType: characterImage.mimeType
+            }];
+
+            logger.debug({
+              sceneIndex: i + 1,
+              characterId: characterImage.characterId,
+              prompt: scenePrompt.substring(0, 100)
+            }, "🔗 Using stored character image as reference for scene-specific generation");
+
+            // Generate scene-specific image with character reference
+            const result = await this.imageGenerationService.generateImages({
+              prompt: scenePrompt,
+              numberOfImages: 1,
+              aspectRatio: aspectRatio as "9:16" | "16:9",
+              referenceImages: referenceImages  // Character reference for consistency
+            }, context.videoId, i);
+
+            if (!result.success || !result.images || result.images.length === 0) {
+              throw new Error(`Failed to generate scene image for scene ${i + 1}`);
+            }
+
+            const generatedImage = result.images[0];
+            finalImage = {
+              data: generatedImage.data,
+              mimeType: generatedImage.mimeType || "image/png"
             };
 
-            // Save stored image to temp directory
-            const simpleFilename = `stored_character_scene_${i + 1}_${context.videoId}.png`;
+            // Save generated image
+            const simpleFilename = `singlechar_scene_${i + 1}_${context.videoId}.png`;
             savedImagePath = path.join(videoTempDir, simpleFilename);
-            await fs.writeFile(savedImagePath, characterImage.data);
+            await fs.writeFile(savedImagePath, generatedImage.data);
 
             logger.info({
               sceneIndex: i + 1,
               characterId: characterImage.characterId,
-              imagePath: savedImagePath
-            }, "✅ Stored character image saved for VEO");
+              imagePath: savedImagePath,
+              usedCharacterReference: true
+            }, "✅ Scene-specific image generated with character reference");
 
           } else if (shouldUseMultiCharacterReference) {
             // ⭐ MULTIPLE CHARACTERS: Use NANO BANANA with ALL character images as references
@@ -1639,10 +1674,15 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           }, "🔍 DEBUG: Pre-subtitle check state");
 
           // 🔥 제목(titleText) + 자막 적용
+          // Get language from metadata (default: korean for backward compatibility)
+          const titleLanguage = (context.metadata?.language as 'english' | 'korean') || 'korean';
+
           if (allCaptions.length > 0 || titleText) {
             logger.info({
               hasTitleText: !!titleText,
               titleTextKo: titleText?.ko,
+              titleTextEn: titleText?.en,
+              titleLanguage,
               koreanCaptionCount: allCaptions.length,
               englishCaptionCount: allEnglishCaptions.length,
               videoDuration: cumulativeDuration,
@@ -1656,7 +1696,8 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               allCaptions,          // 한국어 자막
               allEnglishCaptions.length > 0 ? allEnglishCaptions : null,  // 영어 자막 (선택)
               context.orientation,
-              cumulativeDuration    // 영상 총 길이 (제목 duration 계산용)
+              cumulativeDuration,   // 영상 총 길이 (제목 duration 계산용)
+              titleLanguage         // 🔥 타이틀 언어 (english: en 사용, korean: ko 사용)
             );
 
             logger.info({
@@ -1807,10 +1848,15 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           );
 
           // 🔥 Apply title text and/or subtitles (no VEO3 static mode)
+          // Get language from metadata (default: korean for backward compatibility)
+          const titleLanguageNoVeo = (context.metadata?.language as 'english' | 'korean') || 'korean';
+
           if (allCaptions.length > 0 || titleText) {
             logger.info({
               hasTitleText: !!titleText,
               titleTextKo: titleText?.ko,
+              titleTextEn: titleText?.en,
+              titleLanguage: titleLanguageNoVeo,
               koreanCaptionCount: allCaptions.length,
               englishCaptionCount: allEnglishCaptions.length,
               videoDuration: cumulativeDuration,
@@ -1824,7 +1870,8 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               allCaptions,
               allEnglishCaptions.length > 0 ? allEnglishCaptions : null,
               context.orientation,
-              cumulativeDuration
+              cumulativeDuration,
+              titleLanguageNoVeo   // 🔥 타이틀 언어
             );
 
             logger.info({

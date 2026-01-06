@@ -282,13 +282,16 @@ export class VideoEditor {
     primaryCaptions: any[],
     secondaryCaptions: any[] | null,
     orientation: OrientationEnum,
-    videoDuration: number
+    videoDuration: number,
+    language?: 'english' | 'korean'
   ): Promise<string> {
     logger.info({
       inputVideoPath,
       outputVideoPath,
       hasTitleText: !!titleText,
       titleTextKo: titleText?.ko,
+      titleTextEn: titleText?.en,
+      language,
       primaryCaptionCount: primaryCaptions?.length || 0,
       secondaryCaptionCount: secondaryCaptions?.length || 0,
       videoDuration
@@ -306,13 +309,13 @@ export class VideoEditor {
 
       const filters: string[] = [];
 
-      // Title filter
-      if (titleText && titleText.ko) {
-        const titleResult = this.subtitleFilter.createTitleTextFilter(titleText, orientation, videoDuration, tempDir);
+      // Title filter (supports both Korean and English based on language setting)
+      if (titleText && (titleText.ko || titleText.en)) {
+        const titleResult = this.subtitleFilter.createTitleTextFilter(titleText, orientation, videoDuration, tempDir, language);
         if (titleResult) {
           filters.push(titleResult.filter);
           titleTextFilePath = titleResult.textFilePath;
-          logger.debug({ titleFilter: titleResult.filter, textFilePath: titleTextFilePath }, "Added title text filter");
+          logger.debug({ titleFilter: titleResult.filter, textFilePath: titleTextFilePath, language }, "Added title text filter");
         }
       }
 

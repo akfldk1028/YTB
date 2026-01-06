@@ -315,10 +315,19 @@ export class SubtitleFilter {
     titleText: TitleTextConfig,
     orientation: OrientationEnum,
     videoDuration: number,
-    tempDir?: string
+    tempDir?: string,
+    language?: 'english' | 'korean'
   ): { filter: string; textFilePath?: string } | null {
     try {
-      if (!titleText || !titleText.ko) return null;
+      // Select text based on language (default: ko for backward compatibility)
+      const rawText = language === 'english' && titleText?.en
+        ? titleText.en
+        : titleText?.ko;
+
+      // 🔥 Remove emojis that FFmpeg can't render (causes ☒ boxes)
+      const displayText = rawText?.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim();
+
+      if (!titleText || !displayText) return null;
 
       const fontPath = findAvailableFontPath();
 
@@ -363,17 +372,17 @@ export class SubtitleFilter {
       let textFilePath: string | undefined;
 
       if (tempDir) {
-        // textfile method for Korean support
+        // textfile method for UTF-8 support (both Korean and emoji)
         textFilePath = path.join(tempDir, `title_text_${Date.now()}.txt`);
-        fs.writeFileSync(textFilePath, titleText.ko, 'utf-8');
-        logger.info({ textFilePath, text: titleText.ko }, "Created UTF-8 title text file for FFmpeg");
+        fs.writeFileSync(textFilePath, displayText, 'utf-8');
+        logger.info({ textFilePath, text: displayText, language }, "Created UTF-8 title text file for FFmpeg");
 
         filter = `drawtext=fontfile=${fontPath}:textfile='${textFilePath}':fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}`;
       } else {
-        // Fallback: inline text (Korean may not render correctly)
-        const text = titleText.ko.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').replace(/\n/g, '\\n');
+        // Fallback: inline text (non-ASCII may not render correctly)
+        const text = displayText.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').replace(/\n/g, '\\n');
         filter = `drawtext=fontfile=${fontPath}:text='${text}':fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}`;
-        logger.warn({ text: titleText.ko }, "Using inline text for FFmpeg (Korean may not render correctly)");
+        logger.warn({ text: displayText }, "Using inline text for FFmpeg (non-ASCII may not render correctly)");
       }
 
       if (useBox) {
@@ -389,7 +398,8 @@ export class SubtitleFilter {
       }
 
       logger.debug({
-        titleText: titleText.ko,
+        titleText: displayText,
+        language,
         style,
         position,
         fontSize,

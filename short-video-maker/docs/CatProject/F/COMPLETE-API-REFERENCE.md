@@ -1,6 +1,16 @@
 # 고양이 커플 Shorts 완전 가이드
 
 ## 🎯 전체 기능 요약
+  | 항목                  | 상태 | 설명                             |
+  |-----------------------|------|----------------------------------|
+  | BGM                   | ✅   | Les Champs-Élysées (archive.org) |
+  | useStoredImageForVeo  | ✅   | GCS 저장 캐릭터 이미지 사용      |
+  | useFrameInterpolation | ✅   | VEO 3.1 First+Last Frame         |
+  | Duration              | ✅   | 8초/씬 (VEO 3.1 최적)            |
+  | Scene Transitions     | ✅   | fade 0.5s                        |
+  | Dual Subtitles        | ✅   | text(ko) + textEn                |
+  | Sound Effects         | ✅   | 6개 타이밍 맞춤                  |
+  | YouTube Upload        | ✅   | why_cat, unlisted                |
 
 | 기능 | 파라미터 | 설명 |
 |------|----------|------|

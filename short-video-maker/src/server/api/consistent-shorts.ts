@@ -175,7 +175,10 @@ export class ConsistentShortsAPIRouter {
             needsImageGeneration: true,
 
             // ⭐ Scene-level character IDs (for multi-character stories)
-            characterIds: scene.characterIds
+            characterIds: scene.characterIds,
+
+            // 🔥 Scene duration (for skipTTS mode - used by ConsistentShortsWorkflow)
+            duration: scene.duration
           }));
 
           const validationInput = {
@@ -245,7 +248,9 @@ export class ConsistentShortsAPIRouter {
               // 🔥 Audio configuration (sound effects, background music)
               audioConfig: audio_config,
               // 🔥 상단 제목 (숏츠 어그로용)
-              titleText: titleText
+              titleText: titleText,
+              // 🔥 Title text language selection (english | korean)
+              language: config?.language || 'korean'
             }
           );
 
