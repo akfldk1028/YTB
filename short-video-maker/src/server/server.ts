@@ -20,6 +20,7 @@ import { YouTubeAnalyticsService } from "../youtube-analytics/services/YouTubeAn
 import { createAnalyticsRoutes } from "../youtube-analytics/routes/analyticsRoutes";
 import { GoogleSheetsService } from "../sheet/services/GoogleSheetsService";
 import { createSheetRoutes } from "../sheet/routes/sheetRoutes";
+import { politicsRouter } from "../politics-project";
 import { logger } from "../logger";
 import { Config } from "../config";
 
@@ -64,6 +65,10 @@ export class Server {
     const characterAPIRouter = new CharacterAPIRouter(config);
     this.app.use("/api/characters", characterAPIRouter.router);
     logger.info("Character Storage API mounted at /api/characters");
+
+    // Mount Politics Project API (YouTube to Shorts converter)
+    this.app.use("/api/politics", politicsRouter);
+    logger.info("Politics Project API mounted at /api/politics");
 
     // Mount YouTube upload routes if uploader is available
     if (youtubeUploader) {

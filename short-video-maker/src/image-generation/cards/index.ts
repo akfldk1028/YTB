@@ -1,6 +1,6 @@
 /**
  * Prompt Card Management System
- * Organized prompt templates for different themes and use cases
+ * Organized prompt template for different themes and use cases
  */
 
 export interface PromptCard {
@@ -68,7 +68,7 @@ export function getCardById(id: string): PromptCard | undefined {
 export function searchCards(query: string): PromptCard[] {
   const results: PromptCard[] = [];
   const searchTerm = query.toLowerCase();
-  
+
   for (const category of Object.values(PROMPT_CARD_REGISTRY)) {
     for (const card of category) {
       if (
@@ -81,6 +81,6 @@ export function searchCards(query: string): PromptCard[] {
       }
     }
   }
-  
+
   return results;
 }

@@ -2,7 +2,7 @@ import { PromptCard, registerPromptCards } from './index';
 
 /**
  * Architecture Prompt Cards
- * Building and structural design templates
+ * Building and structural design template
  */
 
 export const ARCHITECTURE_CARDS: PromptCard[] = [
@@ -135,7 +135,7 @@ export function getArchitectureCardById(id: string): PromptCard | undefined {
 }
 
 export function getArchitectureCardsByStyle(style: string): PromptCard[] {
-  return ARCHITECTURE_CARDS.filter(card => 
+  return ARCHITECTURE_CARDS.filter(card =>
     card.variations.styles?.some(cardStyle => cardStyle.toLowerCase().includes(style.toLowerCase()))
   );
 }

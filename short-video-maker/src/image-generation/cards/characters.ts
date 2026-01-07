@@ -2,7 +2,7 @@ import { PromptCard, registerPromptCards } from './index';
 
 /**
  * Character Prompt Cards
- * Human and fictional character templates for consistent generation
+ * Human and fictional character template for consistent generation
  */
 
 export const CHARACTER_CARDS: PromptCard[] = [
@@ -135,7 +135,7 @@ export function getCharacterCardById(id: string): PromptCard | undefined {
 }
 
 export function getCharacterCardsByStyle(style: string): PromptCard[] {
-  return CHARACTER_CARDS.filter(card => 
+  return CHARACTER_CARDS.filter(card =>
     card.variations.styles?.some(cardStyle => cardStyle.toLowerCase().includes(style.toLowerCase()))
   );
 }

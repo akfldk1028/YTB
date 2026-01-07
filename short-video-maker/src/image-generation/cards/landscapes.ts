@@ -2,7 +2,7 @@ import { PromptCard, registerPromptCards } from './index';
 
 /**
  * Natural Landscape Prompt Cards
- * Organized templates for scenic and natural environment generation
+ * Organized template for scenic and natural environment generation
  */
 
 export const LANDSCAPE_CARDS: PromptCard[] = [
@@ -135,7 +135,7 @@ export function getLandscapeCardById(id: string): PromptCard | undefined {
 }
 
 export function getLandscapeCardsByTag(tag: string): PromptCard[] {
-  return LANDSCAPE_CARDS.filter(card => 
+  return LANDSCAPE_CARDS.filter(card =>
     card.tags.some(cardTag => cardTag.toLowerCase().includes(tag.toLowerCase()))
   );
 }

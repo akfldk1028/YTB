@@ -68,6 +68,36 @@ RUN apt update && apt install -y \
     # Update font cache for Korean fonts to work in FFmpeg
     && fc-cache -fv
 
+# Install yt-dlp for YouTube downloading (PoliticsProject)
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
+
+# ============================================================================
+# PO Token Provider Setup (YouTube Bot Detection Bypass)
+# ============================================================================
+# bgutil-ytdlp-pot-provider: Generates proof-of-origin tokens for YouTube
+# This allows yt-dlp to bypass YouTube's bot detection on datacenter IPs
+# ============================================================================
+
+# Install Python and pip for yt-dlp plugin
+RUN apt update && apt install -y python3 python3-pip unzip && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Deno (JavaScript runtime required by yt-dlp for PO Token)
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="$DENO_INSTALL/bin:$PATH"
+
+# Install bgutil-ytdlp-pot-provider plugin for yt-dlp
+RUN pip3 install --break-system-packages bgutil-ytdlp-pot-provider
+
+# Clone and build the POT provider HTTP server
+WORKDIR /pot-provider
+RUN git clone --single-branch --branch 1.2.2 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git . && \
+    cd server && npm install && npx tsc
+
+WORKDIR /app
+
 # Setup pnpm package manager
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -175,8 +205,20 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Expose port (Cloud Run will override with PORT env var)
 EXPOSE 3123
 
-# Start the application
-CMD ["pnpm", "start"]
+# Create startup script that runs POT provider in background + main app
+RUN echo '#!/bin/bash\n\
+# Start POT provider server in background (port 4416)\n\
+cd /pot-provider/server && node build/main.js --port 4416 &\n\
+sleep 3\n\
+echo "POT provider started on port 4416"\n\
+# Verify POT provider is running\n\
+curl -s http://127.0.0.1:4416/health || echo "POT provider health check failed"\n\
+# Start main application\n\
+cd /app && pnpm start\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Start both services
+CMD ["/app/start.sh"]
 
 # ============================================================================
 # Build Instructions:

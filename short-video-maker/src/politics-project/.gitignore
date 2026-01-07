@@ -1,0 +1,9 @@
+# 다운로드된 영상
+output/
+
+# 완성된 Shorts
+shorts_final/
+
+# 임시 파일
+*.tmp
+*.temp

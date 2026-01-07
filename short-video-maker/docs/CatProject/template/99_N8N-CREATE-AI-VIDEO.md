@@ -36,7 +36,7 @@ POST https://short-video-maker-550996044521.us-central1.run.app/api/video/consis
 1. **Category Selector**: 시리즈/채널 설정 출력
 2. **GPT**: titleText, scenes, soundEffects, youtubeTitle, youtubeDescription 생성
 3. **Merge**: Config + GPT 결과 병합
-4. **Transform**: API 포맷으로 변환 (after_GPT_transform.js)
+4. **Transform**: API 포맷으로 변환 (05_01_Transform_Node.js)
 5. **Create AI Video**: HTTP POST 요청
 
 ---
@@ -198,8 +198,8 @@ GET /api/video/consistent-shorts/{videoId}/status
 
 ## Related Files
 
-- Transform Code: `template/after_GPT_transform.js`
-- Merge Output: `template/Merge.js`
+- Transform Code: `template/05_01_Transform_Node.js`
+- Merge Output: `template/04_01_Merge_Node.js`
 - API Format Example: `template/COFFEE-BATTLE-7SFX.json`
 - GPT System Prompt: `template/prompt_SystemMessage.md`
 - GPT User Message: `template/prompt_userMsssage.md`
