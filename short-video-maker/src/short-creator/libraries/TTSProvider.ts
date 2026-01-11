@@ -1,6 +1,6 @@
-import { GoogleTTS } from "./google-tts";
-import { ElevenLabsTTS } from "./elevenlabs-tts";
-import { FFMpeg } from "./FFmpeg";
+// Phase 1 Migration: YTB-tts 모듈로 전환
+import { GoogleTTS, ElevenLabsTTS } from "../../YTB-tts";
+import { FFMpeg } from "../../YTB-ffmpeg";
 import { logger } from "../../config";
 import type { Voices } from "../../types/shorts";
 import type { Kokoro } from "./Kokoro";

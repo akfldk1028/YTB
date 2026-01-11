@@ -2,6 +2,7 @@
 
 **완전 자동화된 비디오 제작 → 인스타그램/유튜브 업로드 파이프라인**
 
+  Switch → category-selector → CatProject API → Extract CatProject Body → Transform → GoogleDrive → SaveConfig → Create
 ```
 컨텐츠 생성 → 비디오 제작 → 다운로드 → Instagram + YouTube 업로드 → 알림
 ```

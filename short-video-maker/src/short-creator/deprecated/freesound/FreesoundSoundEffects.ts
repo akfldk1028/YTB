@@ -76,7 +76,15 @@ export const FreesoundPresets: Record<string, string> = {
   CAT_MEOW: 'cat meow cute',
   CAT_PURR: 'cat purring',
   CAT_HISS: 'cat hiss angry',
-  CAT_PAW: 'cat footsteps'
+  CAT_PAW: 'cat footsteps',
+
+  // Emotions/Reactions (CatProject 호환)
+  LAUGH: 'laugh happy cute',
+  SUCCESS: 'success celebration fanfare',
+  MAGIC: 'magic sparkle fantasy',
+  GASP: 'gasp surprised',
+  AWW: 'aww cute adorable',
+  CHEER: 'cheer celebration crowd'
 };
 
 export class FreesoundSoundEffects {

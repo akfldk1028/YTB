@@ -1,7 +1,7 @@
 import fs from "fs-extra";
 import path from "path";
 import cuid from "cuid";
-import { FFMpeg } from "../libraries/FFmpeg";
+import { FFMpeg } from "../../YTB-ffmpeg";
 import { OrientationEnum } from "../../types/shorts";
 import { VIDEO_DIMENSIONS } from "../utils/Constants";
 import { logger } from "../../logger";

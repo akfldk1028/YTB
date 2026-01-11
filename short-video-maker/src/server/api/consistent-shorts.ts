@@ -85,6 +85,11 @@ export class ConsistentShortsAPIRouter {
      *     ],
      *     "backgroundMusic": { "source": "chill", "volume": 0.2, "loop": true }
      *   },
+     *   "hfbpo": {  // 🤖 HFBPO Integration (optional)
+     *     "combinationKey": "han_river|zoom|romantic",  // Thompson Sampling combination
+     *     "prompt": "A breathtaking night...",          // Original prompt (for debugging)
+     *     "estimatedReward": 0.72                       // Expected reward
+     *   },
      *   "webhook_url": "https://your-n8n-webhook.com/callback"
      * }
      */
@@ -94,7 +99,7 @@ export class ConsistentShortsAPIRouter {
         try {
           logger.info("Processing CONSISTENT SHORTS request (character consistency mode)");
 
-          const { character, characterReference, titleText, scenes, config, webhook_url, callback_url, elevenlabs_config, video_config, audio_config } = req.body;
+          const { character, characterReference, titleText, scenes, config, webhook_url, callback_url, elevenlabs_config, video_config, audio_config, hfbpo } = req.body;
 
           // 🔥 DEBUG: Check if Korean text is corrupted at API entry
           if (scenes && scenes.length > 0 && scenes[0].text) {
@@ -250,7 +255,13 @@ export class ConsistentShortsAPIRouter {
               // 🔥 상단 제목 (숏츠 어그로용)
               titleText: titleText,
               // 🔥 Title text language selection (english | korean)
-              language: config?.language || 'korean'
+              language: config?.language || 'korean',
+              // 🤖 HFBPO Integration (Human-Feedback-Driven Bandit Prompt Optimization)
+              hfbpo: hfbpo ? {
+                combinationKey: hfbpo.combinationKey,
+                prompt: hfbpo.prompt,
+                estimatedReward: hfbpo.estimatedReward
+              } : undefined
             }
           );
 
@@ -286,6 +297,11 @@ export class ConsistentShortsAPIRouter {
             titleText: titleText ? { ko: titleText.ko, en: titleText.en } : undefined,
             veoMode: useFrameInterpolation ? "VEO 3.1 (First+Last Frame)" : (generateVideos ? "VEO 3 (First Frame only)" : "none"),
             imageMode: useStoredImageForVeo ? "Stored Character Image → VEO" : "NANO BANANA Generated → VEO",
+            // 🤖 HFBPO tracking
+            hfbpo: hfbpo ? {
+              combinationKey: hfbpo.combinationKey,
+              estimatedReward: hfbpo.estimatedReward
+            } : undefined,
             message: characterReference?.profileId
               ? `Consistent character video generation started using stored profile '${characterReference.profileId}'.`
               : "Consistent character video generation started. All scenes will feature the same character."

@@ -1,10 +1,9 @@
 import path from "path";
 import { OrientationEnum, Caption } from "../types/shorts";
-import { GoogleTTS } from "./libraries/google-tts";
-import { ElevenLabsTTS } from "./libraries/elevenlabs-tts";
+// Phase 2 Migration: YTB-tts 모듈로 전환
+import { GoogleTTS, ElevenLabsTTS, Whisper } from "../YTB-tts";
 import { TTSProvider } from "./libraries/TTSProvider";
-import { Whisper } from "./libraries/Whisper";
-import { FFMpeg } from "./libraries/FFmpeg";
+import { FFMpeg } from "../YTB-ffmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
 import { GoogleVeoAPI } from "./libraries/GoogleVeo";
 import { RunwayAPI } from "./libraries/RunwayAPI";
@@ -41,8 +40,7 @@ import type { WebhookManager } from "../workflow/WebhookManager";
 import { VideoWorkflowState } from "../workflow/types";
 import type { YouTubeUploader } from "../youtube-upload/services/YouTubeUploader";
 import type { N8NYouTubeUploadConfig } from "../server/parsers/N8NInterfaces";
-import type { GoogleSheetsService } from "../sheet/services/GoogleSheetsService";
-import type { VideoGenerationRecord } from "../sheet/types";
+import type { GoogleSheetsService, VideoGenerationRecord } from "../YTB-sheet";
 import crypto from "crypto";
 
 import type {
@@ -337,7 +335,7 @@ export class ShortCreatorRefactored {
       }
 
       if (youtubeUpload?.enabled && this.youtubeUploader) {
-        await this.handleYouTubeUpload(item.id, youtubeUpload, item.metadata);
+        await this.handleYouTubeUpload(item.id, youtubeUpload, item.metadata, item.callbackUrl);
       }
     } catch (error: unknown) {
       logger.error(error, "Error creating video");
@@ -887,11 +885,13 @@ export class ShortCreatorRefactored {
 
   /**
    * Handle YouTube upload with auto-title generation
+   * @param callbackUrl - Optional callback URL to send YouTube upload completion notification
    */
   private async handleYouTubeUpload(
     videoId: string,
     youtubeUpload: N8NYouTubeUploadConfig,
-    metadata?: any
+    metadata?: any,
+    callbackUrl?: string
   ): Promise<void> {
     try {
       if (!this.youtubeUploader) {
@@ -1024,6 +1024,32 @@ export class ShortCreatorRefactored {
           logger.info({ jobId: videoId, youtubeVideoId, youtubeUrl: videoUrl }, '📊 Sheet updated with YouTube video ID and URL');
         } catch (sheetError) {
           logger.error({ error: sheetError, jobId: videoId }, '❌ Failed to update sheet with YouTube ID');
+        }
+      }
+
+      // Send YouTube upload completion callback (for HFBPO reinforcement learning)
+      if (callbackUrl) {
+        try {
+          await this.callbackManager.sendCompletionCallback(callbackUrl, {
+            videoId,
+            status: 'youtube_uploaded',
+            youtubeVideoId,
+            youtubeUrl: videoUrl,
+            channelName: youtubeUpload.channelName,
+            uploadedAt: new Date().toISOString(),
+            // Pass through HFBPO metadata for reinforcement learning tracking
+            hfbpo: metadata?.hfbpo,
+            originalMetadata: metadata
+          });
+          logger.info(
+            { videoId, youtubeVideoId, callbackUrl },
+            '📤 YouTube upload completion callback sent (HFBPO)'
+          );
+        } catch (callbackError) {
+          logger.error(
+            { error: callbackError, videoId, callbackUrl },
+            '❌ Failed to send YouTube upload callback'
+          );
         }
       }
     } catch (error: unknown) {

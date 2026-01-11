@@ -4,7 +4,8 @@ import { logger } from "../logger";
 import { Kokoro } from "../short-creator/libraries/Kokoro";
 import { MusicManager } from "../short-creator/music";
 import { Config } from "../config";
-import { Whisper } from "../short-creator/libraries/Whisper";
+// Phase 4 Migration: YTB-tts 모듈로 전환
+import { Whisper } from "../YTB-tts";
 
 // runs in docker
 export async function install() {

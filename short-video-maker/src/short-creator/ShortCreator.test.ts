@@ -7,7 +7,7 @@ import { ShortCreator } from "./ShortCreator";
 import { Kokoro } from "./libraries/Kokoro";
 import { Remotion } from "./libraries/Remotion";
 import { Whisper } from "./libraries/Whisper";
-import { FFMpeg } from "./libraries/FFmpeg";
+import { FFMpeg } from "../YTB-ffmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
 import { Config } from "../config";
 import { MusicManager } from "./music";

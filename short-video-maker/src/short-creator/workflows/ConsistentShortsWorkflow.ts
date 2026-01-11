@@ -12,8 +12,8 @@ import { ImageModelType } from "../../image-generation/models/imageModels";
 import { CharacterStorageService } from "../../character-store/CharacterStorageService";
 import type { CharacterProfile, Character } from "../../character-store/types";
 import type { Scene, SceneInput, AudioConfig, SoundEffectConfig, SceneCharacterImages, CharacterImageInfo, TitleTextConfig } from "../../types/shorts";
-import { FreesoundSoundEffects, FreesoundPresets } from "../libraries/freesound";
-import { LoudlyBGM } from "../libraries/loudly";
+// Phase 3 Migration: YTB-tts 모듈로 전환
+import { FreesoundSoundEffects, FREESOUND_PRESETS as FreesoundPresets, LoudlyBGM } from "../../YTB-tts";
 
 /**
  * Minimum scene duration in seconds.
@@ -1677,24 +1677,29 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           // Get language from metadata (default: korean for backward compatibility)
           const titleLanguage = (context.metadata?.language as 'english' | 'korean') || 'korean';
 
-          if (allCaptions.length > 0 || titleText) {
+          // 🌍 언어별 자막 선택 - english면 영어만, korean이면 한국어만
+          const primaryCaptions = titleLanguage === 'english' ? allEnglishCaptions : allCaptions;
+          const secondaryCaptions = null; // 단일 언어 모드 - 이중 자막 비활성화
+
+          if (primaryCaptions.length > 0 || titleText) {
             logger.info({
               hasTitleText: !!titleText,
               titleTextKo: titleText?.ko,
               titleTextEn: titleText?.en,
               titleLanguage,
-              koreanCaptionCount: allCaptions.length,
-              englishCaptionCount: allEnglishCaptions.length,
+              primaryCaptionCount: primaryCaptions.length,
+              secondaryCaptionCount: 0,
+              captionLanguage: titleLanguage === 'english' ? 'English only' : 'Korean only',
               videoDuration: cumulativeDuration,
               videoId: context.videoId
-            }, "🎬 Applying title and subtitles to video");
+            }, "🎬 Applying title and subtitles to video (single language mode)");
 
             await this.videoProcessor.addTitleAndSubtitlesToVideo(
               tempFinalPath,
               standardVideoPath,
               titleText || null,    // 상단 제목 (선택)
-              allCaptions,          // 한국어 자막
-              allEnglishCaptions.length > 0 ? allEnglishCaptions : null,  // 영어 자막 (선택)
+              primaryCaptions,      // 🌍 선택된 언어의 자막만
+              secondaryCaptions,    // null - 이중 자막 비활성화
               context.orientation,
               cumulativeDuration,   // 영상 총 길이 (제목 duration 계산용)
               titleLanguage         // 🔥 타이틀 언어 (english: en 사용, korean: ko 사용)
@@ -1851,24 +1856,29 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           // Get language from metadata (default: korean for backward compatibility)
           const titleLanguageNoVeo = (context.metadata?.language as 'english' | 'korean') || 'korean';
 
-          if (allCaptions.length > 0 || titleText) {
+          // 🌍 언어별 자막 선택 - english면 영어만, korean이면 한국어만
+          const primaryCaptionsNoVeo = titleLanguageNoVeo === 'english' ? allEnglishCaptions : allCaptions;
+          const secondaryCaptionsNoVeo = null; // 단일 언어 모드 - 이중 자막 비활성화
+
+          if (primaryCaptionsNoVeo.length > 0 || titleText) {
             logger.info({
               hasTitleText: !!titleText,
               titleTextKo: titleText?.ko,
               titleTextEn: titleText?.en,
               titleLanguage: titleLanguageNoVeo,
-              koreanCaptionCount: allCaptions.length,
-              englishCaptionCount: allEnglishCaptions.length,
+              primaryCaptionCount: primaryCaptionsNoVeo.length,
+              secondaryCaptionCount: 0,
+              captionLanguage: titleLanguageNoVeo === 'english' ? 'English only' : 'Korean only',
               videoDuration: cumulativeDuration,
               videoId: context.videoId
-            }, "📝 Applying title text and subtitles (no VEO3 static mode)");
+            }, "📝 Applying title text and subtitles (no VEO3 static mode, single language)");
 
             await this.videoProcessor.addTitleAndSubtitlesToVideo(
               tempFinalPath,
               standardVideoPath,
               titleText || null,
-              allCaptions,
-              allEnglishCaptions.length > 0 ? allEnglishCaptions : null,
+              primaryCaptionsNoVeo,      // 🌍 선택된 언어의 자막만
+              secondaryCaptionsNoVeo,    // null - 이중 자막 비활성화
               context.orientation,
               cumulativeDuration,
               titleLanguageNoVeo   // 🔥 타이틀 언어

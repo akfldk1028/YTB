@@ -6,14 +6,20 @@ import type { SceneInput, RenderConfig } from "../../types/shorts";
 
 export interface CallbackData {
   videoId: string;
-  sceneInput: SceneInput[];
-  config: RenderConfig;
+  sceneInput?: SceneInput[];
+  config?: RenderConfig;
   originalMetadata?: any;
-  status: 'completed' | 'failed' | 'processing';
+  status: 'completed' | 'failed' | 'processing' | 'youtube_uploaded';
   error?: unknown;
   errorType?: string;
   gcsUrl?: string;
   gcsSignedUrl?: string;
+  // YouTube upload specific fields
+  youtubeVideoId?: string;
+  youtubeUrl?: string;
+  channelName?: string;
+  uploadedAt?: string;
+  hfbpo?: any;
 }
 
 export interface CallbackConfig {
@@ -72,9 +78,25 @@ export class CallbackManager {
     gcsUrl?: string,
     gcsSignedUrl?: string
   ): any {
+    // YouTube upload callback - simplified payload
+    if (data.status === 'youtube_uploaded') {
+      return {
+        status: data.status,
+        videoId: data.videoId,
+        youtubeVideoId: data.youtubeVideoId,
+        youtubeUrl: data.youtubeUrl,
+        channelName: data.channelName,
+        uploadedAt: data.uploadedAt,
+        hfbpo: data.hfbpo,
+        metadata: data.originalMetadata,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    // Video generation callback - full payload
     const usedParameters = {
       videoId: data.videoId,
-      scenes: data.sceneInput.map((scene, index) => ({
+      scenes: (data.sceneInput || []).map((scene, index) => ({
         sceneNumber: index + 1,
         text: scene.text,
         searchTerms: scene.searchTerms,
@@ -83,7 +105,7 @@ export class CallbackManager {
         videoPrompt: (scene as any).videoPrompt || null,
         textOverlays: (scene as any).textOverlays || null
       })),
-      config: {
+      config: data.config ? {
         orientation: data.config.orientation,
         musicTag: (data.config as any).musicTag || 'happy',
         quality: (data.config as any).quality || '1080p',
@@ -95,10 +117,10 @@ export class CallbackManager {
         captionBackgroundColor: data.config.captionBackgroundColor,
         voice: data.config.voice,
         musicVolume: data.config.musicVolume
-      },
+      } : null,
       processing: {
-        totalScenes: data.sceneInput.length,
-        totalDuration: data.sceneInput.reduce((sum, scene) => sum + ((scene as any).duration || 0), 0),
+        totalScenes: (data.sceneInput || []).length,
+        totalDuration: (data.sceneInput || []).reduce((sum, scene) => sum + ((scene as any).duration || 0), 0),
         videoSource: this.config.videoSource,
         ttsProvider: this.config.ttsProvider,
         devMode: this.config.devMode,

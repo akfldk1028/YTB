@@ -2,11 +2,10 @@
 import path from "path";
 import fs from "fs-extra";
 
-import { GoogleTTS } from "./short-creator/libraries/google-tts";
-import { ElevenLabsTTS } from "./short-creator/libraries/elevenlabs-tts";
+// Phase 2 Migration: YTB-tts 모듈로 전환 (Phase 3.2: Whisper 포함)
+import { GoogleTTS, ElevenLabsTTS, Whisper } from "./YTB-tts";
 import { TTSProvider } from "./short-creator/libraries/TTSProvider";
-import { Whisper } from "./short-creator/libraries/Whisper";
-import { FFMpeg } from "./short-creator/libraries/FFmpeg";
+import { FFMpeg } from "./YTB-ffmpeg";
 import { PexelsAPI } from "./short-creator/libraries/Pexels";
 import { GoogleVeoAPI } from "./short-creator/libraries/GoogleVeo";
 import { RunwayAPI } from "./short-creator/libraries/RunwayAPI";
@@ -15,7 +14,7 @@ import { ImageGenerationService } from "./image-generation/services/ImageGenerat
 import { ImageModelType } from "./image-generation/models/imageModels";
 import { GoogleCloudStorageService } from "./storage/GoogleCloudStorageService";
 import { YouTubeUploader } from "./youtube-upload/services/YouTubeUploader";
-import { GoogleSheetsService } from "./sheet/services/GoogleSheetsService";
+import { GoogleSheetsService } from "./YTB-sheet";
 import { Config } from "./config";
 import { ShortCreator } from "./short-creator";
 import { logger } from "./logger";

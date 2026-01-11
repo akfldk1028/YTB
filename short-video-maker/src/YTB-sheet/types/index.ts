@@ -36,6 +36,11 @@ export interface VideoGenerationRecord {
 
   // YouTube URL
   youtubeUrl?: string;          // YouTube 영상 URL
+
+  // HFBPO 연동 필드
+  combinationKey?: string;      // HFBPO 조합 키 (place|verb|scenario)
+  rewardSent?: boolean;         // HFBPO 보상 전송 여부
+  rewardSentAt?: string;        // 보상 전송 시간 (ISO 8601)
 }
 
 /**
@@ -113,6 +118,10 @@ export interface SheetRowData {
   uploadedAt: string;
   gcsUrl: string;
   youtubeUrl: string;           // YouTube URL
+  // HFBPO 연동 필드
+  combinationKey: string;       // HFBPO 조합 키
+  rewardSent: boolean;          // 보상 전송 여부
+  rewardSentAt: string;         // 보상 전송 시간
   // Analytics 필드
   views: number;
   likes: number;
@@ -151,6 +160,11 @@ export const SHEET_HEADERS = [
   'uploadedAt',
   'gcsUrl',
   'youtubeUrl',
+  // HFBPO 연동 필드
+  'combinationKey',
+  'rewardSent',
+  'rewardSentAt',
+  // Analytics 필드
   'views',
   'likes',
   'comments',

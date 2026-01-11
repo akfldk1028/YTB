@@ -1,8 +1,9 @@
 import path from "path";
 import cuid from "cuid";
 import { TTSProvider } from "../libraries/TTSProvider";
-import { Whisper } from "../libraries/Whisper";
-import { FFMpeg } from "../libraries/FFmpeg";
+// Phase 3.2 Migration: YTB-tts 모듈로 전환
+import { Whisper } from "../../YTB-tts";
+import { FFMpeg } from "../../YTB-ffmpeg";
 import { logger } from "../../logger";
 import type { Voices } from "../../types/shorts";
 

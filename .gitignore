@@ -153,6 +153,9 @@ config.local.*
 settings.local.*
 .claude/settings.local.json
 
+## MCP config (contains API keys)
+.mcp.json
+
 ## Certificates
 *.pem
 *.key
