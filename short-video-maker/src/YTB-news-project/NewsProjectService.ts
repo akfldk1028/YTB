@@ -147,6 +147,7 @@ export class NewsProjectService {
 
     // TTS Provider 선택
     const ttsProvider = config.audio.tts_provider || 'elevenlabs';
+    logger.info({ ttsProvider, voice: config.audio.voice, rawProvider: config.audio.tts_provider }, '[NewsProject] TTS Provider 선택됨');
 
     try {
       await fs.ensureDir(tempDir);

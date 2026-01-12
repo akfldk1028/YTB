@@ -43,6 +43,7 @@ const NewsPayloadSchema = z.object({
   global_config: z.object({
     audio: z.object({
       voice: z.string(),
+      tts_provider: z.enum(['elevenlabs', 'google']).optional(),
     }),
     video: z.object({
       orientation: z.enum(['portrait', 'landscape']),
