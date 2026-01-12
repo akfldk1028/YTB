@@ -7,7 +7,10 @@
 import { Router, Request, Response } from 'express';
 import type { Router as RouterType } from 'express';
 import { z } from 'zod';
+import path from 'path';
+import fs from 'fs-extra';
 import { logger } from '../logger';
+import { Config } from '../config';
 import { NewsProjectService } from './NewsProjectService';
 import type {
   NewsPayload,
@@ -144,6 +147,41 @@ router.get('/status/:videoId', async (req: Request, res: Response) => {
     return res.json(response);
   } catch (error) {
     logger.error({ error }, '[NewsRouter] 상태 조회 실패');
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/news/download/:videoId
+ *
+ * 비디오 다운로드
+ */
+router.get('/download/:videoId', async (req: Request, res: Response) => {
+  try {
+    const { videoId } = req.params;
+    const config = new Config();
+
+    const videoPath = path.join(config.videosDirPath, `${videoId}.mp4`);
+
+    if (!await fs.pathExists(videoPath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Video not found',
+      });
+    }
+
+    logger.info({ videoId, videoPath }, '[NewsRouter] 비디오 다운로드 요청');
+
+    res.download(videoPath, `${videoId}.mp4`, (err) => {
+      if (err) {
+        logger.error({ error: err }, '[NewsRouter] 다운로드 실패');
+      }
+    });
+  } catch (error) {
+    logger.error({ error }, '[NewsRouter] 다운로드 에러');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
