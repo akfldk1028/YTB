@@ -204,50 +204,72 @@ export class NewsProjectService {
         const audioPath = path.join(tempDir, `audio_${i}.mp3`);
         let audioDuration: number;
 
-        if (ttsProvider === 'elevenlabs' && this.elevenLabsTTS) {
-          // 🔥 ElevenLabs TTS (alignment 포함)
-          const ttsResult = await this.elevenLabsTTS.generate(
-            scene.narration,
-            config.audio.voice
-          );
+        // 🔥 TTS 생성 (ElevenLabs 우선, 실패 시 Google TTS fallback)
+        let usedProvider = ttsProvider;
+        let ttsSuccess = false;
 
-          // 오디오 저장
-          const audioBuffer = Buffer.from(ttsResult.audio);
-          await fs.writeFile(audioPath, audioBuffer);
-          audioDuration = ttsResult.audioLength;
+        // ElevenLabs 시도
+        if ((ttsProvider === 'elevenlabs' || !ttsProvider) && this.elevenLabsTTS) {
+          try {
+            const ttsResult = await this.elevenLabsTTS.generate(
+              scene.narration,
+              config.audio.voice
+            );
 
-          // 자막 추출 (alignment 있을 때)
-          if (ttsResult.alignment) {
-            const words = this.extractWordsFromAlignment(ttsResult.alignment);
-            for (const word of words) {
-              allCaptions.push({
-                text: word.text,
-                startMs: word.startMs + cumulativeTime * 1000,
-                endMs: word.endMs + cumulativeTime * 1000,
-              });
+            const audioBuffer = Buffer.from(ttsResult.audio);
+            await fs.writeFile(audioPath, audioBuffer);
+            audioDuration = ttsResult.audioLength;
+
+            // 자막 추출 (alignment 있을 때)
+            if (ttsResult.alignment) {
+              const words = this.extractWordsFromAlignment(ttsResult.alignment);
+              for (const word of words) {
+                allCaptions.push({
+                  text: word.text,
+                  startMs: word.startMs + cumulativeTime * 1000,
+                  endMs: word.endMs + cumulativeTime * 1000,
+                });
+              }
             }
+            usedProvider = 'elevenlabs';
+            ttsSuccess = true;
+          } catch (elevenLabsError) {
+            logger.warn({ error: elevenLabsError }, '[NewsProject] ElevenLabs 실패, Google TTS로 fallback');
           }
-        } else if (ttsProvider === 'google' && this.googleTTS) {
-          // 🔥 Google TTS (alignment 없음 - 추후 Whisper STT로 자막 추출 가능)
-          const ttsResult = await this.googleTTS.generate(
-            scene.narration,
-            config.audio.voice
-          );
+        }
 
-          const audioBuffer = Buffer.from(ttsResult.audio);
-          await fs.writeFile(audioPath, audioBuffer);
-          audioDuration = ttsResult.audioLength;
+        // Google TTS (직접 선택 또는 fallback)
+        if (!ttsSuccess && this.googleTTS) {
+          try {
+            // Google TTS용 voice 매핑 (ElevenLabs voice ID → Google voice)
+            const googleVoice = this.mapToGoogleVoice(config.audio.voice);
 
-          // Google TTS는 alignment 없음 - 전체 텍스트를 하나의 자막으로
-          allCaptions.push({
-            text: scene.narration,
-            startMs: cumulativeTime * 1000,
-            endMs: (cumulativeTime + audioDuration) * 1000,
-          });
+            const ttsResult = await this.googleTTS.generate(
+              scene.narration,
+              googleVoice
+            );
 
-          logger.warn('[NewsProject] Google TTS는 word-level 자막 미지원');
-        } else {
-          throw new Error(`TTS provider not available: ${ttsProvider}`);
+            const audioBuffer = Buffer.from(ttsResult.audio);
+            await fs.writeFile(audioPath, audioBuffer);
+            audioDuration = ttsResult.audioLength;
+
+            // Google TTS는 alignment 없음 - 전체 텍스트를 하나의 자막으로
+            allCaptions.push({
+              text: scene.narration,
+              startMs: cumulativeTime * 1000,
+              endMs: (cumulativeTime + audioDuration) * 1000,
+            });
+
+            usedProvider = 'google (fallback)';
+            ttsSuccess = true;
+            logger.info('[NewsProject] Google TTS fallback 성공');
+          } catch (googleError) {
+            logger.error({ error: googleError }, '[NewsProject] Google TTS도 실패');
+          }
+        }
+
+        if (!ttsSuccess) {
+          throw new Error(`TTS 생성 실패: 모든 provider 실패`);
         }
 
         audioFiles.push(audioPath);
@@ -431,6 +453,27 @@ export class NewsProjectService {
     }[style || 'news_infographic'] || 'News style,';
 
     return `${prefix} ${prompt}, high quality, no text, no watermark`;
+  }
+
+  /**
+   * ElevenLabs voice ID를 Google TTS voice로 매핑
+   */
+  private mapToGoogleVoice(elevenLabsVoice: string): string {
+    // ElevenLabs voice ID → Google TTS voice 매핑
+    const voiceMap: Record<string, string> = {
+      // 한국어 남성
+      'pNInz6obpgDQGcFmaJgB': 'ko-KR-Neural2-C',  // Adam (남성)
+      'VR6AewLTigWG4xSOukaG': 'ko-KR-Neural2-C',  // Arnold (남성)
+      'ErXwobaYiN019PkySvjV': 'ko-KR-Neural2-C',  // Antoni (남성)
+      // 한국어 여성
+      'EXAVITQu4vr4xnSDxMaL': 'ko-KR-Neural2-A',  // Bella (여성)
+      'MF3mGyEYCl7XYWbV9V6O': 'ko-KR-Neural2-A',  // Elli (여성)
+      'jBpfuIE2acCO8z3wKNLl': 'ko-KR-Neural2-B',  // Gigi (여성)
+      '21m00Tcm4TlvDq8ikWAM': 'ko-KR-Neural2-A',  // Rachel (여성)
+    };
+
+    // 매핑된 voice가 있으면 사용, 없으면 기본 한국어 여성 voice
+    return voiceMap[elevenLabsVoice] || 'ko-KR-Neural2-A';
   }
 
   /**
