@@ -202,10 +202,10 @@ export class NewsProjectService {
         this.updateState(videoId, 'processing', `음성 생성 ${i + 1}/${video.scenes.length}`);
 
         const audioPath = path.join(tempDir, `audio_${i}.mp3`);
-        let audioDuration: number;
+        let audioDuration = 0;
 
         // 🔥 TTS 생성 (ElevenLabs 우선, 실패 시 Google TTS fallback)
-        let usedProvider = ttsProvider;
+        let usedProvider: string = ttsProvider;
         let ttsSuccess = false;
 
         // ElevenLabs 시도
