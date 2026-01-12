@@ -42,6 +42,14 @@ export interface NewsVideo {
 }
 
 /**
+ * 이미지 생성 모드
+ * - 'pexels_stock': Pexels 스톡 이미지만 사용 (실패시 에러)
+ * - 'nanoBanana': AI 생성만 사용 (기존 방식)
+ * - 'hybrid': Pexels 우선, 실패시 AI fallback (권장)
+ */
+export type ImageGenerationMode = 'pexels_stock' | 'nanoBanana' | 'hybrid';
+
+/**
  * n8n 페이로드 (핵심만)
  */
 export interface NewsPayload {
@@ -51,6 +59,8 @@ export interface NewsPayload {
     display_name: string;
   };
   global_config: {
+    // 🔥 이미지 생성 모드 (n8n에서 제어 가능)
+    image_generation?: ImageGenerationMode;
     audio: {
       voice: string;
       tts_provider?: 'elevenlabs' | 'google';  // TTS 프로바이더 선택

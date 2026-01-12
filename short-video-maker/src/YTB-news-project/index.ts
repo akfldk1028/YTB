@@ -3,14 +3,13 @@
  *
  * n8n 워크플로우와 연동되어 뉴스 콘텐츠를 숏츠로 변환
  *
- * 🔥 기존 short-creator 모듈 재사용:
- * - short-creator/processors/AudioProcessor (TTS + 자막)
- * - short-creator/processors/VideoProcessor (FFmpeg)
- * - image-generation/ImageGenerationService (Nano Banana)
+ * 🔥 비주얼 소스 (우선순위):
+ * 1. Pexels 스톡 이미지 (자연스러움, YouTube 정책 안전)
+ * 2. Nano Banana AI 이미지 (fallback)
  *
  * 워크플로우:
  * 1. n8n에서 finalNode.json 형식으로 요청
- * 2. Nano Banana로 뉴스 인포그래픽 이미지 생성
+ * 2. NewsVisualSource로 비주얼 생성 (Pexels → AI fallback)
  * 3. ElevenLabs TTS로 나레이션 생성 + 자막 추출
  * 4. FFmpeg로 비디오 합성 (이미지 → 비디오 + 자막)
  * 5. YouTube 업로드 (옵션)
@@ -23,5 +22,6 @@ export { newsRouter } from './routes';
 // Types
 export * from './types';
 
-// Services (optional direct usage)
+// Services
 export { NewsProjectService, type NewsProjectDependencies } from './NewsProjectService';
+export { NewsVisualSource, type ImageGenerationMode, type VisualResult, type VisualRequest } from './NewsVisualSource';

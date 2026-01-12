@@ -3,7 +3,7 @@
  *
  * 원칙:
  * - YTB-ffmpeg 모듈 직접 사용 (독립적)
- * - ImageGenerationService 직접 사용 (Nano Banana)
+ * - NewsVisualSource 사용 (Pexels 스톡 → AI fallback)
  * - YTB-tts 모듈 사용 (ElevenLabs / Google 선택 가능)
  */
 
@@ -17,9 +17,9 @@ import { FFMpeg } from '../YTB-ffmpeg';
 import { VIDEO_DIMENSIONS } from '../short-creator/utils/Constants';
 import { OrientationEnum } from '../types/shorts';
 
-// 🔥 이미지 생성 서비스
-import { ImageGenerationService } from '../image-generation/services/ImageGenerationService';
-import { ImageModelType } from '../image-generation/models/imageModels';
+// 🔥 NewsVisualSource (Pexels 스톡 → AI fallback)
+import { NewsVisualSource } from './NewsVisualSource';
+import type { ImageGenerationMode } from './types';
 
 // 🔥 YTB-tts 모듈 (ElevenLabs / Google 자유자재로 선택)
 import { ElevenLabsTTS, GoogleTTS } from '../YTB-tts';
@@ -50,7 +50,6 @@ interface ProcessingState {
 export class NewsProjectService {
   private config: Config;
   private ffmpeg!: FFMpeg;
-  private imageService!: ImageGenerationService;
   private elevenLabsTTS?: ElevenLabsTTS;
   private googleTTS?: GoogleTTS;
   private states = new Map<string, ProcessingState>();
@@ -69,17 +68,7 @@ export class NewsProjectService {
     // FFMpeg 초기화
     this.ffmpeg = await FFMpeg.init();
 
-    // 이미지 생성 서비스 초기화
-    if (!this.config.googleGeminiApiKey) {
-      throw new Error('GOOGLE_GEMINI_API_KEY is required for image generation');
-    }
-    this.imageService = new ImageGenerationService(
-      this.config.googleGeminiApiKey,
-      ImageModelType.NANO_BANANA,
-      this.config.tempDirPath
-    );
-
-    // 🔥 TTS 서비스 초기화 (필요할 때 lazy init)
+    // 🔥 TTS 서비스 초기화
     // ElevenLabs (기본)
     if (this.config.elevenLabsApiKey) {
       this.elevenLabsTTS = new ElevenLabsTTS({
@@ -149,43 +138,49 @@ export class NewsProjectService {
     const ttsProvider = config.audio.tts_provider || 'elevenlabs';
     logger.info({ ttsProvider, voice: config.audio.voice, rawProvider: config.audio.tts_provider }, '[NewsProject] TTS Provider 선택됨');
 
+    // 🔥 이미지 생성 모드 (기본값: hybrid - Pexels 우선, AI fallback)
+    const imageMode: ImageGenerationMode = config.image_generation || 'hybrid';
+    logger.info({ imageMode }, '[NewsProject] 이미지 생성 모드');
+
     try {
       await fs.ensureDir(tempDir);
-      this.updateState(videoId, 'processing', '이미지 생성 중');
+      this.updateState(videoId, 'processing', '비주얼 생성 중');
 
       // ============================================
-      // Step 1: 이미지 생성 (Nano Banana)
+      // Step 1: 비주얼 생성 (Pexels 스톡 → AI fallback)
       // ============================================
-      const aspectRatio = config.video.orientation === 'portrait' ? '9:16' : '16:9';
+      const visualSource = new NewsVisualSource(tempDir);
+      await visualSource.initialize();
+
       const imageDataList: { imagePath: string; duration: number }[] = [];
 
       for (let i = 0; i < video.scenes.length; i++) {
         const scene = video.scenes[i];
-        this.updateState(videoId, 'processing', `이미지 생성 ${i + 1}/${video.scenes.length}`);
+        const modeLabel = imageMode === 'hybrid' ? 'Pexels→AI' : imageMode;
+        this.updateState(videoId, 'processing', `비주얼 생성 ${i + 1}/${video.scenes.length} (${modeLabel})`);
 
-        const result = await this.imageService.generateImages(
+        const visualResult = await visualSource.getVisual(
           {
-            prompt: this.enhancePrompt(scene.image_prompt, config.nanoBanana?.defaultStyle),
-            numberOfImages: 1,
-            aspectRatio: aspectRatio as '9:16' | '16:9',
+            prompt: scene.image_prompt,
+            orientation: config.video.orientation,
+            style: config.nanoBanana?.defaultStyle,
+            sceneIndex: i,
+            videoId,
           },
-          videoId,
-          i
+          imageMode
         );
 
-        if (!result.success || !result.images?.[0]) {
-          throw new Error(`이미지 생성 실패: scene ${i + 1}`);
-        }
-
-        const imagePath = path.join(tempDir, `scene_${i}.png`);
-        await fs.writeFile(imagePath, result.images[0].data);
-
         imageDataList.push({
-          imagePath,
+          imagePath: visualResult.imagePath,
           duration: scene.duration,
         });
 
-        logger.info({ scene: i + 1 }, '✅ 이미지 생성 완료');
+        logger.info({
+          scene: i + 1,
+          source: visualResult.source,
+          pexelsId: visualResult.metadata?.pexelsId,
+          photographer: visualResult.metadata?.photographer,
+        }, `✅ 비주얼 생성 완료 (${visualResult.source})`);
       }
 
       // ============================================
@@ -440,19 +435,6 @@ export class NewsProjectService {
       state.progress.current++;
       logger.info({ videoId, step, progress: `${state.progress.current}/${state.progress.total}` }, '📊 진행');
     }
-  }
-
-  /**
-   * 프롬프트 강화 (News 스타일)
-   */
-  private enhancePrompt(prompt: string, style?: string): string {
-    const prefix = {
-      news_infographic: 'Professional news infographic, clean design,',
-      breaking_news: 'Breaking news style, urgent, bold,',
-      documentary: 'Documentary style, realistic,',
-    }[style || 'news_infographic'] || 'News style,';
-
-    return `${prefix} ${prompt}, high quality, no text, no watermark`;
   }
 
   /**

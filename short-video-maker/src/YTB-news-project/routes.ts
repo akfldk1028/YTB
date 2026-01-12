@@ -44,6 +44,8 @@ const NewsPayloadSchema = z.object({
     display_name: z.string(),
   }),
   global_config: z.object({
+    // 🔥 이미지 생성 모드 (n8n에서 제어)
+    image_generation: z.enum(['pexels_stock', 'nanoBanana', 'hybrid']).optional(),
     audio: z.object({
       voice: z.string(),
       tts_provider: z.enum(['elevenlabs', 'google']).optional(),
