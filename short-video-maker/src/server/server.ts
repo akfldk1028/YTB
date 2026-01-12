@@ -20,6 +20,7 @@ import { YouTubeAnalyticsService } from "../youtube-analytics/services/YouTubeAn
 import { createAnalyticsRoutes } from "../youtube-analytics/routes/analyticsRoutes";
 import { GoogleSheetsService, createSheetRoutes } from "../YTB-sheet";
 import { politicsRouter } from "../politics-project";
+import { newsRouter } from "../YTB-news-project";
 import { logger } from "../logger";
 import { Config } from "../config";
 
@@ -68,6 +69,10 @@ export class Server {
     // Mount Politics Project API (YouTube to Shorts converter)
     this.app.use("/api/politics", politicsRouter);
     logger.info("Politics Project API mounted at /api/politics");
+
+    // Mount News Project API (n8n News Shorts generator)
+    this.app.use("/api/news", newsRouter);
+    logger.info("News Project API mounted at /api/news");
 
     // Mount YouTube upload routes if uploader is available
     if (youtubeUploader) {
