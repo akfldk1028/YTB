@@ -67,6 +67,14 @@ export class FFMpeg {
     return this.audioProcessor.saveToMp3(audio, filePath);
   }
 
+  /**
+   * Save raw PCM audio to MP3 (for Gemini TTS)
+   * Gemini TTS returns L16 PCM (24kHz, mono, 16-bit signed little-endian)
+   */
+  async savePcmToMp3(audio: ArrayBuffer, filePath: string): Promise<string> {
+    return this.audioProcessor.savePcmToMp3(audio, filePath);
+  }
+
   async generateSilentAudio(outputPath: string, duration: number): Promise<string> {
     return this.audioProcessor.generateSilentAudio(outputPath, duration);
   }
@@ -155,7 +163,8 @@ export class FFMpeg {
     durationSeconds: number,
     orientation: OrientationEnum,
     config: RenderConfig,
-    skipSubtitles?: boolean
+    skipSubtitles?: boolean,
+    sceneOverlays?: Array<{ text: string; startMs: number; endMs: number }>  // 🔥 씬별 제목
   ): Promise<string> {
     return this.videoEditor.combineVideoWithAudioAndCaptions(
       videoPath,
@@ -165,12 +174,22 @@ export class FFMpeg {
       durationSeconds,
       orientation,
       config,
-      skipSubtitles
+      skipSubtitles,
+      sceneOverlays
     );
   }
 
   async trimVideo(inputPath: string, outputPath: string, duration: number): Promise<void> {
     return this.videoEditor.trimVideo(inputPath, outputPath, duration);
+  }
+
+  async trimAndResizeVideo(
+    inputPath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: { width: number; height: number }
+  ): Promise<void> {
+    return this.videoEditor.trimAndResizeVideo(inputPath, outputPath, duration, dimensions);
   }
 
   async addSubtitlesToVideo(

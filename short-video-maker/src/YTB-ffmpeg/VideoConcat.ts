@@ -17,53 +17,48 @@ export class VideoConcat {
    * Uses re-encoding for VEO 3.1 compatibility
    */
   async concatVideos(inputPaths: string[], outputPath: string): Promise<string> {
-    logger.info({ inputPaths, outputPath }, "Concatenating videos with FFmpeg (re-encoding for VEO 3.1 compatibility)");
+    logger.info({ inputPaths, outputPath }, "Concatenating videos with FFmpeg");
 
     if (inputPaths.length === 0) {
       throw new Error("No input paths provided");
     }
 
     if (inputPaths.length === 1) {
-      // Single file - re-encode for consistency
-      await runFFmpegSpawn([
-        '-i', inputPaths[0],
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        '-preset', 'fast',
-        '-crf', '23',
-        '-pix_fmt', 'yuv420p',
-        '-y',
-        outputPath
-      ], 300000);
+      // Single file - just copy (클립이 이미 정규화됨)
+      fs.copyFileSync(inputPaths[0], outputPath);
       return outputPath;
     }
 
+    // 🚀 1단계: concat demuxer + stream copy (가장 빠름, re-encoding 없음)
+    // 모든 클립이 trimAndResizeVideo에서 동일한 형식으로 정규화되었으므로 가능
     try {
-      // Build concat filter for multiple videos
-      const inputArgs = inputPaths.flatMap(p => ['-i', p]);
-      const filterInputs = inputPaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
-      const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=1:a=1[outv][outa]`;
+      const listPath = outputPath.replace(/\.mp4$/, '_concat_list.txt');
+      const listContent = inputPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
+      fs.writeFileSync(listPath, listContent);
+
+      logger.info({ listPath }, "Using concat demuxer with stream copy (fastest)");
 
       await runFFmpegSpawn([
-        ...inputArgs,
-        '-filter_complex', filterComplex,
-        '-map', '[outv]',
-        '-map', '[outa]',
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        '-preset', 'fast',
-        '-crf', '23',
-        '-pix_fmt', 'yuv420p',
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', listPath,
+        '-c', 'copy',  // stream copy - no re-encoding!
         '-y',
         outputPath
-      ], 300000); // 5 minute timeout
+      ], 60000); // 1분 타임아웃 (stream copy는 매우 빠름)
 
-      logger.info({ outputPath }, "Video concat complete with re-encoding");
+      // 임시 리스트 파일 삭제
+      fs.removeSync(listPath);
+
+      logger.info({ outputPath }, "Video concat complete with stream copy (fastest)");
       return outputPath;
     } catch (error) {
-      // Fallback: try video-only concat if audio concat fails
-      logger.warn({ error }, "Audio concat failed, trying video-only concat");
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.warn({ error: errorMsg }, "Stream copy concat failed, trying filter_complex with ultrafast");
+    }
 
+    // 🔄 2단계: filter_complex + ultrafast (fallback)
+    try {
       const inputArgs = inputPaths.flatMap(p => ['-i', p]);
       const filterInputs = inputPaths.map((_, i) => `[${i}:v]`).join('');
       const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=1:a=0[outv]`;
@@ -73,16 +68,20 @@ export class VideoConcat {
         '-filter_complex', filterComplex,
         '-map', '[outv]',
         '-c:v', 'libx264',
-        '-preset', 'fast',
+        '-preset', 'ultrafast',  // 🚀 ultrafast로 변경
         '-crf', '23',
         '-pix_fmt', 'yuv420p',
         '-an',
         '-y',
         outputPath
-      ], 300000);
+      ], 180000); // 3분 타임아웃
 
-      logger.info({ outputPath }, "Video-only concat complete");
+      logger.info({ outputPath }, "Video concat complete with ultrafast encoding");
       return outputPath;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMsg }, "All concat methods failed");
+      throw new Error(`Video concatenation failed: ${errorMsg}`);
     }
   }
 

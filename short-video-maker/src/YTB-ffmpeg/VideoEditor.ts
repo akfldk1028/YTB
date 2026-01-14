@@ -27,6 +27,7 @@ export class VideoEditor {
 
   /**
    * Combine video with audio and captions
+   * 🔥 sceneOverlays 추가: 씬별 제목 오버레이 지원
    */
   async combineVideoWithAudioAndCaptions(
     videoPath: string,
@@ -36,12 +37,13 @@ export class VideoEditor {
     durationSeconds: number,
     orientation: OrientationEnum,
     config: RenderConfig,
-    skipSubtitles = false
+    skipSubtitles = false,
+    sceneOverlays?: Array<{ text: string; startMs: number; endMs: number }>  // 🔥 씬별 제목
   ): Promise<string> {
-    logger.debug({ videoPath, audioPath, outputPath }, "Combining video with audio using FFmpeg");
+    logger.debug({ videoPath, audioPath, outputPath, hasOverlays: !!sceneOverlays }, "Combining video with audio using FFmpeg");
 
     const tempDir = path.dirname(outputPath);
-    let subtitleTextFilePaths: string[] = [];
+    let allTextFilePaths: string[] = [];
 
     return new Promise((resolve, reject) => {
       const ffmpegCommand = ffmpeg()
@@ -51,56 +53,75 @@ export class VideoEditor {
         .audioCodec('aac')
         .fps(30);
 
-      // Add subtitle filter if available (unless skipped)
+      // 🔥 필터들 수집 (제목 오버레이 + 자막)
+      const filters: string[] = [];
+
+      // 1. 씬별 제목 오버레이 (상단)
+      if (sceneOverlays && sceneOverlays.length > 0) {
+        const overlayResult = this.subtitleFilter.createSceneOverlayFilter(sceneOverlays, orientation, tempDir);
+        if (overlayResult) {
+          filters.push(overlayResult.filter);
+          allTextFilePaths.push(...overlayResult.textFilePaths);
+          logger.info({ overlayCount: sceneOverlays.length }, "Added scene overlay filter");
+        }
+      }
+
+      // 2. 자막 (하단/중앙)
       if (!skipSubtitles && captions && captions.length > 0) {
         const subtitleResult = this.subtitleFilter.createSubtitleFilter(captions, orientation, tempDir);
         if (subtitleResult) {
-          subtitleTextFilePaths = subtitleResult.textFilePaths;
-          ffmpegCommand.complexFilter(`[0:v]${subtitleResult.filter}[v]`);
-          ffmpegCommand.outputOptions([
-            '-map', '[v]',
-            '-map', '1:a:0',
-            '-shortest',
-            `-t ${durationSeconds}`
-          ]);
-        } else {
-          ffmpegCommand.outputOptions([
-            '-map', '0:v:0',
-            '-map', '1:a:0',
-            '-shortest',
-            `-t ${durationSeconds}`
-          ]);
+          filters.push(subtitleResult.filter);
+          allTextFilePaths.push(...subtitleResult.textFilePaths);
         }
+      }
+
+      // 필터 적용
+      if (filters.length > 0) {
+        const combinedFilter = filters.join(',');
+        ffmpegCommand.complexFilter(`[0:v]${combinedFilter}[v]`);
+        ffmpegCommand.outputOptions([
+          '-map', '[v]',
+          '-map', '1:a:0',
+          `-t ${durationSeconds}`
+        ]);
       } else {
         ffmpegCommand.outputOptions([
           '-map', '0:v:0',
           '-map', '1:a:0',
-          '-shortest',
           `-t ${durationSeconds}`
         ]);
       }
 
       ffmpegCommand
+        .on('start', (commandLine: string) => {
+          // 로그 크기 제한 - 처음 500자와 마지막 300자만 표시
+          if (commandLine.length > 1000) {
+            const preview = commandLine.substring(0, 500) + '... [' + (commandLine.length - 800) + ' chars hidden] ...' + commandLine.substring(commandLine.length - 300);
+            logger.info({ commandLength: commandLine.length }, 'FFmpeg combine command (truncated): ' + preview);
+          } else {
+            logger.info('FFmpeg combine command: ' + commandLine);
+          }
+        })
         .on('end', () => {
-          // Clean up subtitle text files
-          if (subtitleTextFilePaths.length > 0) {
-            subtitleTextFilePaths.forEach((filePath) => {
+          // Clean up all text files
+          if (allTextFilePaths.length > 0) {
+            allTextFilePaths.forEach((filePath) => {
               try {
                 if (fs.existsSync(filePath)) {
                   fs.unlinkSync(filePath);
                 }
               } catch (e) {
-                logger.warn({ filePath }, "Failed to clean up subtitle text file");
+                logger.warn({ filePath }, "Failed to clean up text file");
               }
             });
-            logger.debug({ cleanedFiles: subtitleTextFilePaths.length }, "Cleaned up subtitle text files");
+            logger.debug({ cleanedFiles: allTextFilePaths.length }, "Cleaned up text files");
           }
           logger.debug({ outputPath }, "Video combination complete");
           resolve(outputPath);
         })
         .on('error', (error: any) => {
-          // Clean up subtitle text files on error too
-          subtitleTextFilePaths.forEach((filePath) => {
+          // Clean up text files on error too
+          allTextFilePaths.forEach((filePath) => {
             try {
               if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
@@ -140,6 +161,46 @@ export class VideoEditor {
         })
         .on('error', (err) => {
           logger.error({ error: err, inputPath, outputPath }, "FFmpeg video trim failed");
+          reject(err);
+        })
+        .save(outputPath);
+    });
+  }
+
+  /**
+   * Trim video to specified duration AND resize to target dimensions
+   * Used for Pexels stock videos in NewsProject
+   * ⚠️ 오디오 없이 출력 (나중에 TTS 오디오와 합성됨)
+   */
+  async trimAndResizeVideo(
+    inputPath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: { width: number; height: number }
+  ): Promise<void> {
+    logger.debug({ inputPath, outputPath, duration, dimensions }, "Trimming and resizing video (no audio)");
+
+    return new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .setDuration(duration)
+        .videoCodec('libx264')
+        .noAudio()  // 🔥 오디오 제거 - TTS 오디오와 나중에 합성됨
+        .size(`${dimensions.width}x${dimensions.height}`)
+        .autopad(true, 'black')  // 비율 유지 + 검은색 패딩
+        .outputOptions([
+          '-preset', 'fast',
+          '-crf', '23',
+          '-pix_fmt', 'yuv420p'
+        ])
+        .on('start', (commandLine) => {
+          logger.debug('FFmpeg trimAndResize command: ' + commandLine);
+        })
+        .on('end', () => {
+          logger.debug({ outputPath, duration, dimensions }, "Video trim+resize complete");
+          resolve();
+        })
+        .on('error', (err) => {
+          logger.error({ error: err, inputPath, outputPath }, "FFmpeg video trim+resize failed");
           reject(err);
         })
         .save(outputPath);

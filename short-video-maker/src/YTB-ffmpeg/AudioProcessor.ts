@@ -103,6 +103,38 @@ export class AudioProcessor {
   }
 
   /**
+   * Save raw PCM audio buffer to MP3 file (for Gemini TTS)
+   * Gemini TTS returns L16 PCM (24kHz, mono, 16-bit signed little-endian)
+   */
+  async savePcmToMp3(audio: ArrayBuffer, filePath: string): Promise<string> {
+    const inputStream = new Readable();
+    inputStream.push(Buffer.from(audio));
+    inputStream.push(null);
+    return new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(inputStream)
+        .inputFormat('s16le')        // 16-bit signed little-endian PCM
+        .inputOptions([
+          '-ar 24000',               // 24kHz sample rate (Gemini TTS default)
+          '-ac 1'                    // Mono
+        ])
+        .audioCodec("libmp3lame")
+        .audioBitrate(192)
+        .audioChannels(2)            // Output stereo
+        .toFormat("mp3")
+        .save(filePath)
+        .on("end", () => {
+          logger.debug("PCM to MP3 conversion complete");
+          resolve(filePath);
+        })
+        .on("error", (err) => {
+          logger.error({ error: err.message }, "PCM to MP3 conversion failed");
+          reject(err);
+        });
+    });
+  }
+
+  /**
    * Generate silent audio track
    * Used for skipTTS mode where only sound effects are needed
    */
