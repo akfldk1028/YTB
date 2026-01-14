@@ -125,6 +125,11 @@ FROM base
 # Copy static assets
 COPY static /app/static
 
+# 🔥 Copy custom fonts for Korean text rendering (title + subtitles)
+# BlackHanSans-Regular.ttf: 제목용 (큰 임팩트)
+# GmarketSansTTFBold.ttf: 자막용 (깔끔한 가독성)
+COPY font /app/font
+
 # Copy Whisper binary and models
 COPY --from=install-whisper /whisper /app/data/libs/whisper
 
