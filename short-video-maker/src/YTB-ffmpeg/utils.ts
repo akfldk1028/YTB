@@ -8,14 +8,54 @@ import { spawn } from "child_process";
 import fs from "fs-extra";
 import { logger } from "../logger";
 
-// Font paths to check (in order of preference)
+// ============================================
+// 🔥 폰트 설정 - NewsProject 스타일
+// 제목: Black Han Sans (두꺼운 임팩트)
+// 본문/자막: Gmarket Sans Bold (깔끔한 가독성)
+// ============================================
+
+// 프로젝트 폰트 경로 (우선)
+import path from "path";
+
+// 🔥 Docker 환경 감지: process.env.DOCKER 또는 /app 경로 존재 확인
+const isDocker = process.env.DOCKER === 'true' || fs.existsSync('/app/font');
+
+// 🔥 PROJECT_ROOT 계산 - Docker vs 로컬 구분
+// Docker: /app/dist/YTB-ffmpeg/__dirname → /app (font는 /app/font에 있음)
+// 로컬: D:/Data/.../dist/YTB-ffmpeg/__dirname → D:/Data/.../short-video-maker
+const PROJECT_ROOT = isDocker ? '/app' : path.resolve(__dirname, '../..');
+
+// 제목용 폰트 (Black Han Sans)
+const TITLE_FONT_PATHS = [
+  // 🔥 Docker/Cloud Run - 최우선 (/app/font/)
+  '/app/font/BlackHanSans-Regular.ttf',
+  // 프로젝트 폰트 (로컬 개발용)
+  path.join(PROJECT_ROOT, 'font/BlackHanSans-Regular.ttf'),
+  // Fallback
+  '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+  'C:/Windows/Fonts/malgunbd.ttf',
+];
+
+// 본문/자막용 폰트 (Gmarket Sans Bold)
+const SUBTITLE_FONT_PATHS = [
+  // 🔥 Docker/Cloud Run - 최우선 (/app/font/)
+  '/app/font/GmarketSansTTFBold.ttf',
+  // 프로젝트 폰트 (로컬 개발용)
+  path.join(PROJECT_ROOT, 'font/GmarketSansTTFBold.ttf'),
+  // Fallback
+  '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+  'C:/Windows/Fonts/malgunbd.ttf',
+];
+
+// Legacy: 기존 코드 호환성용 (deprecated)
 const FONT_PATHS = [
   // Docker/Cloud Run paths (fonts-nanum package)
   '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
   '/usr/share/fonts/truetype/nanum/NanumGothic-Bold.ttf',
   // Local development paths
   '/home/akfldk1028/.fonts/NanumGothic-Bold.ttf',
-  // Windows paths
+  // Windows paths (Bold 폰트 우선)
+  'C:/Windows/Fonts/malgunbd.ttf',   // 맑은 고딕 Bold
   'C:/Windows/Fonts/malgun.ttf',
   'C:/Windows/Fonts/NanumGothic.ttf',
   // Fallback to DejaVu Sans (commonly available)
@@ -24,8 +64,10 @@ const FONT_PATHS = [
   '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
 ];
 
-// Cache the found font path
+// Cache the found font paths
 let cachedFontPath: string | null = null;
+let cachedTitleFontPath: string | null = null;
+let cachedSubtitleFontPath: string | null = null;
 let ffmpegPath: string | null = null;
 
 /**
@@ -61,9 +103,39 @@ export async function initFFmpeg(): Promise<void> {
     logger.info(`FFmpeg path set to npm installer: ${ffmpegInstaller.path}`);
   }
 
-  // Log the font path that will be used
-  const fontPath = findAvailableFontPath();
-  logger.info(`Caption font path: ${fontPath}`);
+  // 🔥 앱 시작 시 모든 폰트 경로 확인 (디버깅용)
+  const appFontDir = '/app/font';
+  const appFontDirExists = fs.existsSync(appFontDir);
+  let appFontFiles: string[] = [];
+
+  if (appFontDirExists) {
+    try {
+      appFontFiles = fs.readdirSync(appFontDir);
+    } catch (e) {
+      logger.warn({ error: e }, "[Font] Failed to read /app/font directory");
+    }
+  }
+
+  logger.info({
+    isDocker,
+    PROJECT_ROOT,
+    dockerEnv: process.env.DOCKER,
+    appFontDirExists,
+    appFontFiles,
+    expectedFonts: ['BlackHanSans-Regular.ttf', 'GmarketSansTTFBold.ttf']
+  }, "[Font] Environment check at startup");
+
+  // 제목 폰트 확인
+  const titleFontPath = findTitleFontPath();
+  logger.info({ titleFont: titleFontPath }, "[Font] Title font configured");
+
+  // 자막 폰트 확인
+  const subtitleFontPath = findSubtitleFontPath();
+  logger.info({ subtitleFont: subtitleFontPath }, "[Font] Subtitle font configured");
+
+  // Legacy 폰트 확인
+  const legacyFontPath = findAvailableFontPath();
+  logger.info({ legacyFont: legacyFontPath }, "[Font] Legacy font configured");
 }
 
 /**
@@ -82,7 +154,92 @@ export function getFFmpegPath(): string {
 export { ffmpeg };
 
 /**
- * Find the first available font path from the list of candidates
+ * 🔥 제목용 폰트 경로 찾기 (Black Han Sans)
+ */
+export function findTitleFontPath(): string {
+  if (cachedTitleFontPath) {
+    logger.debug({ cachedPath: cachedTitleFontPath }, "[Font] Using cached title font path");
+    return cachedTitleFontPath;
+  }
+
+  // 🔥 상세 디버깅 로그
+  logger.info({
+    isDocker,
+    PROJECT_ROOT,
+    pathsToCheck: TITLE_FONT_PATHS
+  }, "[Font] Searching for title font (Black Han Sans)");
+
+  for (const fontPath of TITLE_FONT_PATHS) {
+    const exists = fs.existsSync(fontPath);
+    logger.debug({ fontPath, exists }, "[Font] Checking title font path");
+
+    if (exists) {
+      // 파일 크기 확인 (유효한 폰트인지)
+      const stats = fs.statSync(fontPath);
+      logger.info({
+        fontPath,
+        sizeBytes: stats.size,
+        sizeMB: (stats.size / 1024 / 1024).toFixed(2)
+      }, "[Font] ✅ Found title font (Black Han Sans)");
+      cachedTitleFontPath = fontPath;
+      return fontPath;
+    }
+  }
+
+  // Fallback to legacy
+  const fallbackPath = findAvailableFontPath();
+  logger.warn({
+    triedPaths: TITLE_FONT_PATHS,
+    fallbackPath
+  }, "[Font] ⚠️ Title font not found, using fallback");
+  return fallbackPath;
+}
+
+/**
+ * 🔥 자막용 폰트 경로 찾기 (Gmarket Sans Bold)
+ */
+export function findSubtitleFontPath(): string {
+  if (cachedSubtitleFontPath) {
+    logger.debug({ cachedPath: cachedSubtitleFontPath }, "[Font] Using cached subtitle font path");
+    return cachedSubtitleFontPath;
+  }
+
+  // 🔥 상세 디버깅 로그
+  logger.info({
+    isDocker,
+    PROJECT_ROOT,
+    pathsToCheck: SUBTITLE_FONT_PATHS
+  }, "[Font] Searching for subtitle font (Gmarket Sans Bold)");
+
+  for (const fontPath of SUBTITLE_FONT_PATHS) {
+    const exists = fs.existsSync(fontPath);
+    logger.debug({ fontPath, exists }, "[Font] Checking subtitle font path");
+
+    if (exists) {
+      // 파일 크기 확인 (유효한 폰트인지)
+      const stats = fs.statSync(fontPath);
+      logger.info({
+        fontPath,
+        sizeBytes: stats.size,
+        sizeMB: (stats.size / 1024 / 1024).toFixed(2)
+      }, "[Font] ✅ Found subtitle font (Gmarket Sans Bold)");
+      cachedSubtitleFontPath = fontPath;
+      return fontPath;
+    }
+  }
+
+  // Fallback to legacy
+  const fallbackPath = findAvailableFontPath();
+  logger.warn({
+    triedPaths: SUBTITLE_FONT_PATHS,
+    fallbackPath
+  }, "[Font] ⚠️ Subtitle font not found, using fallback");
+  return fallbackPath;
+}
+
+/**
+ * Find the first available font path from the list of candidates (Legacy)
+ * @deprecated Use findTitleFontPath() or findSubtitleFontPath() instead
  */
 export function findAvailableFontPath(): string {
   if (cachedFontPath) {
