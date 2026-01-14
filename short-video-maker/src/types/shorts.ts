@@ -76,6 +76,16 @@ export enum VoiceEnum {
   el_aiden = "dyTPmGzuLaJM15vpN3DS",     // Male - Happy Video
   el_snap = "gWaDC0oXAheKoZfljzuI",      // Male - Vibrant Energy
   el_ash = "2TgCsDinEcLJ95vqmLKm",       // Male - YouTube, natural
+
+  // 🔥 Gemini Pro TTS voices (무료 - 한국어 전용)
+  // Google AI Studio: Model=Gemini Pro TTS, Language=Korean (South Korea)
+  Aoede = "Aoede",           // Female - 밝고 생동감 있는 목소리 (뉴스 추천)
+  Despina = "Despina",       // Female - 또렷하고 명확한 목소리 (뉴스 추천)
+  Autonoe = "Autonoe",       // Female - 따뜻하고 친근한 목소리 (뉴스 추천)
+  Achernar = "Achernar",     // Female - 부드럽고 차분한 목소리
+  Erinome = "Erinome",       // Female - 온화하고 편안한 목소리
+  Leda = "Leda",             // Female - 우아하고 세련된 목소리
+  Alnilam = "Alnilam",       // Male - 단단하고 힘 있는 목소리
 }
 
 export enum OrientationEnum {
@@ -278,6 +288,29 @@ export type TitleTextConfig = {
   backgroundColor?: string;
   /** 텍스트 색 (기본: #000000 검정) */
   textColor?: string;
+};
+
+/**
+ * ⭐ Subtitle Style Configuration (자막 스타일 설정)
+ * TikTok/Shorts 스타일 자막의 색상 및 스타일을 커스터마이징
+ */
+export type SubtitleConfig = {
+  /** 일반 텍스트 색상 (기본: #FFFFFF 흰색) */
+  normalColor?: string;
+  /** 하이라이트 텍스트 색상 (기본: #FFEB3B 노란색) */
+  highlightColor?: string;
+  /** 테두리 색상 (기본: black) */
+  borderColor?: string;
+  /** 테두리 두께 (기본: 4) */
+  borderWidth?: number;
+  /** 그림자 색상 (기본: black@0.7) */
+  shadowColor?: string;
+  /** 폰트 크기 (기본: orientation에 따라 자동) */
+  fontSize?: number;
+  /** Y 위치 (기본: orientation에 따라 자동) */
+  yPosition?: string;
+  /** 스타일 모드: 'tiktok' (단어별 하이라이트) 또는 'simple' (단순 자막) */
+  mode?: 'tiktok' | 'simple';
 };
 
 /**

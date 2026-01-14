@@ -352,22 +352,32 @@ export class GoogleTTS implements ITTSProvider {
 
   /**
    * Kokoro voice ID를 Google voice로 매핑
+   * 🔥 FIX: 이미 Google TTS 형식인 voice는 그대로 사용
    */
-  private mapKokoroToGoogleVoice(kokoroVoice: string): { languageCode: string; name: string } {
-    // Kokoro 음성을 Google TTS 음성으로 매핑
+  private mapKokoroToGoogleVoice(voiceInput: string): { languageCode: string; name: string } {
+    // 🔥 이미 Google TTS voice 형식이면 그대로 사용 (ko-KR-*, en-US-*, ja-JP-* 등)
+    const googleVoicePattern = /^([a-z]{2}-[A-Z]{2})-(.+)$/;
+    const match = voiceInput.match(googleVoicePattern);
+    if (match) {
+      const languageCode = match[1];  // 예: 'ko-KR'
+      console.log(`[GoogleTTS] Using direct Google TTS voice: ${voiceInput} (language: ${languageCode})`);
+      return { languageCode, name: voiceInput };
+    }
+
+    // Kokoro 음성을 Google TTS 음성으로 매핑 (legacy)
     const voiceMap: Record<string, { languageCode: string; name: string }> = {
       // Female voices
-      'af_heart': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' },
+      'af_heart': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
       'af_alloy': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
-      'af_aoede': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' },
+      'af_aoede': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
       'af_bella': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
-      'af_jessica': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' },
+      'af_jessica': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
       'af_kore': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
-      'af_nicole': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' },
+      'af_nicole': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
       'af_nova': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
-      'af_river': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' },
+      'af_river': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
       'af_sarah': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
-      'af_sky': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' },
+      'af_sky': { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' },
       'bf_emma': { languageCode: 'en-US', name: 'en-US-Neural2-C' },
       'bf_isabella': { languageCode: 'en-US', name: 'en-US-Neural2-E' },
       'bf_alice': { languageCode: 'en-GB', name: 'en-GB-Neural2-A' },
@@ -389,14 +399,14 @@ export class GoogleTTS implements ITTSProvider {
       'bm_fable': { languageCode: 'en-US', name: 'en-US-Neural2-J' },
     };
 
-    const mappedVoice = voiceMap[kokoroVoice];
+    const mappedVoice = voiceMap[voiceInput];
     if (mappedVoice) {
       return mappedVoice;
     }
 
-    // 기본값으로 한국어 여성 음성 사용
-    console.warn(`[GoogleTTS] Unknown voice "${kokoroVoice}", using default`);
-    return { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' };
+    // 🔥 FIX: 기본값으로 Neural2-B 사용 (Neural2-A 금지!)
+    console.warn(`[GoogleTTS] Unknown voice "${voiceInput}", using Neural2-B as default`);
+    return { languageCode: 'ko-KR', name: 'ko-KR-Neural2-B' };
   }
 
   /**

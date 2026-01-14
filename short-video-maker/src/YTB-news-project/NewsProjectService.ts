@@ -21,9 +21,12 @@ import { OrientationEnum } from '../types/shorts';
 import { NewsVisualSource } from './NewsVisualSource';
 import type { ImageGenerationMode } from './types';
 
-// 🔥 YTB-tts 모듈 (ElevenLabs / Google 자유자재로 선택)
-import { ElevenLabsTTS, GoogleTTS } from '../YTB-tts';
+// 🔥 YTB-tts 모듈 (ElevenLabs / Google / Gemini 선택)
+import { ElevenLabsTTS, GoogleTTS, GeminiTTS } from '../YTB-tts';
 import { Config } from '../config';
+
+// 🔥 GCS 업로드 (다운로드 URL 제공용)
+import { GoogleCloudStorageService } from '../storage/GoogleCloudStorageService';
 
 // 타입
 import type {
@@ -32,6 +35,9 @@ import type {
   VideoStatus,
   Caption,
 } from './types';
+
+// 🔥 한국어 자막 분리 유틸리티
+import { splitNarrationToCaptions } from './utils/KoreanCaptionSplitter';
 
 /**
  * 처리 상태
@@ -52,6 +58,8 @@ export class NewsProjectService {
   private ffmpeg!: FFMpeg;
   private elevenLabsTTS?: ElevenLabsTTS;
   private googleTTS?: GoogleTTS;
+  private geminiTTS?: GeminiTTS;  // 🔥 Gemini TTS (자연스러운 숏츠 음성)
+  private gcsService?: GoogleCloudStorageService;
   private states = new Map<string, ProcessingState>();
   private initialized = false;
 
@@ -83,6 +91,28 @@ export class NewsProjectService {
       logger.info('[NewsProject] Google TTS 사용 가능');
     } catch {
       logger.info('[NewsProject] Google TTS 사용 불가 (credentials 없음)');
+    }
+
+    // 🔥 Gemini TTS Pro (자연스러운 고품질 음성)
+    if (this.config.googleGeminiApiKey) {
+      try {
+        this.geminiTTS = new GeminiTTS({
+          apiKey: this.config.googleGeminiApiKey,
+          model: 'gemini-2.5-pro-preview-tts',  // 🔥 Pro 모델 사용 (고품질)
+          defaultGender: 'female',  // 🔥 여성 voice 고정
+        });
+        logger.info('[NewsProject] Gemini TTS Pro 사용 가능 (고품질 음성)');
+      } catch (geminiError) {
+        logger.warn({ error: geminiError }, '[NewsProject] Gemini TTS 초기화 실패');
+      }
+    }
+
+    // 🔥 GCS 서비스 초기화 (다운로드 URL 제공용)
+    try {
+      this.gcsService = new GoogleCloudStorageService(this.config);
+      logger.info('[NewsProject] GCS 업로드 사용 가능');
+    } catch (gcsError) {
+      logger.warn({ error: gcsError }, '[NewsProject] GCS 사용 불가 - 로컬 저장만 사용');
     }
 
     this.initialized = true;
@@ -152,11 +182,16 @@ export class NewsProjectService {
       const visualSource = new NewsVisualSource(tempDir);
       await visualSource.initialize();
 
-      const imageDataList: { imagePath: string; duration: number }[] = [];
+      // 🔥 비주얼 타입 추적 (비디오 vs 이미지)
+      const visualDataList: {
+        path: string;
+        duration: number;
+        type: 'video' | 'image';
+      }[] = [];
 
       for (let i = 0; i < video.scenes.length; i++) {
         const scene = video.scenes[i];
-        const modeLabel = imageMode === 'hybrid' ? 'Pexels→AI' : imageMode;
+        const modeLabel = imageMode === 'hybrid' ? 'Pexels비디오→이미지→AI' : imageMode;
         this.updateState(videoId, 'processing', `비주얼 생성 ${i + 1}/${video.scenes.length} (${modeLabel})`);
 
         const visualResult = await visualSource.getVisual(
@@ -166,21 +201,24 @@ export class NewsProjectService {
             style: config.nanoBanana?.defaultStyle,
             sceneIndex: i,
             videoId,
+            duration: scene.duration,  // 🔥 비디오 검색용 duration
           },
           imageMode
         );
 
-        imageDataList.push({
-          imagePath: visualResult.imagePath,
+        visualDataList.push({
+          path: visualResult.path,
           duration: scene.duration,
+          type: visualResult.type,
         });
 
         logger.info({
           scene: i + 1,
+          type: visualResult.type,
           source: visualResult.source,
           pexelsId: visualResult.metadata?.pexelsId,
           photographer: visualResult.metadata?.photographer,
-        }, `✅ 비주얼 생성 완료 (${visualResult.source})`);
+        }, `✅ 비주얼 생성 완료 (${visualResult.type}: ${visualResult.source})`);
       }
 
       // ============================================
@@ -192,6 +230,25 @@ export class NewsProjectService {
       const allCaptions: Caption[] = [];
       let cumulativeTime = 0;
 
+      // 🔥 씬별 제목 오버레이 수집 (text_overlay)
+      const sceneOverlays: Array<{ text: string; startMs: number; endMs: number }> = [];
+
+      // 🔥 영상 전체에서 동일한 voice 사용 (한 번만 선택)
+      let selectedVoiceForVideo: { name: string; gender: 'female' | 'male' } | null = null;
+      let selectedGoogleVoice: string | null = null;  // 🔥 Google TTS fallback용 voice도 미리 선택
+
+      if (this.geminiTTS && (ttsProvider === 'gemini' || !ttsProvider)) {
+        // 🔥 뉴스 숏츠 추천 여자 voice에서 랜덤 선택 (Despina, Aoede, Autonoe)
+        selectedVoiceForVideo = this.geminiTTS.getNewsVoice('female');
+        // 🔥 Google TTS fallback용 voice도 영상 시작 시 선택 (전체 영상에서 동일 voice 사용)
+        selectedGoogleVoice = this.getGoogleVoiceByGender(selectedVoiceForVideo.gender);
+        logger.info({
+          voice: selectedVoiceForVideo.name,
+          gender: selectedVoiceForVideo.gender,
+          googleFallbackVoice: selectedGoogleVoice
+        }, '[NewsProject] 🎙️ 영상 전체 voice 선택 (랜덤)');
+      }
+
       for (let i = 0; i < video.scenes.length; i++) {
         const scene = video.scenes[i];
         this.updateState(videoId, 'processing', `음성 생성 ${i + 1}/${video.scenes.length}`);
@@ -199,12 +256,45 @@ export class NewsProjectService {
         const audioPath = path.join(tempDir, `audio_${i}.mp3`);
         let audioDuration = 0;
 
-        // 🔥 TTS 생성 (ElevenLabs 우선, 실패 시 Google TTS fallback)
+        // 🔥 TTS 생성 우선순위: Gemini(기본) → ElevenLabs → Google (fallback)
         let usedProvider: string = ttsProvider;
         let ttsSuccess = false;
+        let usedVoice: string = config.audio.voice || 'random';
 
-        // ElevenLabs 시도
-        if ((ttsProvider === 'elevenlabs' || !ttsProvider) && this.elevenLabsTTS) {
+        // 1️⃣ Gemini TTS (기본 - 자연스러운 숏츠 음성, 영상 전체 동일 voice)
+        if ((ttsProvider === 'gemini' || !ttsProvider) && this.geminiTTS && selectedVoiceForVideo) {
+          try {
+            const ttsResult = await this.geminiTTS.generate(
+              scene.narration,
+              selectedVoiceForVideo.name,  // 🔥 영상 전체 동일 voice 사용
+              { useNewsVoice: false }  // 이미 선택된 voice 사용
+            );
+
+            // 🔥 Gemini TTS는 RAW PCM (L16, 24kHz, mono) → MP3로 변환 필요
+            await this.ffmpeg.savePcmToMp3(ttsResult.audio, audioPath);
+            audioDuration = ttsResult.audioLength;
+            usedVoice = ttsResult.voice;
+
+            // 🔥 Gemini는 alignment 없음 - 어절 단위로 분리하여 자막 생성
+            const geminiCaptions = splitNarrationToCaptions(
+              scene.narration,
+              audioDuration * 1000,  // 밀리초
+              cumulativeTime * 1000  // 시작 시간 (밀리초)
+            );
+            allCaptions.push(...geminiCaptions);
+            logger.debug({ captionCount: geminiCaptions.length }, '[NewsProject] Gemini TTS 어절 자막 생성');
+
+            usedProvider = 'gemini';
+            ttsSuccess = true;
+            logger.info({ scene: i + 1, voice: usedVoice, gender: selectedVoiceForVideo.gender }, '[NewsProject] Gemini TTS 성공');
+          } catch (geminiError) {
+            const errMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
+            logger.warn({ error: errMsg, stack: geminiError instanceof Error ? geminiError.stack : undefined }, '[NewsProject] Gemini TTS 실패, ElevenLabs로 fallback');
+          }
+        }
+
+        // 2️⃣ ElevenLabs 시도 (fallback)
+        if (!ttsSuccess && this.elevenLabsTTS) {
           try {
             const ttsResult = await this.elevenLabsTTS.generate(
               scene.narration,
@@ -215,17 +305,16 @@ export class NewsProjectService {
             await fs.writeFile(audioPath, audioBuffer);
             audioDuration = ttsResult.audioLength;
 
-            // 자막 추출 (alignment 있을 때)
-            if (ttsResult.alignment) {
-              const words = this.extractWordsFromAlignment(ttsResult.alignment);
-              for (const word of words) {
-                allCaptions.push({
-                  text: word.text,
-                  startMs: word.startMs + cumulativeTime * 1000,
-                  endMs: word.endMs + cumulativeTime * 1000,
-                });
-              }
-            }
+            // 🔥 FIX: ElevenLabs도 동일하게 어절 단위로 자막 생성 (자막 수 제한 적용)
+            // alignment가 있어도 word-by-word는 자막이 너무 많아짐
+            const elevenLabsCaptions = splitNarrationToCaptions(
+              scene.narration,
+              audioDuration * 1000,  // 밀리초
+              cumulativeTime * 1000  // 시작 시간 (밀리초)
+            );
+            allCaptions.push(...elevenLabsCaptions);
+            logger.debug({ captionCount: elevenLabsCaptions.length }, '[NewsProject] ElevenLabs TTS 어절 자막 생성');
+
             usedProvider = 'elevenlabs';
             ttsSuccess = true;
           } catch (elevenLabsError) {
@@ -233,11 +322,11 @@ export class NewsProjectService {
           }
         }
 
-        // Google TTS (직접 선택 또는 fallback)
+        // 3️⃣ Google TTS (최후의 수단)
         if (!ttsSuccess && this.googleTTS) {
           try {
-            // Google TTS용 voice 매핑 (ElevenLabs voice ID → Google voice)
-            const googleVoice = this.mapToGoogleVoice(config.audio.voice);
+            // 🔥 FIX: 영상 전체에서 동일한 Google TTS voice 사용
+            const googleVoice = selectedGoogleVoice || this.getGoogleVoiceByGender(selectedVoiceForVideo?.gender);
 
             const ttsResult = await this.googleTTS.generate(
               scene.narration,
@@ -248,16 +337,18 @@ export class NewsProjectService {
             await fs.writeFile(audioPath, audioBuffer);
             audioDuration = ttsResult.audioLength;
 
-            // Google TTS는 alignment 없음 - 전체 텍스트를 하나의 자막으로
-            allCaptions.push({
-              text: scene.narration,
-              startMs: cumulativeTime * 1000,
-              endMs: (cumulativeTime + audioDuration) * 1000,
-            });
+            // 🔥 Google TTS도 alignment 없음 - 어절 단위로 분리하여 자막 생성
+            const googleCaptions = splitNarrationToCaptions(
+              scene.narration,
+              audioDuration * 1000,  // 밀리초
+              cumulativeTime * 1000  // 시작 시간 (밀리초)
+            );
+            allCaptions.push(...googleCaptions);
 
-            usedProvider = 'google (fallback)';
+            usedProvider = 'google';
+            usedVoice = googleVoice;  // 🔥 선택된 voice 기록
             ttsSuccess = true;
-            logger.info('[NewsProject] Google TTS fallback 성공');
+            logger.info({ voice: googleVoice, scene: i + 1, captionCount: googleCaptions.length }, '[NewsProject] Google TTS fallback 성공');
           } catch (googleError) {
             logger.error({ error: googleError }, '[NewsProject] Google TTS도 실패');
           }
@@ -267,32 +358,110 @@ export class NewsProjectService {
           throw new Error(`TTS 생성 실패: 모든 provider 실패`);
         }
 
-        audioFiles.push(audioPath);
-        imageDataList[i].duration = audioDuration;
-        cumulativeTime += audioDuration;
+        // 🔥 FIX: JSON duration과 TTS duration 중 큰 값 사용
+        const jsonDuration = video.scenes[i].duration;
+        const effectiveDuration = Math.max(jsonDuration, audioDuration);
 
-        logger.info({ scene: i + 1, duration: audioDuration, provider: ttsProvider }, '✅ 음성 생성 완료');
+        // 🔥 오디오 패딩: TTS가 JSON duration보다 짧으면 무음 추가
+        let finalAudioPath = audioPath;
+        if (audioDuration < jsonDuration) {
+          const paddedAudioPath = path.join(tempDir, `audio_padded_${i}.mp3`);
+          const silenceDuration = jsonDuration - audioDuration;
+
+          // 무음 생성
+          const silencePath = path.join(tempDir, `silence_${i}.mp3`);
+          await this.ffmpeg.generateSilentAudio(silencePath, silenceDuration);
+
+          // TTS + 무음 연결
+          await this.ffmpeg.concatAudios([audioPath, silencePath], paddedAudioPath);
+          finalAudioPath = paddedAudioPath;
+
+          logger.info({
+            scene: i + 1,
+            ttsDuration: audioDuration,
+            silencePadding: silenceDuration,
+            totalSceneDuration: jsonDuration
+          }, '🔇 오디오 패딩 추가');
+        }
+
+        audioFiles.push(finalAudioPath);
+        visualDataList[i].duration = effectiveDuration;
+
+        // 🔥 text_overlay 수집 (씬별 제목)
+        const sceneStartMs = cumulativeTime * 1000;
+        cumulativeTime += effectiveDuration;
+        const sceneEndMs = cumulativeTime * 1000;
+
+        if (scene.text_overlay) {
+          sceneOverlays.push({
+            text: scene.text_overlay,
+            startMs: sceneStartMs,
+            endMs: sceneEndMs
+          });
+          logger.debug({ scene: i + 1, overlay: scene.text_overlay }, '🔥 씬 제목 수집됨');
+        }
+
+        logger.info({
+          scene: i + 1,
+          jsonDuration,
+          ttsDuration: audioDuration,
+          effectiveDuration,
+          provider: usedProvider
+        }, '✅ 음성 생성 완료');
       }
 
       // ============================================
-      // Step 3: 비디오 합성 (FFMpeg)
+      // Step 3: 비디오 합성 (FFMpeg) - 비디오/이미지 분기 처리
       // ============================================
       this.updateState(videoId, 'processing', '비디오 합성 중');
 
-      const dimensions = config.video.orientation === 'portrait'
+      const dimensionStr = config.video.orientation === 'portrait'
         ? VIDEO_DIMENSIONS.PORTRAIT
         : VIDEO_DIMENSIONS.LANDSCAPE;
 
+      // 🔥 "1080x1920" → { width: 1080, height: 1920 }
+      const [widthStr, heightStr] = dimensionStr.split('x');
+      const dimensions = { width: parseInt(widthStr), height: parseInt(heightStr) };
+
       const tempVideoPath = path.join(tempDir, `temp_${videoId}.mp4`);
+      const sceneClips: string[] = [];
 
-      // 🔥 YTB-ffmpeg 모듈 사용: 이미지 → 비디오
-      await this.ffmpeg.createStaticVideoFromMultipleImages(
-        imageDataList,
-        tempVideoPath,
-        dimensions
-      );
+      // 🔥 각 씬별로 비디오/이미지 처리
+      for (let i = 0; i < visualDataList.length; i++) {
+        const visual = visualDataList[i];
+        const clipPath = path.join(tempDir, `clip_${i}.mp4`);
 
-      logger.info('✅ 정적 비디오 생성 완료');
+        if (visual.type === 'video') {
+          // 📹 Pexels 비디오: duration만큼 트림 + 리사이즈
+          await this.ffmpeg.trimAndResizeVideo(
+            visual.path,
+            clipPath,
+            visual.duration,
+            dimensions
+          );
+          logger.info({ scene: i + 1, type: 'video', duration: visual.duration }, '✅ 비디오 클립 트림 완료');
+        } else {
+          // 🖼️ 이미지: 정적 비디오로 변환
+          await this.ffmpeg.createStaticVideoFromMultipleImages(
+            [{ imagePath: visual.path, duration: visual.duration }],
+            clipPath,
+            dimensionStr  // 문자열 형식 "1080x1920"
+          );
+          logger.info({ scene: i + 1, type: 'image', duration: visual.duration }, '✅ 이미지 클립 생성 완료');
+        }
+
+        sceneClips.push(clipPath);
+      }
+
+      // 모든 클립 연결
+      if (sceneClips.length > 1) {
+        await this.ffmpeg.concatVideos(sceneClips, tempVideoPath);
+        logger.info({ clipCount: sceneClips.length }, '✅ 클립 연결 완료');
+      } else {
+        await fs.copy(sceneClips[0], tempVideoPath);
+      }
+
+      logger.info('✅ 비디오 합성 완료');
 
       // ============================================
       // Step 4: 오디오 + 자막 합성
@@ -317,21 +486,65 @@ export class NewsProjectService {
         ? OrientationEnum.portrait
         : OrientationEnum.landscape;
 
+      // 🔥 전체 자막 수 제한 (ENAMETOOLONG 방지)
+      // FFmpeg drawtext 필터가 너무 많으면 Windows 명령어 길이 제한 초과
+      const MAX_TOTAL_CAPTIONS = 50;
+      let finalCaptions = allCaptions;
+      if (allCaptions.length > MAX_TOTAL_CAPTIONS) {
+        logger.warn({
+          originalCount: allCaptions.length,
+          maxAllowed: MAX_TOTAL_CAPTIONS,
+        }, '[NewsProject] 자막 수 초과 - 병합 적용');
+
+        // 자막 병합: 인접한 자막들을 그룹화
+        finalCaptions = this.mergeCaptions(allCaptions, MAX_TOTAL_CAPTIONS);
+        logger.info({ finalCount: finalCaptions.length }, '[NewsProject] 자막 병합 완료');
+      }
+
+      logger.info({
+        captionCount: finalCaptions.length,
+        overlayCount: sceneOverlays.length
+      }, '[NewsProject] 최종 자막/제목 수');
+
       await this.ffmpeg.combineVideoWithAudioAndCaptions(
         tempVideoPath,
         finalAudioPath,
-        allCaptions,
+        finalCaptions,
         outputPath,
         totalDuration,
         orientationEnum,
         { orientation: orientationEnum },
-        false // 자막 활성화
+        false, // 자막 활성화
+        sceneOverlays  // 🔥 씬별 제목 오버레이
       );
 
       logger.info({ outputPath, totalDuration }, '✅ 최종 비디오 생성 완료');
 
       // 임시 파일 정리
       await fs.remove(tempDir);
+
+      // ============================================
+      // 🔥 GCS 업로드 (다운로드 URL 제공)
+      // ============================================
+      let downloadUrl: string | undefined;
+      let gcsPath: string | undefined;
+
+      if (this.gcsService) {
+        try {
+          this.updateState(videoId, 'processing', 'GCS 업로드 중');
+          const uploadResult = await this.gcsService.uploadVideo(videoId, outputPath);
+
+          if (uploadResult.success) {
+            downloadUrl = uploadResult.signedUrl;
+            gcsPath = uploadResult.gcsPath;
+            logger.info({ videoId, gcsPath, downloadUrl: downloadUrl?.substring(0, 100) + '...' }, '☁️ GCS 업로드 완료');
+          } else {
+            logger.warn({ videoId, error: uploadResult.error }, 'GCS 업로드 실패 - 로컬 파일만 사용');
+          }
+        } catch (gcsError) {
+          logger.warn({ videoId, error: gcsError }, 'GCS 업로드 에러 - 로컬 파일만 사용');
+        }
+      }
 
       // ============================================
       // 완료
@@ -341,6 +554,8 @@ export class NewsProjectService {
         status: 'completed',
         outputPath,
         duration: totalDuration,
+        downloadUrl,
+        gcsPath,
       };
 
       const state = this.states.get(videoId);
@@ -438,7 +653,64 @@ export class NewsProjectService {
   }
 
   /**
-   * ElevenLabs voice ID를 Google TTS voice로 매핑
+   * 🔥 자막 병합 (전체 자막 수 제한)
+   * 인접한 자막들을 합쳐서 maxCaptions 이하로 만듦
+   */
+  private mergeCaptions(captions: Caption[], maxCaptions: number): Caption[] {
+    if (captions.length <= maxCaptions) return captions;
+
+    const mergeSize = Math.ceil(captions.length / maxCaptions);
+    const merged: Caption[] = [];
+
+    for (let i = 0; i < captions.length; i += mergeSize) {
+      const group = captions.slice(i, i + mergeSize);
+      if (group.length === 0) continue;
+
+      // 그룹 내 텍스트 합치기
+      const text = group.map(c => c.text).join(' ');
+      const startMs = group[0].startMs;
+      const endMs = group[group.length - 1].endMs;
+
+      merged.push({ text, startMs, endMs });
+    }
+
+    return merged;
+  }
+
+  /**
+   * 🔥 Gender에 따라 Google TTS voice 선택 (랜덤)
+   * - Chirp3-HD만 사용 (가장 자연스러운 프리미엄 voice)
+   * - ⚠️ Neural2-A, Wavenet 사용 금지
+   */
+  private getGoogleVoiceByGender(gender?: 'female' | 'male'): string {
+    // 🔥 Chirp3-HD voices만 사용 (프리미엄 - 가장 자연스러움)
+    const femaleVoices = [
+      'ko-KR-Chirp3-HD-Aoede',
+      'ko-KR-Chirp3-HD-Kore',
+      'ko-KR-Chirp3-HD-Leda',
+      'ko-KR-Chirp3-HD-Despina',
+    ];
+    const maleVoices = [
+      'ko-KR-Chirp3-HD-Alnilam',
+      'ko-KR-Chirp3-HD-Algenib',
+      'ko-KR-Chirp3-HD-Charon',
+      'ko-KR-Chirp3-HD-Fenrir',
+    ];
+
+    if (gender === 'male') {
+      const selected = maleVoices[Math.floor(Math.random() * maleVoices.length)];
+      logger.info({ gender, selectedVoice: selected }, '[NewsProject] Google TTS Chirp3-HD voice 선택 (남성)');
+      return selected;
+    }
+
+    // 여성 또는 미지정 시 여성 voice 랜덤 선택
+    const selected = femaleVoices[Math.floor(Math.random() * femaleVoices.length)];
+    logger.info({ gender: gender || 'female', selectedVoice: selected }, '[NewsProject] Google TTS Chirp3-HD voice 선택 (여성)');
+    return selected;
+  }
+
+  /**
+   * ElevenLabs voice ID를 Google TTS voice로 매핑 (legacy)
    */
   private mapToGoogleVoice(elevenLabsVoice: string): string {
     // ElevenLabs voice ID → Google TTS voice 매핑

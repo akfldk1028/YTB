@@ -12,6 +12,7 @@ import fs from 'fs-extra';
 import { logger } from '../logger';
 import { Config } from '../config';
 import { NewsProjectService } from './NewsProjectService';
+import { GoogleCloudStorageService } from '../storage/GoogleCloudStorageService';
 import type {
   NewsPayload,
   CreateNewsVideoResponse,
@@ -48,7 +49,7 @@ const NewsPayloadSchema = z.object({
     image_generation: z.enum(['pexels_stock', 'nanoBanana', 'hybrid']).optional(),
     audio: z.object({
       voice: z.string(),
-      tts_provider: z.enum(['elevenlabs', 'google']).optional(),
+      tts_provider: z.enum(['elevenlabs', 'google', 'gemini']).optional(),
     }),
     video: z.object({
       orientation: z.enum(['portrait', 'landscape']),
@@ -62,9 +63,11 @@ const NewsPayloadSchema = z.object({
     title: z.string(),
     scenes: z.array(z.object({
       scene_id: z.number(),
+      scene_type: z.enum(['intro', 'news', 'outro']).optional(),  // 🔥 씬 타입
       narration: z.string(),
       image_prompt: z.string(),
       duration: z.number(),
+      text_overlay: z.string().optional(),  // 🔥 화면 텍스트
     })).min(1),
   })).min(1),
 });
@@ -159,7 +162,7 @@ router.get('/status/:videoId', async (req: Request, res: Response) => {
 /**
  * GET /api/news/download/:videoId
  *
- * 비디오 다운로드
+ * 비디오 다운로드 (로컬 파일 우선, 없으면 GCS fallback)
  */
 router.get('/download/:videoId', async (req: Request, res: Response) => {
   try {
@@ -168,19 +171,49 @@ router.get('/download/:videoId', async (req: Request, res: Response) => {
 
     const videoPath = path.join(config.videosDirPath, `${videoId}.mp4`);
 
-    if (!await fs.pathExists(videoPath)) {
-      return res.status(404).json({
-        success: false,
-        error: 'Video not found',
+    // 1. 로컬 파일이 있으면 직접 다운로드
+    if (await fs.pathExists(videoPath)) {
+      logger.info({ videoId, videoPath }, '[NewsRouter] 로컬 파일 다운로드');
+      return res.download(videoPath, `${videoId}.mp4`, (err) => {
+        if (err) {
+          logger.error({ error: err }, '[NewsRouter] 다운로드 실패');
+        }
       });
     }
 
-    logger.info({ videoId, videoPath }, '[NewsRouter] 비디오 다운로드 요청');
+    // 2. 로컬에 없으면 GCS에서 signed URL 생성
+    logger.info({ videoId }, '[NewsRouter] 로컬 파일 없음 - GCS fallback 시도');
 
-    res.download(videoPath, `${videoId}.mp4`, (err) => {
-      if (err) {
-        logger.error({ error: err }, '[NewsRouter] 다운로드 실패');
+    try {
+      const gcsService = new GoogleCloudStorageService(config);
+      const gcsPath = `videos/${videoId}.mp4`;
+
+      // GCS에 파일이 있는지 먼저 확인
+      const exists = await gcsService.videoExists(videoId);
+      if (!exists) {
+        logger.warn({ videoId, gcsPath }, '[NewsRouter] GCS에도 파일 없음');
+        return res.status(404).json({
+          success: false,
+          error: 'Video not found in GCS',
+        });
       }
+
+      // signed URL 생성 (24시간 유효)
+      const signedUrl = await gcsService.generateSignedUrl(gcsPath, {
+        action: 'read',
+        expires: 24 * 60 * 60 * 1000, // 24시간 (밀리초)
+      });
+
+      logger.info({ videoId, gcsPath }, '[NewsRouter] GCS signed URL로 리다이렉트');
+      return res.redirect(signedUrl);
+    } catch (gcsError) {
+      logger.warn({ videoId, error: gcsError }, '[NewsRouter] GCS fallback 실패');
+    }
+
+    // 3. 둘 다 없으면 404
+    return res.status(404).json({
+      success: false,
+      error: 'Video not found (neither local nor GCS)',
     });
   } catch (error) {
     logger.error({ error }, '[NewsRouter] 다운로드 에러');

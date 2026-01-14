@@ -63,7 +63,7 @@ export interface NewsPayload {
     image_generation?: ImageGenerationMode;
     audio: {
       voice: string;
-      tts_provider?: 'elevenlabs' | 'google';  // TTS 프로바이더 선택
+      tts_provider?: 'elevenlabs' | 'google' | 'gemini';  // TTS 프로바이더 선택
     };
     video: {
       orientation: 'portrait' | 'landscape';
@@ -114,6 +114,8 @@ export interface NewsVideoResult {
   duration?: number;
   error?: string;
   youtubeUrl?: string;
+  downloadUrl?: string;  // 🔥 GCS 다운로드 URL (서명된 URL)
+  gcsPath?: string;      // 🔥 GCS 경로 (gs://bucket/path)
 }
 
 // ============================================
