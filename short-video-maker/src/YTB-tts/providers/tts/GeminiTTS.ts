@@ -174,6 +174,8 @@ export class GeminiTTS {
       // 🔥 REST API 직접 호출 (SDK 404 에러 문제 해결)
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
+      // 🔥 공식 문서 기준 Request Body 구조
+      // https://ai.google.dev/gemini-api/docs/speech-generation
       const requestBody = {
         contents: [{
           parts: [{
@@ -190,6 +192,8 @@ export class GeminiTTS {
             },
           },
         },
+        // 🔥 공식 문서: model 필드 필수 (request body에도 포함해야 함)
+        model: this.model,
       };
 
       logger.debug({
