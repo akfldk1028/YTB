@@ -26,30 +26,40 @@ const isDocker = process.env.DOCKER === 'true' || fs.existsSync('/app/font');
 const PROJECT_ROOT = isDocker ? '/app' : path.resolve(__dirname, '../..');
 
 // 제목용 폰트 (Black Han Sans)
+// 🔥 프로젝트 폰트 우선! fonts-nanum은 한글 렌더링 문제 발생
 const TITLE_FONT_PATHS = [
-  // 🔥 Docker/Cloud Run - 최우선 (/app/font/)
+  // 🔥 프로젝트 커스텀 폰트 - 최우선 (한글 완벽 지원)
   '/app/font/BlackHanSans-Regular.ttf',
   // 프로젝트 폰트 (로컬 개발용)
   path.join(PROJECT_ROOT, 'font/BlackHanSans-Regular.ttf'),
-  // Fallback
+  // 🔥 시스템 폰트 - 폴백 (fonts-nanum은 한글 렌더링 문제 있음)
   '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+  '/usr/share/fonts/truetype/nanum/NanumGothic-Bold.ttf',
+  // Windows fallback
   'C:/Windows/Fonts/malgunbd.ttf',
 ];
 
 // 본문/자막용 폰트 (Gmarket Sans Bold)
+// 🔥 프로젝트 폰트 우선! fonts-nanum은 한글 렌더링 문제 발생
 const SUBTITLE_FONT_PATHS = [
-  // 🔥 Docker/Cloud Run - 최우선 (/app/font/)
+  // 🔥 프로젝트 커스텀 폰트 - 최우선 (한글 완벽 지원)
   '/app/font/GmarketSansTTFBold.ttf',
   // 프로젝트 폰트 (로컬 개발용)
   path.join(PROJECT_ROOT, 'font/GmarketSansTTFBold.ttf'),
-  // Fallback
+  // 🔥 시스템 폰트 - 폴백 (fonts-nanum은 한글 렌더링 문제 있음)
   '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+  '/usr/share/fonts/truetype/nanum/NanumGothic-Bold.ttf',
+  // Windows fallback
   'C:/Windows/Fonts/malgunbd.ttf',
 ];
 
 // Legacy: 기존 코드 호환성용 (deprecated)
+// 🔥 프로젝트 폰트 우선! fonts-nanum은 한글 렌더링 문제 있음
 const FONT_PATHS = [
-  // Docker/Cloud Run paths (fonts-nanum package)
+  // 🔥 프로젝트 커스텀 폰트 - 최우선 (한글 완벽 지원)
+  '/app/font/GmarketSansTTFBold.ttf',
+  '/app/font/BlackHanSans-Regular.ttf',
+  // Docker/Cloud Run paths (fonts-nanum package) - 폴백
   '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
   '/usr/share/fonts/truetype/nanum/NanumGothic-Bold.ttf',
   // Local development paths
@@ -65,10 +75,22 @@ const FONT_PATHS = [
 ];
 
 // Cache the found font paths
+// 🔥 NOTE: Cache is disabled for now to ensure correct font priority
 let cachedFontPath: string | null = null;
 let cachedTitleFontPath: string | null = null;
 let cachedSubtitleFontPath: string | null = null;
 let ffmpegPath: string | null = null;
+
+/**
+ * 🔥 Clear font cache to force re-detection
+ * Call this when font priority changes or fonts are updated
+ */
+export function clearFontCache(): void {
+  cachedFontPath = null;
+  cachedTitleFontPath = null;
+  cachedSubtitleFontPath = null;
+  logger.info('[Font] Font cache cleared - will re-detect on next use');
+}
 
 /**
  * Initialize FFmpeg path
@@ -77,6 +99,9 @@ let ffmpegPath: string | null = null;
  */
 export async function initFFmpeg(): Promise<void> {
   if (ffmpegPath) return;
+
+  // 🔥 Clear font cache at startup to ensure fresh detection with new priority
+  clearFontCache();
 
   const isLinux = process.platform === 'linux';
   const systemFfmpegPath = '/usr/bin/ffmpeg';
@@ -334,4 +359,81 @@ export async function runFFmpegSpawn(args: string[], timeoutMs: number): Promise
       reject(new Error(`Failed to spawn FFmpeg process: ${error.message}`));
     });
   });
+}
+
+// ============================================
+// 🔥 프로젝트별 폰트 설정 지원
+// ============================================
+
+/**
+ * 폰트 프리셋 타입
+ */
+export type FontPreset = 'nanum' | 'blackhansans' | 'gmarket' | 'malgun';
+
+/**
+ * 폰트 프리셋 -> 실제 경로 매핑
+ * 🔥 프로젝트 폰트 우선! fonts-nanum은 한글 렌더링 문제 있음
+ */
+const FONT_PRESET_PATHS: Record<FontPreset, string[]> = {
+  // 🔥 nanum 프리셋도 프로젝트 폰트 먼저 시도
+  nanum: [
+    '/app/font/GmarketSansTTFBold.ttf',  // 프로젝트 폰트 우선
+    path.join(PROJECT_ROOT, 'font/GmarketSansTTFBold.ttf'),
+    '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+    '/usr/share/fonts/truetype/nanum/NanumGothic-Bold.ttf',
+    'C:/Windows/Fonts/NanumGothicBold.ttf',
+  ],
+  blackhansans: [
+    '/app/font/BlackHanSans-Regular.ttf',
+    path.join(PROJECT_ROOT, 'font/BlackHanSans-Regular.ttf'),
+  ],
+  gmarket: [
+    '/app/font/GmarketSansTTFBold.ttf',
+    path.join(PROJECT_ROOT, 'font/GmarketSansTTFBold.ttf'),
+  ],
+  malgun: [
+    'C:/Windows/Fonts/malgunbd.ttf',
+    'C:/Windows/Fonts/malgun.ttf',
+  ],
+};
+
+/**
+ * 🔥 폰트 프리셋을 실제 경로로 변환
+ * 프리셋이 없거나 파일이 없으면 시스템 폰트(nanum) 반환
+ *
+ * @param preset - 폰트 프리셋 ('nanum', 'blackhansans', 'gmarket', 'malgun')
+ * @param fallbackToSystem - 실패시 시스템 폰트로 폴백 (기본: true)
+ */
+export function resolveFontPreset(preset?: FontPreset | string, fallbackToSystem = true): string {
+  // 프리셋이 없으면 기본값 (nanum - 가장 안정적)
+  const fontPreset = (preset as FontPreset) || 'nanum';
+
+  // 프리셋 경로 목록 가져오기
+  const paths = FONT_PRESET_PATHS[fontPreset];
+
+  if (!paths) {
+    logger.warn({ preset }, '[Font] Unknown font preset, using nanum');
+    return resolveFontPreset('nanum', false);
+  }
+
+  // 첫 번째로 존재하는 경로 반환
+  for (const fontPath of paths) {
+    if (fs.existsSync(fontPath)) {
+      const stats = fs.statSync(fontPath);
+      if (stats.size > 0) {
+        logger.debug({ preset, fontPath, sizeBytes: stats.size }, '[Font] Resolved font preset');
+        return fontPath;
+      }
+    }
+  }
+
+  // 폴백: 시스템 폰트 (nanum)
+  if (fallbackToSystem && fontPreset !== 'nanum') {
+    logger.warn({ preset, triedPaths: paths }, '[Font] Preset font not found, falling back to nanum');
+    return resolveFontPreset('nanum', false);
+  }
+
+  // 최후의 폴백: findAvailableFontPath
+  logger.warn({ preset }, '[Font] No preset fonts found, using legacy findAvailableFontPath');
+  return findAvailableFontPath();
 }

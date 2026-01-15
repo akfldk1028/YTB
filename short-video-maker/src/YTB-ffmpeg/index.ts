@@ -15,13 +15,13 @@ import { logger } from "../logger";
 import { OrientationEnum, RenderConfig, TitleTextConfig } from "../types/shorts";
 import { initFFmpeg, getVideoDuration } from "./utils";
 import { AudioProcessor } from "./AudioProcessor";
-import { SubtitleFilter } from "./SubtitleFilter";
+import { SubtitleFilter, ProjectFontConfig } from "./SubtitleFilter";
 import { VideoConcat } from "./VideoConcat";
 import { VideoEditor } from "./VideoEditor";
 
 // Re-export modules for direct access if needed
 export { AudioProcessor } from "./AudioProcessor";
-export { SubtitleFilter } from "./SubtitleFilter";
+export { SubtitleFilter, ProjectFontConfig } from "./SubtitleFilter";
 export { VideoConcat } from "./VideoConcat";
 export { VideoEditor } from "./VideoEditor";
 export * from "./utils";
@@ -164,7 +164,8 @@ export class FFMpeg {
     orientation: OrientationEnum,
     config: RenderConfig,
     skipSubtitles?: boolean,
-    sceneOverlays?: Array<{ text: string; startMs: number; endMs: number }>  // 🔥 씬별 제목
+    sceneOverlays?: Array<{ text: string; startMs: number; endMs: number }>,  // 🔥 씬별 제목
+    fontConfig?: ProjectFontConfig  // 🔥 프로젝트별 폰트 설정
   ): Promise<string> {
     return this.videoEditor.combineVideoWithAudioAndCaptions(
       videoPath,
@@ -175,7 +176,8 @@ export class FFMpeg {
       orientation,
       config,
       skipSubtitles,
-      sceneOverlays
+      sceneOverlays,
+      fontConfig
     );
   }
 

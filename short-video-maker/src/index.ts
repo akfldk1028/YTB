@@ -91,8 +91,15 @@ async function main() {
   
   const ttsProvider = await TTSProvider.createWithFallback(config.ttsProvider, ttsConfigs);
   
-  logger.debug("initializing whisper");
-  const whisper = await Whisper.init(config);
+  // Whisper 초기화 (실패해도 서버는 시작됨 - STT만 비활성화)
+  let whisper: Awaited<ReturnType<typeof Whisper.init>> | null = null;
+  try {
+    logger.debug("initializing whisper");
+    whisper = await Whisper.init(config);
+    logger.info("Whisper initialized successfully");
+  } catch (whisperError) {
+    logger.warn({ error: whisperError }, "Whisper initialization failed, STT will be unavailable");
+  }
   logger.debug("initializing ffmpeg");
   const ffmpeg = await FFMpeg.init();
   const pexelsApi = new PexelsAPI(config.pexelsApiKey);
@@ -164,6 +171,24 @@ async function main() {
       logger.debug("initializing google cloud storage service");
       gcsService = new GoogleCloudStorageService(config);
       logger.info({ bucket: config.gcsBucketName }, "GCS service initialized successfully");
+
+      // 🔥 Docker/Cloud Run 환경에서 GCS에서 폰트 다운로드
+      if (process.env.DOCKER === "true") {
+        logger.info("[GCS Font] Docker environment detected, downloading fonts from GCS");
+        const fontDir = '/app/font';
+        const fontResult = await gcsService.downloadFonts(fontDir);
+
+        if (fontResult.success) {
+          logger.info({
+            downloadedFonts: fontResult.downloadedFonts,
+            errors: fontResult.errors,
+          }, "[GCS Font] Fonts downloaded successfully");
+        } else {
+          logger.warn({
+            errors: fontResult.errors,
+          }, "[GCS Font] Font download had errors, using Docker image fonts as fallback");
+        }
+      }
     } catch (error: unknown) {
       logger.error(error, "Failed to initialize GCS service");
     }
@@ -222,7 +247,8 @@ async function main() {
         "testing if the installation was successful - this may take a while...",
       );
       try {
-        const audioBuffer = (await ttsProvider.generate("hi", "baRq1qg6PxLsnSQ04d8c")).audio; // el_axl
+        // Gemini Pro TTS 기본 음성 사용 (Aoede - 밝고 생동감 있는 여성 목소리)
+        const audioBuffer = (await ttsProvider.generate("안녕", "Aoede")).audio;
         await ffmpeg.createMp3DataUri(audioBuffer);
         await pexelsApi.findVideo(["dog"], 2.4);
         // FFmpeg mode - no additional testing needed

@@ -16,7 +16,7 @@ import fs from "fs-extra";
 import { logger } from "../logger";
 import { OrientationEnum, RenderConfig, TitleTextConfig } from "../types/shorts";
 import { ffmpeg } from "./utils";
-import { SubtitleFilter } from "./SubtitleFilter";
+import { SubtitleFilter, ProjectFontConfig } from "./SubtitleFilter";
 
 export class VideoEditor {
   private subtitleFilter: SubtitleFilter;
@@ -28,6 +28,7 @@ export class VideoEditor {
   /**
    * Combine video with audio and captions
    * 🔥 sceneOverlays 추가: 씬별 제목 오버레이 지원
+   * 🔥 fontConfig 추가: 프로젝트별 폰트 설정
    */
   async combineVideoWithAudioAndCaptions(
     videoPath: string,
@@ -38,7 +39,8 @@ export class VideoEditor {
     orientation: OrientationEnum,
     config: RenderConfig,
     skipSubtitles = false,
-    sceneOverlays?: Array<{ text: string; startMs: number; endMs: number }>  // 🔥 씬별 제목
+    sceneOverlays?: Array<{ text: string; startMs: number; endMs: number }>,  // 🔥 씬별 제목
+    fontConfig?: ProjectFontConfig  // 🔥 프로젝트별 폰트 설정 (SubtitleFilter에서 import)
   ): Promise<string> {
     logger.debug({ videoPath, audioPath, outputPath, hasOverlays: !!sceneOverlays }, "Combining video with audio using FFmpeg");
 
@@ -56,13 +58,13 @@ export class VideoEditor {
       // 🔥 필터들 수집 (제목 오버레이 + 자막)
       const filters: string[] = [];
 
-      // 1. 씬별 제목 오버레이 (상단)
+      // 1. 씬별 제목 오버레이 (상단) - fontConfig 전달
       if (sceneOverlays && sceneOverlays.length > 0) {
-        const overlayResult = this.subtitleFilter.createSceneOverlayFilter(sceneOverlays, orientation, tempDir);
+        const overlayResult = this.subtitleFilter.createSceneOverlayFilter(sceneOverlays, orientation, tempDir, fontConfig);
         if (overlayResult) {
           filters.push(overlayResult.filter);
           allTextFilePaths.push(...overlayResult.textFilePaths);
-          logger.info({ overlayCount: sceneOverlays.length }, "Added scene overlay filter");
+          logger.info({ overlayCount: sceneOverlays.length, fontConfig: fontConfig || 'DEFAULT' }, "Added scene overlay filter with font config");
         }
       }
 
@@ -92,6 +94,9 @@ export class VideoEditor {
         ]);
       }
 
+      // 🔥 stderr 수집용 변수
+      let stderrOutput = '';
+
       ffmpegCommand
         .on('start', (commandLine: string) => {
           // 로그 크기 제한 - 처음 500자와 마지막 300자만 표시
@@ -102,7 +107,24 @@ export class VideoEditor {
             logger.info('FFmpeg combine command: ' + commandLine);
           }
         })
+        .on('stderr', (stderrLine: string) => {
+          // 🔥 FFmpeg stderr 수집 (drawtext 에러 디버깅용)
+          stderrOutput += stderrLine + '\n';
+          // 중요한 에러/경고만 로깅 (Fontconfig, freetype, drawtext 관련)
+          if (stderrLine.includes('Fontconfig') || stderrLine.includes('freetype') ||
+              stderrLine.includes('drawtext') || stderrLine.includes('Cannot') ||
+              stderrLine.includes('Error') || stderrLine.includes('error')) {
+            logger.warn({ stderr: stderrLine }, '[FFmpeg stderr] Font/drawtext related');
+          }
+        })
         .on('end', () => {
+          // 🔥 최종 stderr 요약 로깅 (마지막 500자)
+          if (stderrOutput.length > 0) {
+            const stderrSummary = stderrOutput.length > 500
+              ? '...' + stderrOutput.slice(-500)
+              : stderrOutput;
+            logger.debug({ stderrLength: stderrOutput.length, summary: stderrSummary }, '[FFmpeg] stderr summary');
+          }
           // Clean up all text files
           if (allTextFilePaths.length > 0) {
             allTextFilePaths.forEach((filePath) => {

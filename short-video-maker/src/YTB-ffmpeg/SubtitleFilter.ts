@@ -11,26 +11,79 @@ import path from "path";
 import fs from "fs-extra";
 import { logger } from "../logger";
 import { OrientationEnum, TitleTextConfig, SubtitleConfig } from "../types/shorts";
-import { findAvailableFontPath, findTitleFontPath, findSubtitleFontPath } from "./utils";
+import { findAvailableFontPath, findTitleFontPath, findSubtitleFontPath, resolveFontPreset, FontPreset } from "./utils";
+
+/**
+ * 🔥 프로젝트별 폰트 설정 (n8n에서 전달)
+ */
+export interface ProjectFontConfig {
+  title_font?: FontPreset;
+  subtitle_font?: FontPreset;
+  subtitle_size?: number;
+  title_size?: number;
+  title_color?: string;
+  title_bg_color?: string;
+  subtitle_color?: string;
+}
 
 /**
  * 경로를 FFmpeg drawtext 필터에서 사용 가능한 형식으로 변환
- * - Windows: 백슬래시 → 슬래시, 콜론 이스케이프, 싱글쿼트 감싸기
- * - Linux/Docker: 싱글쿼트 제거 (단순 경로는 쿼트 불필요)
  *
- * 🔥 핵심: Linux에서 불필요한 싱글쿼트는 FFmpeg가 폰트 파일을 찾지 못하게 함!
+ * 🔥 FFmpeg filter escaping rules (공식 문서 기반):
+ * - complexFilter에서 콜론(:)은 파라미터 구분자이므로 \:로 이스케이프
+ * - 싱글쿼트(')는 \'로 이스케이프
+ * - 백슬래시(\)는 \\로 이스케이프
+ *
+ * @see https://ffmpeg.org/ffmpeg-filters.html#Filtering-Introduction
  */
 function toFFmpegPath(filePath: string): string {
   const isWindows = process.platform === 'win32';
 
   if (isWindows) {
-    // Windows: 콜론 이스케이프 + 싱글쿼트 감싸기
+    // Windows: 백슬래시 → 슬래시, 콜론 이스케이프, 싱글쿼트 감싸기
     const safePath = filePath.replace(/\\/g, '/').replace(/:/g, '\\:');
     return `'${safePath}'`;
   } else {
-    // Linux/Docker: 백슬래시만 변환, 쿼트 제거
-    // 🔥 FFmpeg drawtext에서 단순 경로는 쿼트 없이 사용해야 함
+    // Linux/Docker:
+    // 🔥 핵심: drawtext filter에서 경로의 콜론은 이스케이프 불필요
+    // 단, 경로에 특수문자가 있으면 이스케이프 필요
+    // /app/font/GmarketSansTTFBold.ttf → 그대로 사용 (콜론 없음)
     return filePath.replace(/\\/g, '/');
+  }
+}
+
+/**
+ * 🔥 폰트 파일 존재 및 유효성 검증
+ * FFmpeg drawtext에서 폰트 로드 실패시 디버깅용
+ */
+function validateFontFile(fontPath: string): { valid: boolean; error?: string; size?: number } {
+  try {
+    if (!fs.existsSync(fontPath)) {
+      return { valid: false, error: `Font file not found: ${fontPath}` };
+    }
+
+    const stats = fs.statSync(fontPath);
+    if (stats.size === 0) {
+      return { valid: false, error: `Font file is empty: ${fontPath}`, size: 0 };
+    }
+
+    // TTF magic bytes 검증 (00 01 00 00 또는 "OTTO")
+    const buffer = fs.readFileSync(fontPath, { encoding: null });
+    const magicBytes = buffer.slice(0, 4);
+    const isTTF = magicBytes[0] === 0x00 && magicBytes[1] === 0x01 && magicBytes[2] === 0x00 && magicBytes[3] === 0x00;
+    const isOTF = magicBytes.toString('ascii') === 'OTTO';
+
+    if (!isTTF && !isOTF) {
+      return {
+        valid: false,
+        error: `Invalid font file (magic: ${magicBytes.toString('hex')}): ${fontPath}`,
+        size: stats.size
+      };
+    }
+
+    return { valid: true, size: stats.size };
+  } catch (error) {
+    return { valid: false, error: `Font validation error: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -62,6 +115,14 @@ export class SubtitleFilter {
       const fontPath = findSubtitleFontPath();
       const textFilePaths: string[] = [];
 
+      // 🔥 폰트 파일 유효성 검증 (FFmpeg drawtext 디버깅용)
+      const fontValidation = validateFontFile(fontPath);
+      logger.info({
+        fontPath,
+        ...fontValidation,
+        method: 'createSubtitleFilter'
+      }, '[FONT VALIDATE] Subtitle font validation result');
+
       // 🔥 색상 설정 - 흰색 + 검은 테두리 (NewsProject 스타일)
       const normalColor = config?.normalColor?.replace('#', '') || 'FFFFFF';
       const highlightColor = config?.highlightColor?.replace('#', '') || 'FFEB3B';
@@ -80,8 +141,9 @@ export class SubtitleFilter {
           const wordStartTime = word.startMs / 1000;
           const wordEndTime = word.endMs / 1000;
 
-          // fontcolor_expr for time-based color change
-          const fontcolorExpr = `if(between(t\\,${wordStartTime}\\,${wordEndTime})\\,0x${highlightColor}\\,0x${normalColor})`;
+          // 🔥 FIX: fontcolor_expr가 complexFilter에서 제대로 동작하지 않음
+          // 대신 정적 fontcolor 사용 (동적 하이라이트 대신 단일 색상)
+          const fontColor = highlightColor; // 하이라이트 색상 사용
 
           if (tempDir) {
             // textfile method for Korean UTF-8 support
@@ -96,7 +158,7 @@ export class SubtitleFilter {
             drawTextFilters.push(
               `drawtext=fontfile=${safeFontPath}:` +
               `textfile=${safeTextPath}:` +
-              `fontcolor_expr=${fontcolorExpr}:` +
+              `fontcolor=0x${fontColor}:` +
               `fontsize=${fontSize}:` +
               `x=(w-tw)/2:` +
               `y=${yPosition}:` +
@@ -111,7 +173,7 @@ export class SubtitleFilter {
             drawTextFilters.push(
               `drawtext=fontfile=${safeFontPath}:` +
               `text='${text} ':` +
-              `fontcolor_expr=${fontcolorExpr}:` +
+              `fontcolor=0x${fontColor}:` +
               `fontsize=${fontSize}:` +
               `x=(w-tw)/2:` +
               `y=${yPosition}:` +
@@ -200,6 +262,14 @@ export class SubtitleFilter {
       // 🔥 자막은 Gmarket Sans Bold 사용
       const fontPath = findSubtitleFontPath();
       const textFilePaths: string[] = [];
+
+      // 🔥 폰트 파일 유효성 검증
+      const fontValidation = validateFontFile(fontPath);
+      logger.info({
+        fontPath,
+        ...fontValidation,
+        method: 'createSimplifiedSubtitleFilter'
+      }, '[FONT VALIDATE] Simplified subtitle font validation');
 
       // 🔥 색상 설정 - 흰색 + 검은 테두리 (NewsProject 스타일)
       const fontColor = config?.normalColor?.replace('#', '') || config?.highlightColor?.replace('#', '') || 'FFFFFF';
@@ -339,6 +409,14 @@ export class SubtitleFilter {
       const fontPath = findSubtitleFontPath();
       const textFilePaths: string[] = [];
 
+      // 🔥 폰트 파일 유효성 검증
+      const fontValidation = validateFontFile(fontPath);
+      logger.info({
+        fontPath,
+        ...fontValidation,
+        method: 'createDualLanguageSubtitleFilter'
+      }, '[FONT VALIDATE] Dual language subtitle font validation');
+
       // 🔥 Korean settings (primary) - 자극적인 뉴스 쇼츠 스타일 (어마어마하게 크게!)
       const primaryFontSize = config?.fontSize || (orientation === OrientationEnum.portrait ? 85 : 68);
       const primaryYPosition = config?.yPosition || (orientation === OrientationEnum.portrait ? 'h*0.48' : 'h*0.50');
@@ -477,6 +555,14 @@ export class SubtitleFilter {
 
       // 🔥 제목은 Black Han Sans 사용
       const fontPath = findTitleFontPath();
+
+      // 🔥 폰트 파일 유효성 검증
+      const fontValidation = validateFontFile(fontPath);
+      logger.info({
+        fontPath,
+        ...fontValidation,
+        method: 'createTitleTextFilter'
+      }, '[FONT VALIDATE] Title font validation');
 
       // Settings
       const style = titleText.style || 'twoLine'; // 🔥 기본값을 twoLine으로 변경
@@ -650,25 +736,54 @@ export class SubtitleFilter {
    * @param overlays - 씬별 오버레이 배열 [{text, startMs, endMs}, ...]
    * @param orientation - 영상 방향
    * @param tempDir - UTF-8 텍스트 파일 저장용
+   * @param fontConfig - 🔥 프로젝트별 폰트 설정 (선택)
    */
   createSceneOverlayFilter(
     overlays: Array<{ text: string; startMs: number; endMs: number }>,
     orientation: OrientationEnum,
-    tempDir?: string
+    tempDir?: string,
+    fontConfig?: ProjectFontConfig
   ): { filter: string; textFilePaths: string[] } | null {
     try {
       if (!overlays || overlays.length === 0) return null;
 
-      // 🔥 제목은 Black Han Sans 사용
-      const fontPath = findTitleFontPath();
+      // 🔥 프로젝트별 폰트 설정 적용
+      // fontConfig.title_font가 있으면 해당 프리셋 사용, 없으면 시스템 폰트
+      const fontPath = fontConfig?.title_font
+        ? resolveFontPreset(fontConfig.title_font)
+        : findTitleFontPath();
       const textFilePaths: string[] = [];
       const filters: string[] = [];
 
-      // 🔥 스타일: 노란 배경 (FFEB3B) + 검은 텍스트 (뉴스 하단자막 스타일)
-      const fontSize = orientation === OrientationEnum.portrait ? 52 : 42;
-      const textColor = '000000';  // 검은색
-      const bgColor = 'FFEB3B';    // 노란색
+      // 🔥 폰트 파일 검증 (런타임)
+      const fontExists = fs.existsSync(fontPath);
+      const fontStats = fontExists ? fs.statSync(fontPath) : null;
+      logger.info({
+        fontPath,
+        fontExists,
+        fontSizeBytes: fontStats?.size || 0,
+        fontSizeMB: fontStats ? (fontStats.size / 1024 / 1024).toFixed(2) : 0,
+        fontReadable: fontExists && fontStats && fontStats.size > 0
+      }, '[FONT CHECK] Scene overlay font verification');
+
+      if (!fontExists || !fontStats || fontStats.size === 0) {
+        logger.error({ fontPath }, '[FONT ERROR] Font file does not exist or is empty!');
+      }
+
+      // 🔥 스타일: 프로젝트 설정 또는 기본값 (노란 배경 + 검은 텍스트)
+      const defaultFontSize = orientation === OrientationEnum.portrait ? 52 : 42;
+      const fontSize = fontConfig?.title_size || defaultFontSize;
+      const textColor = fontConfig?.title_color?.replace('#', '') || '000000';  // 검은색
+      const bgColor = fontConfig?.title_bg_color?.replace('#', '') || 'FFEB3B';    // 노란색
       const yPosition = orientation === OrientationEnum.portrait ? 'h*0.08' : 'h*0.06';
+
+      logger.info({
+        fontConfig: fontConfig || 'DEFAULT',
+        fontSize,
+        textColor,
+        bgColor,
+        fontPath
+      }, '[FONT CONFIG] Scene overlay using project font config');
 
       overlays.forEach((overlay, index) => {
         const startTime = overlay.startMs / 1000;
@@ -683,12 +798,40 @@ export class SubtitleFilter {
           fs.writeFileSync(textFilePath, displayText, 'utf-8');
           textFilePaths.push(textFilePath);
 
+          // 🔥 텍스트 파일 검증
+          const writtenContent = fs.readFileSync(textFilePath, 'utf-8');
+          const textFileExists = fs.existsSync(textFilePath);
+          const textFileStats = textFileExists ? fs.statSync(textFilePath) : null;
+
+          logger.info({
+            textFilePath,
+            textFileExists,
+            textFileSizeBytes: textFileStats?.size || 0,
+            originalText: overlay.text?.substring(0, 50),
+            displayText: displayText.substring(0, 50),
+            writtenContent: writtenContent.substring(0, 50),
+            writtenLength: writtenContent.length,
+            writtenBytes: Buffer.from(writtenContent, 'utf-8').length,
+            fontPath,
+            startTime,
+            endTime
+          }, '[DEBUG] Scene overlay textfile created and verified');
+
           const safeFontPath = toFFmpegPath(fontPath);
           const safeTextPath = toFFmpegPath(textFilePath);
 
-          filters.push(
-            `drawtext=fontfile=${safeFontPath}:textfile=${safeTextPath}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
-          );
+          // 🔥 필터 문자열 생성 및 로깅
+          const filterStr = `drawtext=fontfile=${safeFontPath}:textfile=${safeTextPath}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`;
+
+          if (index === 0) {
+            logger.info({
+              filterStr: filterStr.substring(0, 300),
+              safeFontPath,
+              safeTextPath
+            }, '[FILTER DEBUG] First scene overlay filter string');
+          }
+
+          filters.push(filterStr);
         } else {
           // 인라인 방식 (한글 깨질 수 있음)
           const escapedText = displayText.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:');
@@ -704,7 +847,9 @@ export class SubtitleFilter {
       logger.info({
         overlayCount: overlays.length,
         filterCount: filters.length,
-        textFileCount: textFilePaths.length
+        textFileCount: textFilePaths.length,
+        fontPath,
+        tempDir: tempDir || 'UNDEFINED'
       }, "Created scene overlay filter (씬별 제목)");
 
       return { filter: filters.join(','), textFilePaths };
