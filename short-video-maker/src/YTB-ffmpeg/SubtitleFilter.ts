@@ -133,56 +133,50 @@ export class SubtitleFilter {
       const wordGroups = this.groupWordsForDisplay(captions, 3);
       const drawTextFilters: string[] = [];
 
-      wordGroups.forEach((group, groupIndex) => {
-        const groupStartTime = group[0].startMs / 1000;
-        const groupEndTime = group[group.length - 1].endMs / 1000;
+      // 🔥 FIX: 각 자막의 개별 타이밍 사용 (TTS 싱크)
+      // 그룹화 제거 - 각 caption의 startMs/endMs를 그대로 사용
+      captions.forEach((caption, captionIndex) => {
+        const startTime = caption.startMs / 1000;
+        const endTime = caption.endMs / 1000;
+        const fontColor = highlightColor;
 
-        group.forEach((word, wordIndex) => {
-          const wordStartTime = word.startMs / 1000;
-          const wordEndTime = word.endMs / 1000;
+        if (tempDir) {
+          // textfile method for Korean UTF-8 support
+          const textFilePath = path.join(tempDir, `subtitle_word_${Date.now()}_${captionIndex}.txt`);
+          fs.writeFileSync(textFilePath, caption.text.toUpperCase(), 'utf-8');
+          textFilePaths.push(textFilePath);
 
-          // 🔥 FIX: fontcolor_expr가 complexFilter에서 제대로 동작하지 않음
-          // 대신 정적 fontcolor 사용 (동적 하이라이트 대신 단일 색상)
-          const fontColor = highlightColor; // 하이라이트 색상 사용
+          // 🔥 toFFmpegPath 사용 (Windows/Linux 자동 처리)
+          const safeFontPath = toFFmpegPath(fontPath);
+          const safeTextPath = toFFmpegPath(textFilePath);
 
-          if (tempDir) {
-            // textfile method for Korean UTF-8 support
-            const textFilePath = path.join(tempDir, `subtitle_word_${Date.now()}_${groupIndex}_${wordIndex}.txt`);
-            fs.writeFileSync(textFilePath, word.text.toUpperCase() + ' ', 'utf-8');
-            textFilePaths.push(textFilePath);
-
-            // 🔥 toFFmpegPath 사용 (Windows/Linux 자동 처리)
-            const safeFontPath = toFFmpegPath(fontPath);
-            const safeTextPath = toFFmpegPath(textFilePath);
-
-            drawTextFilters.push(
-              `drawtext=fontfile=${safeFontPath}:` +
-              `textfile=${safeTextPath}:` +
-              `fontcolor=0x${fontColor}:` +
-              `fontsize=${fontSize}:` +
-              `x=(w-tw)/2:` +
-              `y=${yPosition}:` +
-              `borderw=${borderWidth}:` +
-              `bordercolor=${borderColor}:` +
-              `enable=between(t\\,${groupStartTime}\\,${groupEndTime})`
-            );
-          } else {
-            // Fallback: inline text (Korean may show as boxes)
-            const text = word.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
-            const safeFontPath = toFFmpegPath(fontPath);
-            drawTextFilters.push(
-              `drawtext=fontfile=${safeFontPath}:` +
-              `text='${text} ':` +
-              `fontcolor=0x${fontColor}:` +
-              `fontsize=${fontSize}:` +
-              `x=(w-tw)/2:` +
-              `y=${yPosition}:` +
-              `borderw=${borderWidth}:` +
-              `bordercolor=${borderColor}:` +
-              `enable=between(t\\,${groupStartTime}\\,${groupEndTime})`
-            );
-          }
-        });
+          drawTextFilters.push(
+            `drawtext=fontfile=${safeFontPath}:` +
+            `textfile=${safeTextPath}:` +
+            `fontcolor=0x${fontColor}:` +
+            `fontsize=${fontSize}:` +
+            `x=(w-tw)/2:` +
+            `y=${yPosition}:` +
+            `borderw=${borderWidth}:` +
+            `bordercolor=${borderColor}:` +
+            `enable=between(t\\,${startTime}\\,${endTime})`
+          );
+        } else {
+          // Fallback: inline text (Korean may show as boxes)
+          const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
+          const safeFontPath = toFFmpegPath(fontPath);
+          drawTextFilters.push(
+            `drawtext=fontfile=${safeFontPath}:` +
+            `text='${text} ':` +
+            `fontcolor=0x${fontColor}:` +
+            `fontsize=${fontSize}:` +
+            `x=(w-tw)/2:` +
+            `y=${yPosition}:` +
+            `borderw=${borderWidth}:` +
+            `bordercolor=${borderColor}:` +
+            `enable=between(t\\,${startTime}\\,${endTime})`
+          );
+        }
       });
 
       // 🔥 Too many filters or already-grouped captions → use simplified filter
