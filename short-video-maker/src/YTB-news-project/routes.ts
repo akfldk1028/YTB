@@ -79,6 +79,22 @@ const NewsPayloadSchema = z.object({
  */
 router.post('/create', async (req: Request, res: Response) => {
   try {
+    // 🔥 DEBUG: 요청 바디 원본 확인 (인코딩 문제 추적)
+    const rawBody = JSON.stringify(req.body);
+    const firstScene = Array.isArray(req.body)
+      ? req.body[0]?.videos?.[0]?.scenes?.[0]
+      : req.body?.videos?.[0]?.scenes?.[0];
+    const narrationText = firstScene?.narration || '';
+    const narrationHex = Buffer.from(narrationText, 'utf-8').toString('hex').substring(0, 100);
+
+    logger.info({
+      rawBodySample: rawBody.substring(0, 500),
+      narrationText,
+      narrationHex,
+      narrationLength: narrationText.length,
+      contentType: req.headers['content-type'],
+    }, '[DEBUG] 🔍 API 요청 원본 확인 (인코딩 추적)');
+
     // n8n은 배열로 보낼 수 있음
     const rawPayload = Array.isArray(req.body) ? req.body[0] : req.body;
 

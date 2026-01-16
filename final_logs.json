@@ -1,0 +1,3880 @@
+[
+  {
+    "insertId": "69682e42000cf270c8e53d3e",
+    "jsonPayload": {
+      "error": {
+        "code": "ENOENT",
+        "errno": -2,
+        "path": "/tmp/youtube-data.tar.gz",
+        "syscall": "unlink"
+      },
+      "level": "error",
+      "msg": "Failed to update YouTube data secret",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:07.135194535Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.849Z"
+  },
+  {
+    "insertId": "69682e42000cf21d326d072b",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "✅ YouTube tokens backed up to Secret Manager",
+      "pid": 25,
+      "project": "dkdk-474008",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:07.135194535Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.849Z"
+  },
+  {
+    "insertId": "69682e42000c43dfdc359cac",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "✅ YouTube tokens backed up to Secret Manager",
+      "pid": 25,
+      "project": "dkdk-474008",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:07.135194535Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.804Z"
+  },
+  {
+    "insertId": "69682e420005098b781b889a",
+    "jsonPayload": {
+      "channelName": "why_cat",
+      "level": "info",
+      "msg": "YouTube token health check passed",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.319Z"
+  },
+  {
+    "insertId": "69682e420005098477a45765",
+    "jsonPayload": {
+      "channelName": "why_cat",
+      "level": "info",
+      "msg": "YouTube access token refreshed for channel",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.319Z"
+  },
+  {
+    "insertId": "69682e420005097de793ca53",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube channels configuration saved",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.294Z"
+  },
+  {
+    "insertId": "69682e42000509761a470037",
+    "jsonPayload": {
+      "channelName": "why_cat",
+      "level": "info",
+      "msg": "Channel tokens saved",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.294Z"
+  },
+  {
+    "insertId": "69682e420005096f825bb5f6",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube channels configuration saved",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.245Z"
+  },
+  {
+    "insertId": "69682e420005095c4eb57fd9",
+    "jsonPayload": {
+      "channelName": "why_cat",
+      "level": "info",
+      "msg": "Channel tokens saved",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.245Z"
+  },
+  {
+    "insertId": "69682e420003b7190bf61c4a",
+    "jsonPayload": {
+      "channelName": "why_cat",
+      "level": "info",
+      "msg": "Access token automatically refreshed",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.244Z"
+  },
+  {
+    "insertId": "69682e420002e109f2ae95f2",
+    "jsonPayload": {
+      "channelName": "clickaround",
+      "error": "Token refresh failed",
+      "level": "error",
+      "msg": "YouTube token health check FAILED - re-authentication required",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.187Z"
+  },
+  {
+    "insertId": "69682e420002d6d925f0ef3d",
+    "jsonPayload": {
+      "channelName": "clickaround",
+      "error": {
+        "code": 400,
+        "config": {
+          "body": {},
+          "data": {},
+          "duplex": "half",
+          "headers": {},
+          "method": "POST",
+          "responseType": "unknown",
+          "retry": true,
+          "retryConfig": {
+            "currentRetryAttempt": 0,
+            "httpMethodsToRetry": [
+              "GET",
+              "PUT",
+              "POST",
+              "HEAD",
+              "OPTIONS",
+              "DELETE"
+            ],
+            "maxRetryDelay": 9007199254740991,
+            "noResponseRetries": 2,
+            "retry": 3,
+            "retryDelayMultiplier": 2,
+            "statusCodesToRetry": [
+              [
+                100,
+                199
+              ],
+              [
+                408,
+                408
+              ],
+              [
+                429,
+                429
+              ],
+              [
+                500,
+                599
+              ]
+            ],
+            "timeOfFirstRequest": 1768435266186,
+            "totalTimeout": 9007199254740991
+          },
+          "url": "https://oauth2.googleapis.com/token"
+        },
+        "response": {
+          "config": {
+            "body": {},
+            "data": {},
+            "duplex": "half",
+            "headers": {},
+            "method": "POST",
+            "responseType": "unknown",
+            "retry": true,
+            "retryConfig": {
+              "httpMethodsToRetry": [
+                "GET",
+                "PUT",
+                "POST",
+                "HEAD",
+                "OPTIONS",
+                "DELETE"
+              ]
+            },
+            "url": "https://oauth2.googleapis.com/token"
+          },
+          "data": {
+            "error": "invalid_grant",
+            "error_description": "Bad Request"
+          },
+          "size": 0
+        },
+        "status": 400
+      },
+      "level": "error",
+      "msg": "Failed to refresh YouTube access token",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.186Z"
+  },
+  {
+    "insertId": "69682e420002118898c95555",
+    "jsonPayload": {
+      "channelName": "segong",
+      "error": "Token refresh failed",
+      "level": "error",
+      "msg": "YouTube token health check FAILED - re-authentication required",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.469374764Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.132Z"
+  },
+  {
+    "insertId": "69682e420002036bed867c86",
+    "jsonPayload": {
+      "channelName": "segong",
+      "error": {
+        "code": 400,
+        "config": {
+          "body": {},
+          "data": {},
+          "duplex": "half",
+          "headers": {},
+          "method": "POST",
+          "responseType": "unknown",
+          "retry": true,
+          "retryConfig": {
+            "currentRetryAttempt": 0,
+            "httpMethodsToRetry": [
+              "GET",
+              "PUT",
+              "POST",
+              "HEAD",
+              "OPTIONS",
+              "DELETE"
+            ],
+            "maxRetryDelay": 9007199254740991,
+            "noResponseRetries": 2,
+            "retry": 3,
+            "retryDelayMultiplier": 2,
+            "statusCodesToRetry": [
+              [
+                100,
+                199
+              ],
+              [
+                408,
+                408
+              ],
+              [
+                429,
+                429
+              ],
+              [
+                500,
+                599
+              ]
+            ],
+            "timeOfFirstRequest": 1768435266131,
+            "totalTimeout": 9007199254740991
+          },
+          "url": "https://oauth2.googleapis.com/token"
+        },
+        "response": {
+          "config": {
+            "body": {},
+            "data": {},
+            "duplex": "half",
+            "headers": {},
+            "method": "POST",
+            "responseType": "unknown",
+            "retry": true,
+            "retryConfig": {
+              "httpMethodsToRetry": [
+                "GET",
+                "PUT",
+                "POST",
+                "HEAD",
+                "OPTIONS",
+                "DELETE"
+              ]
+            },
+            "url": "https://oauth2.googleapis.com/token"
+          },
+          "data": {
+            "error": "invalid_grant",
+            "error_description": "Bad Request"
+          },
+          "size": 0
+        },
+        "status": 400
+      },
+      "level": "error",
+      "msg": "Failed to refresh YouTube access token",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:01:06.137592386Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:01:06.132Z"
+  },
+  {
+    "insertId": "69682e41000f1f3e566acaec",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2026-01-15T00:01:05.996293596Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "INFO",
+    "textPayload": "STARTUP HTTP probe succeeded after 1 attempt for container \"short-video-maker-1\" on port 3123 path \"/health\".",
+    "timestamp": "2026-01-15T00:01:05.991038Z"
+  },
+  {
+    "insertId": "69682e1f00051c693f1b77f6",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "UI server is running on http://0.0.0.0:3123",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.335Z"
+  },
+  {
+    "insertId": "69682e1f00051c62b6b111f9",
+    "jsonPayload": {
+      "api": "/api",
+      "host": "0.0.0.0",
+      "level": "info",
+      "mcp": "/mcp",
+      "msg": "MCP and API server is running",
+      "pid": 25,
+      "port": 3123,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.335Z"
+  },
+  {
+    "insertId": "69682e1f00051c5bf737d34a",
+    "jsonPayload": {
+      "level": "warn",
+      "msg": "Google Sheets not configured (GOOGLE_SHEETS_SPREADSHEET_ID not set)",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.332Z"
+  },
+  {
+    "insertId": "69682e1f00051c5616e31459",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube Analytics routes mounted at /api/analytics",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.331Z"
+  },
+  {
+    "insertId": "69682e1f00051c523c06235c",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube Analytics Service initialized",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.331Z"
+  },
+  {
+    "insertId": "69682e1f00051c4e4c97e40b",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube client secrets loaded from environment variable (Analytics)",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.331Z"
+  },
+  {
+    "insertId": "69682e1f00051c49ef58b73b",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube Secret Manager integration enabled",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.331Z"
+  },
+  {
+    "insertId": "69682e1f00051c45e96fa6df",
+    "jsonPayload": {
+      "channelCount": 3,
+      "level": "info",
+      "msg": "YouTube channels configuration loaded from file",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.328Z"
+  },
+  {
+    "insertId": "69682e1f00051c40bbd496ae",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube upload routes mounted at /api/youtube",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.328Z"
+  },
+  {
+    "insertId": "69682e1f00051c3cdf0d2f79",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube routes initialized with modular structure",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.328Z"
+  },
+  {
+    "insertId": "69682e1f00051c36cfbf64f4",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "News Project API mounted at /api/news",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.327Z"
+  },
+  {
+    "insertId": "69682e1f00051c30fe3a4299",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "Politics Project API mounted at /api/politics",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.327Z"
+  },
+  {
+    "insertId": "69682e1f00051c298f2cd189",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "Character Storage API mounted at /api/characters",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.327Z"
+  },
+  {
+    "insertId": "69682e1f00051c2299e13f3d",
+    "jsonPayload": {
+      "bucket": "dkdk-474008-short-videos",
+      "level": "info",
+      "msg": "Character Storage Service initialized",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.326Z"
+  },
+  {
+    "insertId": "69682e1f00051c1e7a570143",
+    "jsonPayload": {
+      "hasCharacterStorage": true,
+      "hasVeoApi": true,
+      "level": "info",
+      "msg": "ConsistentShortsWorkflow initialized WITH VeoAPI",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.318Z"
+  },
+  {
+    "insertId": "69682e1f00051c18c2a061d8",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "CharacterStorageService initialized for persistent character support",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.318Z"
+  },
+  {
+    "insertId": "69682e1f00051c14d57cb234",
+    "jsonPayload": {
+      "bucket": "dkdk-474008-short-videos",
+      "level": "info",
+      "msg": "Character Storage Service initialized",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.318Z"
+  },
+  {
+    "insertId": "69682e1f00051c0f5aac777c",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "ShortCreatorRefactored - VideoQueue initialized successfully",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.317Z"
+  },
+  {
+    "insertId": "69682e1f00051c0bc6a7a031",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "VideoQueue constructor called - queue initialized",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.317Z"
+  },
+  {
+    "insertId": "69682e1f00051c06813418c5",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "ShortCreatorRefactored - About to initialize VideoQueue",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.317Z"
+  },
+  {
+    "insertId": "69682e1f00051c0127801b46",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "GOOGLE_SHEETS_SPREADSHEET_ID not configured, video metadata logging disabled",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.316Z"
+  },
+  {
+    "insertId": "69682e1f00051bfc6d77fbdb",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube uploader service initialized successfully",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.316Z"
+  },
+  {
+    "insertId": "69682e1f00051bed9a17c640",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube Uploader initialized with multi-channel support",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.316Z"
+  },
+  {
+    "insertId": "69682e1f00051be9e5a4adf0",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "Google Cloud Storage service initialized for YouTube uploads",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.316Z"
+  },
+  {
+    "insertId": "69682e1f00051be47ed4c098",
+    "jsonPayload": {
+      "authMethod": "default-credentials",
+      "bucket": "dkdk-474008-short-videos",
+      "level": "info",
+      "msg": "Google Cloud Storage service initialized",
+      "pid": 25,
+      "region": "us-central1",
+      "storageClass": "STANDARD",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.316Z"
+  },
+  {
+    "insertId": "69682e1f00051bdec8cc4392",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube client secrets loaded from environment variable",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.316Z"
+  },
+  {
+    "insertId": "69682e1f00051bd7335e1b35",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube Secret Manager integration enabled",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.315Z"
+  },
+  {
+    "insertId": "69682e1f00051bd27a51a721",
+    "jsonPayload": {
+      "channelCount": 3,
+      "level": "info",
+      "msg": "YouTube channels configuration loaded from file",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.184Z"
+  },
+  {
+    "insertId": "69682e1f00051bcdf6ebf567",
+    "jsonPayload": {
+      "bucket": "dkdk-474008-short-videos",
+      "level": "info",
+      "msg": "GCS service initialized successfully",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.183Z"
+  },
+  {
+    "insertId": "69682e1f00051bc964224251",
+    "jsonPayload": {
+      "authMethod": "default-credentials",
+      "bucket": "dkdk-474008-short-videos",
+      "level": "info",
+      "msg": "Google Cloud Storage service initialized",
+      "pid": 25,
+      "region": "us-central1",
+      "storageClass": "STANDARD",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.183Z"
+  },
+  {
+    "insertId": "69682e1f00051bc284488ee7",
+    "jsonPayload": {
+      "geminiKeyLength": 39,
+      "hasGeminiKey": true,
+      "hasRunwayKey": true,
+      "level": "info",
+      "msg": "Video API initialization status",
+      "pid": 25,
+      "runwayKeyLength": 133,
+      "version": "1.3.4",
+      "videoApiInitialized": true,
+      "videoApiType": "runway",
+      "videoSource": "runway"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.180Z"
+  },
+  {
+    "insertId": "69682e1f00051bbc949fcc4c",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "🎬 Using Runway VEO 3.1 (via Runway) as video generation provider",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.180Z"
+  },
+  {
+    "insertId": "69682e1f00051bb7320ca351",
+    "jsonPayload": {
+      "level": "info",
+      "model": "veo3.1",
+      "msg": "🎬 RunwayAPI initialized with model: veo3.1",
+      "pid": 25,
+      "useVeoAudio": false,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.180Z"
+  },
+  {
+    "insertId": "69682e1f00051bb28f756cd2",
+    "jsonPayload": {
+      "legacyFont": "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+      "level": "info",
+      "msg": "[Font] Legacy font configured",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.180Z"
+  },
+  {
+    "insertId": "69682e1f00051bacb2bc94b8",
+    "jsonPayload": {
+      "fontPath": "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+      "level": "info",
+      "msg": "Found available font for captions",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.180Z"
+  },
+  {
+    "insertId": "69682e1f00051ba59bb0738b",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "[Font] Subtitle font configured",
+      "pid": 25,
+      "subtitleFont": "/app/font/GmarketSansTTFBold.ttf",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.180Z"
+  },
+  {
+    "insertId": "69682e1f00051ba091ee52c3",
+    "jsonPayload": {
+      "fontPath": "/app/font/GmarketSansTTFBold.ttf",
+      "level": "info",
+      "msg": "[Font] ✅ Found subtitle font (Gmarket Sans Bold)",
+      "pid": 25,
+      "sizeBytes": 2511976,
+      "sizeMB": "2.40",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.179Z"
+  },
+  {
+    "insertId": "69682e1f00051b98acbc38d0",
+    "jsonPayload": {
+      "PROJECT_ROOT": "/app",
+      "isDocker": true,
+      "level": "info",
+      "msg": "[Font] Searching for subtitle font (Gmarket Sans Bold)",
+      "pathsToCheck": [
+        "/app/font/GmarketSansTTFBold.ttf",
+        "/app/font/GmarketSansTTFBold.ttf",
+        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+        "C:/Windows/Fonts/malgunbd.ttf"
+      ],
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.179Z"
+  },
+  {
+    "insertId": "69682e1f00051b8e47c91ad7",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "[Font] Title font configured",
+      "pid": 25,
+      "titleFont": "/app/font/BlackHanSans-Regular.ttf",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.179Z"
+  },
+  {
+    "insertId": "69682e1f00051b84f8f0ec38",
+    "jsonPayload": {
+      "fontPath": "/app/font/BlackHanSans-Regular.ttf",
+      "level": "info",
+      "msg": "[Font] ✅ Found title font (Black Han Sans)",
+      "pid": 25,
+      "sizeBytes": 979604,
+      "sizeMB": "0.93",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.179Z"
+  },
+  {
+    "insertId": "69682e1f00051b7e16df2596",
+    "jsonPayload": {
+      "PROJECT_ROOT": "/app",
+      "isDocker": true,
+      "level": "info",
+      "msg": "[Font] Searching for title font (Black Han Sans)",
+      "pathsToCheck": [
+        "/app/font/BlackHanSans-Regular.ttf",
+        "/app/font/BlackHanSans-Regular.ttf",
+        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+        "C:/Windows/Fonts/malgunbd.ttf"
+      ],
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.178Z"
+  },
+  {
+    "insertId": "69682e1f00051b760efc9b4e",
+    "jsonPayload": {
+      "PROJECT_ROOT": "/app",
+      "appFontDirExists": true,
+      "appFontFiles": [
+        "BlackHanSans-Regular.ttf",
+        "GmarketSansTTFBold.ttf",
+        "GmarketSansTTFLight.ttf",
+        "GmarketSansTTFMedium.ttf"
+      ],
+      "dockerEnv": "true",
+      "expectedFonts": [
+        "BlackHanSans-Regular.ttf",
+        "GmarketSansTTFBold.ttf"
+      ],
+      "isDocker": true,
+      "level": "info",
+      "msg": "[Font] Environment check at startup",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.178Z"
+  },
+  {
+    "insertId": "69682e1f00051b6a933606f2",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "FFmpeg path set to system: /usr/bin/ffmpeg (Linux)",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.177Z"
+  },
+  {
+    "insertId": "69682e1f00051b62d381b8a8",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "Whisper initialized successfully",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.171Z"
+  },
+  {
+    "insertId": "69682e1f00051b5a36d36c33",
+    "jsonPayload": {
+      "hasFallback": true,
+      "hasSecondaryFallback": false,
+      "level": "info",
+      "msg": "TTS Provider with fallback initialized",
+      "pid": 25,
+      "primaryProvider": "elevenlabs",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.170Z"
+  },
+  {
+    "insertId": "69682e1f00051b45c00f649c",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "GeminiTTS fallback initialized for ElevenLabs",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.170Z"
+  },
+  {
+    "insertId": "69682e1f000294eee96fe665",
+    "jsonPayload": {
+      "level": "info",
+      "model": "gemini-2.5-pro-preview-tts",
+      "msg": "[GeminiTTS] 초기화 완료 (REST API 직접 호출)",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:31.170Z"
+  },
+  {
+    "insertId": "69682e1f000291e23a5659de",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.470371582Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "[ElevenLabsTTS] Initialized successfully",
+    "timestamp": "2026-01-15T00:00:31.168418Z"
+  },
+  {
+    "insertId": "69682e1f00008d555fbcd1df",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube data extracted from archive",
+      "path": "/app/data",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.136802821Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:30.996Z"
+  },
+  {
+    "insertId": "69682e1e000e98e9befe2de4",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "YouTube client secret written",
+      "path": "/app/data/client_secret.json",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:31.136802821Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-15T00:00:30.956Z"
+  },
+  {
+    "insertId": "69682e13000b49c05e670f4a",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:19.810939083Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "Started POT server (v1.2.2) on on address [::]:4416",
+    "timestamp": "2026-01-15T00:00:19.739776Z"
+  },
+  {
+    "insertId": "69682e0b000dde112b9cf64d",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:12.138139394Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "> node dist/index.js",
+    "timestamp": "2026-01-15T00:00:11.908817Z"
+  },
+  {
+    "insertId": "69682e0b000dde05d690403c",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:12.138139394Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "> short-video-maker@1.3.4 start /app",
+    "timestamp": "2026-01-15T00:00:11.908805Z"
+  },
+  {
+    "insertId": "69682e090007910360c94393",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:09.807284120Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "POT provider health check failed",
+    "timestamp": "2026-01-15T00:00:09.495875Z"
+  },
+  {
+    "insertId": "69682e090002173bc339bd75",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-15T00:00:09.141752521Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "POT provider started on port 4416",
+    "timestamp": "2026-01-15T00:00:09.137019Z"
+  },
+  {
+    "insertId": "69682e050006b2acc0061cea",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb",
+      "scaling_reason": "AUTOSCALING"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2026-01-15T00:00:05.443148328Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "INFO",
+    "textPayload": "Starting new instance. Reason: AUTOSCALING - Instance started due to configured scaling factors (e.g. CPU utilization, request throughput, etc.) or no existing capacity for current traffic.",
+    "timestamp": "2026-01-15T00:00:05.438956Z"
+  },
+  {
+    "httpRequest": {
+      "latency": "60.351765184s",
+      "protocol": "HTTP/1.1",
+      "remoteIp": "34.116.39.161",
+      "requestMethod": "GET",
+      "requestSize": "464",
+      "requestUrl": "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/auth/health-check",
+      "responseSize": "578",
+      "serverIp": "34.143.78.2",
+      "status": 503,
+      "userAgent": "Google-Cloud-Scheduler"
+    },
+    "insertId": "69682e42000526c4f50456d1",
+    "labels": {
+      "instanceId": "005eb6974cee01e8176beecb5187d8433108a50abee546ab40eae2daf644b7d10c63fc312ee2f5867c27cde7d5823e96fa33a4409fe34226da07e17cf56892d5a65722428c235de3636d21b76dfb"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Frequests",
+    "receiveTimestamp": "2026-01-15T00:01:06.342302813Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "spanId": "bce8a851826fbb45",
+    "timestamp": "2026-01-15T00:00:05.388669Z",
+    "trace": "projects/dkdk-474008/traces/af291f5fe2aa10bcd2edf5a51974ec5e",
+    "traceSampled": true
+  },
+  {
+    "httpRequest": {
+      "latency": "0.006799259s",
+      "protocol": "HTTP/1.1",
+      "remoteIp": "163.239.126.165",
+      "requestMethod": "GET",
+      "requestSize": "342",
+      "requestUrl": "https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/news/status/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6",
+      "responseSize": "1525",
+      "serverIp": "34.143.78.2",
+      "status": 200,
+      "userAgent": "curl/8.15.0"
+    },
+    "insertId": "696829f200011e424900e244",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Frequests",
+    "receiveTimestamp": "2026-01-14T23:42:42.079079523Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "INFO",
+    "spanId": "c05cb5ebb1dd52dd",
+    "timestamp": "2026-01-14T23:42:42.060446Z",
+    "trace": "projects/dkdk-474008/traces/8a8d1b741b4810c00660bec91aa456a4",
+    "traceSampled": true
+  },
+  {
+    "insertId": "696829db0001d39084796e0d",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "🎉 News 비디오 생성 완료",
+      "pid": 25,
+      "ttsProvider": "google",
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:19.237197056Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:19.120Z"
+  },
+  {
+    "insertId": "696829db0001d383f5fcbeec",
+    "jsonPayload": {
+      "downloadUrl": "https://storage.googleapis.com/dkdk-474008-short-videos/videos/news_final-font-test-003_cmkeo09e8000...",
+      "gcsPath": "gs://dkdk-474008-short-videos/videos/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6.mp4",
+      "level": "info",
+      "msg": "☁️ GCS 업로드 완료",
+      "pid": 25,
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:19.237197056Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:19.120Z"
+  },
+  {
+    "insertId": "696829db0001d2bc4891c20f",
+    "jsonPayload": {
+      "fileSize": 1439412,
+      "gcsPath": "gs://dkdk-474008-short-videos/videos/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6.mp4",
+      "level": "info",
+      "msg": "Video uploaded to GCS successfully",
+      "pid": 25,
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:19.237197056Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:19.120Z"
+  },
+  {
+    "insertId": "696829db0000c1e15a494481",
+    "jsonPayload": {
+      "fileName": "videos/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6.mp4",
+      "level": "info",
+      "msg": "GCS upload stream finished",
+      "pid": 25,
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:19.237197056Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:19.050Z"
+  },
+  {
+    "insertId": "696829da000bb1b0be930d36",
+    "jsonPayload": {
+      "fileName": "videos/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6.mp4",
+      "fileSize": 1439412,
+      "fileSizeMB": "1.37",
+      "level": "info",
+      "msg": "Uploading video to GCS",
+      "pid": 25,
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:18.903482301Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:18.762Z"
+  },
+  {
+    "insertId": "696829da000bb19c8944b974",
+    "jsonPayload": {
+      "level": "info",
+      "localFilePath": "/app/data/videos/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6.mp4",
+      "msg": "Starting GCS upload",
+      "pid": 25,
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:18.903482301Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:18.762Z"
+  },
+  {
+    "insertId": "696829da000b9ceb0055085a",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "📊 진행",
+      "pid": 25,
+      "progress": "7/4",
+      "step": "GCS 업로드 중",
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:18.903482301Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:18.761Z"
+  },
+  {
+    "insertId": "696829da000b905cb757fbed",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "✅ 최종 비디오 생성 완료",
+      "outputPath": "/app/data/videos/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6.mp4",
+      "pid": 25,
+      "totalDuration": 5,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:18.903482301Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:18.758Z"
+  },
+  {
+    "insertId": "696829cb0002c7a66ccb979e",
+    "jsonPayload": {
+      "level": "warn",
+      "msg": "[FFmpeg stderr] Font/drawtext related",
+      "pid": 25,
+      "stderr": "  drawtext:default (graph 0) -> Stream #0:0 (libx264)",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:03.182Z"
+  },
+  {
+    "insertId": "696829cb0002c6fdadd6a0ce",
+    "jsonPayload": {
+      "level": "warn",
+      "msg": "[FFmpeg stderr] Font/drawtext related",
+      "pid": 25,
+      "stderr": "  Stream #0:0 (h264) -> drawtext:default (graph 0)",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:03.182Z"
+  },
+  {
+    "insertId": "696829cb000162e847400f96",
+    "jsonPayload": {
+      "level": "warn",
+      "msg": "[FFmpeg stderr] Font/drawtext related",
+      "pid": 25,
+      "stderr": "  configuration: --prefix=/usr --extra-version=0+deb12u1 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --enable-gnutls --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libjack --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libpulse --enable-librabbitmq --enable-librist --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-libzvbi --enable-lv2 --enable-omx --enable-openal --enable-opencl --enable-opengl --enable-sdl2 --disable-sndio --enable-libjxl --enable-pocketsphinx --enable-librsvg --enable-libmfx --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-libx264 --enable-libplacebo --enable-librav1e --enable-shared",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:03.091Z"
+  },
+  {
+    "insertId": "696829ca000e602c3547fb8f",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "FFmpeg combine command: ffmpeg -i /app/data/temp/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6/temp_news_final-font-test-003_cmkeo09e800000ps6a5tj0og6.mp4 -i /app/data/temp/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6/audio_padded_0.mp3 -y -filter_complex [0:v]drawtext=fontfile=/app/font/BlackHanSans-Regular.ttf:textfile=/app/data/videos/overlay_1768434122922_0.txt:fontcolor=0x000000:fontsize=52:x=(w-text_w)/2:y=h*0.08:box=1:boxcolor=0xFFEB3B@0.95:boxborderw=20:enable=between(t\\,0\\,5),drawtext=fontfile=/app/font/GmarketSansTTFBold.ttf:textfile=/app/data/videos/subtitle_word_1768434122923_0_0.txt:fontcolor=0xFFEB3B:fontsize=90:x=(w-tw)/2:y=h*0.50:borderw=4:bordercolor=black:enable=between(t\\,0\\,2.442)[v] -acodec aac -vcodec libx264 -r 30 -map [v] -map 1:a:0 -t 5 /app/data/videos/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6.mp4",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.929Z"
+  },
+  {
+    "insertId": "696829ca000e174a98f70bee",
+    "jsonPayload": {
+      "captionCount": 1,
+      "filterCount": 1,
+      "level": "info",
+      "msg": "Created TikTok style subtitle filter",
+      "pid": 25,
+      "subtitleConfig": {
+        "borderColor": "black",
+        "borderWidth": 4,
+        "highlightColor": "FFEB3B",
+        "normalColor": "FFFFFF"
+      },
+      "textFileCount": 1,
+      "usingTextFiles": true,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.923Z"
+  },
+  {
+    "insertId": "696829ca000e173f1bb68f59",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "Added scene overlay filter",
+      "overlayCount": 1,
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.922Z"
+  },
+  {
+    "insertId": "696829ca000e17326e362df8",
+    "jsonPayload": {
+      "filterCount": 1,
+      "level": "info",
+      "msg": "Created scene overlay filter (씬별 제목)",
+      "overlayCount": 1,
+      "pid": 25,
+      "textFileCount": 1,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.922Z"
+  },
+  {
+    "insertId": "696829ca000e171fcfa0f2cb",
+    "jsonPayload": {
+      "displayText": "�ѱ� �ڸ� �׽�Ʈ",
+      "endTime": 5,
+      "fontPath": "/app/font/BlackHanSans-Regular.ttf",
+      "level": "info",
+      "msg": "[DEBUG] Scene overlay textfile created",
+      "originalText": "�ѱ� �ڸ� �׽�Ʈ",
+      "pid": 25,
+      "startTime": 0,
+      "textFilePath": "/app/data/videos/overlay_1768434122922_0.txt",
+      "version": "1.3.4",
+      "writtenContent": "�ѱ� �ڸ� �׽�Ʈ",
+      "writtenLength": 12
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.922Z"
+  },
+  {
+    "insertId": "696829ca000e091a907740dc",
+    "jsonPayload": {
+      "captionCount": 1,
+      "level": "info",
+      "msg": "[NewsProject] 최종 자막/제목 수",
+      "overlayCount": 1,
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.920Z"
+  },
+  {
+    "insertId": "696829ca000e0858227e9f44",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "📊 진행",
+      "pid": 25,
+      "progress": "6/4",
+      "step": "최종 합성 중",
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.920Z"
+  },
+  {
+    "insertId": "696829ca000e07ac041960b3",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "✅ 비디오 합성 완료",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:03.252884540Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.920Z"
+  },
+  {
+    "insertId": "696829ca000df3e4150060ae",
+    "jsonPayload": {
+      "duration": 5,
+      "level": "info",
+      "msg": "✅ 비디오 클립 트림 완료",
+      "pid": 25,
+      "scene": 1,
+      "type": "video",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:42:02.920400814Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:42:02.915Z"
+  },
+  {
+    "insertId": "696829be0005610bb53cd163",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "📊 진행",
+      "pid": 25,
+      "progress": "5/4",
+      "step": "비디오 합성 중",
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:50.520968244Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:50.349Z"
+  },
+  {
+    "insertId": "696829be000560e2a8fb71b9",
+    "jsonPayload": {
+      "effectiveDuration": 5,
+      "jsonDuration": 5,
+      "level": "info",
+      "msg": "✅ 음성 생성 완료",
+      "pid": 25,
+      "provider": "google",
+      "scene": 1,
+      "ttsDuration": 2.44175,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:50.520968244Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:50.349Z"
+  },
+  {
+    "insertId": "696829be00054bb3aa998234",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "🔇 오디오 패딩 추가",
+      "pid": 25,
+      "scene": 1,
+      "silencePadding": 2.55825,
+      "totalSceneDuration": 5,
+      "ttsDuration": 2.44175,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:50.520968244Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:50.346Z"
+  },
+  {
+    "insertId": "696829be0000ab9d3eb73912",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "Silent audio generated",
+      "outputPath": "/app/data/temp/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6/silence_0.mp3",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:50.188426281Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:50.044Z"
+  },
+  {
+    "insertId": "696829bb000c33ef53f24ec0",
+    "jsonPayload": {
+      "duration": 2.55825,
+      "level": "info",
+      "msg": "Generating silent audio track",
+      "outputPath": "/app/data/temp/news_final-font-test-003_cmkeo09e800000ps6a5tj0og6/silence_0.mp3",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.856268061Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:47.798Z"
+  },
+  {
+    "insertId": "696829bb000c2a40bc995f0a",
+    "jsonPayload": {
+      "captionCount": 1,
+      "level": "info",
+      "msg": "[NewsProject] Google TTS fallback 성공",
+      "pid": 25,
+      "scene": 1,
+      "version": "1.3.4",
+      "voice": "ko-KR-Chirp3-HD-Despina"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.856268061Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:47.797Z"
+  },
+  {
+    "insertId": "696829bb000c1d65fa61eec1",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.856268061Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "[GoogleTTS] Generated audio: 2.44s, 78136 bytes",
+    "timestamp": "2026-01-14T23:41:47.793957Z"
+  },
+  {
+    "insertId": "696829ba000e983d2a5e372c",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.189901049Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "[GoogleTTS] Using direct Google TTS voice: ko-KR-Chirp3-HD-Despina (language: ko-KR)",
+    "timestamp": "2026-01-14T23:41:46.956477Z"
+  },
+  {
+    "insertId": "696829bb0000434a38a3240c",
+    "jsonPayload": {
+      "gender": "female",
+      "level": "info",
+      "msg": "[NewsProject] Google TTS Chirp3-HD voice 선택 (여성)",
+      "pid": 25,
+      "selectedVoice": "ko-KR-Chirp3-HD-Despina",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.189901049Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:46.956Z"
+  },
+  {
+    "insertId": "696829ba000e955bbda38b26",
+    "jsonPayload": {
+      "error": {
+        "body": {
+          "detail": {
+            "message": "An invalid ID has been received: 'ko-KR-Wavenet-A'. Make sure to provide a correct one.",
+            "status": "invalid_uid"
+          }
+        },
+        "rawResponse": {
+          "headers": {},
+          "redirected": false,
+          "status": 400,
+          "statusText": "Bad Request",
+          "type": "basic",
+          "url": "https://api.elevenlabs.io/v1/text-to-speech/ko-KR-Wavenet-A/with-timestamps"
+        },
+        "statusCode": 400
+      },
+      "level": "warn",
+      "msg": "[NewsProject] ElevenLabs 실패, Google TTS로 fallback",
+      "pid": 25,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.189901049Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:46.956Z"
+  },
+  {
+    "insertId": "696829ba000e94d365f5736e",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "}",
+    "timestamp": "2026-01-14T23:41:46.955603Z"
+  },
+  {
+    "insertId": "696829ba000e94cf739e4c04",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  }",
+    "timestamp": "2026-01-14T23:41:46.955599Z"
+  },
+  {
+    "insertId": "696829ba000e94cb6d077ab7",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    url: 'https://api.elevenlabs.io/v1/text-to-speech/ko-KR-Wavenet-A/with-timestamps'",
+    "timestamp": "2026-01-14T23:41:46.955595Z"
+  },
+  {
+    "insertId": "696829ba000e94c6737a765b",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    type: 'basic',",
+    "timestamp": "2026-01-14T23:41:46.955590Z"
+  },
+  {
+    "insertId": "696829ba000e94c24843257c",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    statusText: 'Bad Request',",
+    "timestamp": "2026-01-14T23:41:46.955586Z"
+  },
+  {
+    "insertId": "696829ba000e94be295d460b",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    status: 400,",
+    "timestamp": "2026-01-14T23:41:46.955582Z"
+  },
+  {
+    "insertId": "696829ba000e94bacd9d1396",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    redirected: false,",
+    "timestamp": "2026-01-14T23:41:46.955578Z"
+  },
+  {
+    "insertId": "696829ba000e94b6c8718f7b",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    },",
+    "timestamp": "2026-01-14T23:41:46.955574Z"
+  },
+  {
+    "insertId": "696829ba000e94b26b9ebbaf",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'alt-svc': 'h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000'",
+    "timestamp": "2026-01-14T23:41:46.955570Z"
+  },
+  {
+    "insertId": "696829ba000e94ae1f22a9e8",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      via: '1.1 google',",
+    "timestamp": "2026-01-14T23:41:46.955566Z"
+  },
+  {
+    "insertId": "696829ba000e94aae72d2823",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'x-region': 'us-central1',",
+    "timestamp": "2026-01-14T23:41:46.955562Z"
+  },
+  {
+    "insertId": "696829ba000e94a5c4b8d959",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'x-trace-id': 'fb34bb1dc439e3baefcd009381c43a69',",
+    "timestamp": "2026-01-14T23:41:46.955557Z"
+  },
+  {
+    "insertId": "696829ba000e94a10d4e1981",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'strict-transport-security': 'max-age=1800;',",
+    "timestamp": "2026-01-14T23:41:46.955553Z"
+  },
+  {
+    "insertId": "696829ba000e949d6f3f3417",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'access-control-max-age': '600',",
+    "timestamp": "2026-01-14T23:41:46.955549Z"
+  },
+  {
+    "insertId": "696829ba000e9499cf4e3e42",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'access-control-allow-methods': 'POST, PATCH, OPTIONS, DELETE, GET, PUT',",
+    "timestamp": "2026-01-14T23:41:46.955545Z"
+  },
+  {
+    "insertId": "696829ba000e949408280314",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'access-control-allow-headers': '*',",
+    "timestamp": "2026-01-14T23:41:46.955540Z"
+  },
+  {
+    "insertId": "696829ba000e948fc3496774",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'access-control-allow-origin': '*',",
+    "timestamp": "2026-01-14T23:41:46.955535Z"
+  },
+  {
+    "insertId": "696829ba000e948b14cee8f9",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'content-type': 'application/json',",
+    "timestamp": "2026-01-14T23:41:46.955531Z"
+  },
+  {
+    "insertId": "696829ba000e945dc19e51ea",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      'content-length': '135',",
+    "timestamp": "2026-01-14T23:41:46.955485Z"
+  },
+  {
+    "insertId": "696829ba000e945a16dc5ab8",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      server: 'uvicorn',",
+    "timestamp": "2026-01-14T23:41:46.955482Z"
+  },
+  {
+    "insertId": "696829ba000e94565984fced",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      date: 'Wed, 14 Jan 2026 23:41:46 GMT',",
+    "timestamp": "2026-01-14T23:41:46.955478Z"
+  },
+  {
+    "insertId": "696829ba000e945111294546",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    headers: Headers {",
+    "timestamp": "2026-01-14T23:41:46.955473Z"
+  },
+  {
+    "insertId": "696829ba000e944d05536921",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  rawResponse: {",
+    "timestamp": "2026-01-14T23:41:46.955469Z"
+  },
+  {
+    "insertId": "696829ba000e9449d8d73884",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  },",
+    "timestamp": "2026-01-14T23:41:46.955465Z"
+  },
+  {
+    "insertId": "696829ba000e9444ae9386e1",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    }",
+    "timestamp": "2026-01-14T23:41:46.955460Z"
+  },
+  {
+    "insertId": "696829ba000e94406cab0839",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      message: \"An invalid ID has been received: 'ko-KR-Wavenet-A'. Make sure to provide a correct one.\"",
+    "timestamp": "2026-01-14T23:41:46.955456Z"
+  },
+  {
+    "insertId": "696829ba000e943cad372334",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "      status: 'invalid_uid',",
+    "timestamp": "2026-01-14T23:41:46.955452Z"
+  },
+  {
+    "insertId": "696829ba000e94376bfedfb4",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:47.293888709Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    detail: {",
+    "timestamp": "2026-01-14T23:41:46.955447Z"
+  },
+  {
+    "insertId": "696829ba000e943316d044b0",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  body: {",
+    "timestamp": "2026-01-14T23:41:46.955443Z"
+  },
+  {
+    "insertId": "696829ba000e942f432e0e22",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  statusCode: 400,",
+    "timestamp": "2026-01-14T23:41:46.955439Z"
+  },
+  {
+    "insertId": "696829ba000e942cf73806ec",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {",
+    "timestamp": "2026-01-14T23:41:46.955436Z"
+  },
+  {
+    "insertId": "696829ba000e9428a40b7538",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    at fulfilled (/app/node_modules/.pnpm/@elevenlabs+elevenlabs-js@2.21.0/node_modules/@elevenlabs/elevenlabs-js/api/resources/textToSpeech/client/Client.js:39:58)",
+    "timestamp": "2026-01-14T23:41:46.955432Z"
+  },
+  {
+    "insertId": "696829ba000e9423c048ac66",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    at Generator.next (<anonymous>)",
+    "timestamp": "2026-01-14T23:41:46.955427Z"
+  },
+  {
+    "insertId": "696829ba000e941f493d9adf",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    at TextToSpeech.<anonymous> (/app/node_modules/.pnpm/@elevenlabs+elevenlabs-js@2.21.0/node_modules/@elevenlabs/elevenlabs-js/api/resources/textToSpeech/client/Client.js:213:31)",
+    "timestamp": "2026-01-14T23:41:46.955423Z"
+  },
+  {
+    "insertId": "696829ba000e941a1d0f9904",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "}",
+    "timestamp": "2026-01-14T23:41:46.955418Z"
+  },
+  {
+    "insertId": "696829ba000e9416256e35e9",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  }",
+    "timestamp": "2026-01-14T23:41:46.955414Z"
+  },
+  {
+    "insertId": "696829ba000e94124371a313",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    \"message\": \"An invalid ID has been received: 'ko-KR-Wavenet-A'. Make sure to provide a correct one.\"",
+    "timestamp": "2026-01-14T23:41:46.955410Z"
+  },
+  {
+    "insertId": "696829ba000e940e60e5322f",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    \"status\": \"invalid_uid\",",
+    "timestamp": "2026-01-14T23:41:46.955406Z"
+  },
+  {
+    "insertId": "696829ba000e940926368cfb",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  \"detail\": {",
+    "timestamp": "2026-01-14T23:41:46.955401Z"
+  },
+  {
+    "insertId": "696829ba000e9404826a4602",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "Body: {",
+    "timestamp": "2026-01-14T23:41:46.955396Z"
+  },
+  {
+    "insertId": "696829ba000e93ebe28c6ab1",
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T23:41:46.961841792Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "[ElevenLabsTTS] Generate failed: ElevenLabsError: Status code: 400",
+    "timestamp": "2026-01-14T23:41:46.955371Z"
+  },
+  {
+    "insertId": "696829ba000e16763b54ffaf",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "📊 진행",
+      "pid": 25,
+      "progress": "4/4",
+      "step": "음성 생성 1/1",
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.189901049Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:46.893Z"
+  },
+  {
+    "insertId": "696829ba000e166e85a0b314",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "📊 진행",
+      "pid": 25,
+      "progress": "3/4",
+      "step": "음성 생성 중 (google)",
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.189901049Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:46.893Z"
+  },
+  {
+    "insertId": "696829ba000e165ed0521037",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "✅ 비주얼 생성 완료 (video: pexels_video)",
+      "pexelsId": 6185622,
+      "pid": 25,
+      "scene": 1,
+      "source": "pexels_video",
+      "type": "video",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.189901049Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:46.893Z"
+  },
+  {
+    "insertId": "696829ba000da01ddf16efe4",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "[NewsVisualSource] ✅ Pexels 비디오 획득",
+      "pexelsId": 6185622,
+      "pid": 25,
+      "sceneIndex": 0,
+      "searchTerms": [
+        "success",
+        "celebration"
+      ],
+      "type": "video",
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:47.189901049Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:46.893Z"
+  },
+  {
+    "insertId": "696829ba00040db8240a0380",
+    "jsonPayload": {
+      "duration": 5,
+      "level": "info",
+      "mode": "pexels_stock",
+      "msg": "[NewsVisualSource] 비주얼 요청",
+      "pid": 25,
+      "prompt": "celebration success...",
+      "sceneIndex": 0,
+      "version": "1.3.4"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:46.525604040Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:46.260Z"
+  },
+  {
+    "insertId": "696829ba00040db15afdf01f",
+    "jsonPayload": {
+      "level": "info",
+      "msg": "📊 진행",
+      "pid": 25,
+      "progress": "2/4",
+      "step": "비주얼 생성 1/1 (pexels_stock)",
+      "version": "1.3.4",
+      "videoId": "news_final-font-test-003_cmkeo09e800000ps6a5tj0og6"
+    },
+    "labels": {
+      "instanceId": "005eb6974cb5dda10fbf3eb5f8e75751355e849b86adc5a5633e4195404986802b5a7903f8018814d793c6b885bcaec8beaef92fcc95796270012e470a0951e6277481898dfd2c7aef3d7ff64d47"
+    },
+    "logName": "projects/dkdk-474008/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-01-14T23:41:46.525604040Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "short-video-maker",
+        "location": "us-central1",
+        "project_id": "dkdk-474008",
+        "revision_name": "short-video-maker-00306-gjh",
+        "service_name": "short-video-maker"
+      },
+      "type": "cloud_run_revision"
+    },
+    "timestamp": "2026-01-14T23:41:46.260Z"
+  }
+]

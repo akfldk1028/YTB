@@ -68,8 +68,12 @@ RUN apt update && apt install -y \
       fonts-noto-color-emoji \
       # Korean font for captions (NanumGothic)
       fonts-nanum \
+      # 🔥 fontconfig for fc-cache (font cache update)
+      fontconfig \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # 🔥 Update font cache so FFmpeg can find Korean fonts
+    && fc-cache -fv
 
 # Install yt-dlp for YouTube downloading (PoliticsProject)
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
@@ -101,6 +105,18 @@ FROM base
 
 # Copy static assets
 COPY static /app/static
+
+# Copy fonts for Korean text rendering (title + subtitles)
+# BlackHanSans-Regular.ttf: 제목용
+# GmarketSansTTFBold.ttf: 자막용
+COPY font /app/font
+
+# 🔥 FIX: fontconfig에 /app/font 등록 + 캐시 갱신
+# fc-cache가 폰트 복사 이후에 실행되어야 함!
+RUN mkdir -p /usr/local/share/fonts && \
+    cp /app/font/*.ttf /usr/local/share/fonts/ && \
+    fc-cache -fv && \
+    fc-list | grep -i gmarket || echo "Warning: Gmarket font not found in fc-list"
 
 # Copy Whisper binary and models
 COPY --from=install-whisper /whisper /app/data/libs/whisper

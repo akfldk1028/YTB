@@ -1,5 +1,5 @@
 // Phase 1 Migration: YTB-tts 모듈로 전환
-import { GoogleTTS, ElevenLabsTTS } from "../../YTB-tts";
+import { GoogleTTS, ElevenLabsTTS, GeminiTTS } from "../../YTB-tts";
 import { FFMpeg } from "../../YTB-ffmpeg";
 import { logger } from "../../config";
 import type { Voices } from "../../types/shorts";
@@ -7,13 +7,13 @@ import type { Kokoro } from "./Kokoro";
 
 /**
  * TTS Provider with automatic fallback support
- * ElevenLabs → Google TTS → Kokoro 순서로 fallback
+ * ElevenLabs → Gemini → Google TTS 순서로 fallback
  */
 export class TTSProvider {
   constructor(
-    private primaryProvider: Kokoro | GoogleTTS | ElevenLabsTTS,
-    private fallbackProvider?: GoogleTTS | Kokoro,
-    private secondaryFallback?: Kokoro
+    private primaryProvider: Kokoro | GoogleTTS | ElevenLabsTTS | GeminiTTS,
+    private fallbackProvider?: GoogleTTS | Kokoro | GeminiTTS | ElevenLabsTTS,
+    private secondaryFallback?: Kokoro | GeminiTTS | ElevenLabsTTS
   ) {}
 
   async generate(
@@ -101,12 +101,14 @@ export class TTSProvider {
 
   listAvailableVoices(): Voices[] {
     // Primary provider의 음성 목록 반환
-    return this.primaryProvider.listAvailableVoices();
+    // GeminiTTS는 string[]을 반환하므로 타입 캐스팅 필요
+    return this.primaryProvider.listAvailableVoices() as Voices[];
   }
 
   private getProviderName(provider: any): string {
     if (provider instanceof ElevenLabsTTS) return 'ElevenLabs';
     if (provider instanceof GoogleTTS) return 'Google TTS';
+    if (provider instanceof GeminiTTS) return 'Gemini TTS';
     // Kokoro check removed to avoid import issues
     return 'Unknown';
   }
@@ -175,43 +177,61 @@ export class TTSProvider {
    * Factory method to create TTS provider with automatic fallback
    */
   static async createWithFallback(
-    primaryType: "elevenlabs" | "google" | "kokoro",
+    primaryType: "elevenlabs" | "google" | "gemini" | "kokoro",
     configs: {
       elevenLabsConfig?: any;
       googleTtsConfig?: any;
+      geminiConfig?: any;
       kokoroConfig?: any;
     }
   ): Promise<TTSProvider> {
-    let primaryProvider: Kokoro | GoogleTTS | ElevenLabsTTS;
-    let fallbackProvider: GoogleTTS | Kokoro | undefined;
-    let secondaryFallback: Kokoro | undefined;
+    let primaryProvider: Kokoro | GoogleTTS | ElevenLabsTTS | GeminiTTS;
+    let fallbackProvider: GoogleTTS | Kokoro | GeminiTTS | ElevenLabsTTS | undefined;
+    let secondaryFallback: Kokoro | GeminiTTS | ElevenLabsTTS | undefined;
 
     // Primary provider 초기화
     switch (primaryType) {
       case "elevenlabs":
         primaryProvider = await ElevenLabsTTS.init(configs.elevenLabsConfig);
-        // ElevenLabs → Google TTS → Kokoro fallback chain
-        if (configs.googleTtsConfig) {
-          fallbackProvider = await GoogleTTS.init(configs.googleTtsConfig);
-          // Lazy load Kokoro only if needed as secondary fallback
-          // Don't initialize yet - will be initialized when actually needed
-        } else {
-          // Lazy load Kokoro only if needed as fallback
-          // Don't initialize yet
+        // ElevenLabs → Gemini → Google TTS fallback chain
+        try {
+          fallbackProvider = new GeminiTTS(configs.geminiConfig);
+          logger.info("GeminiTTS fallback initialized for ElevenLabs");
+        } catch (e) {
+          logger.warn("GeminiTTS fallback not available");
         }
         break;
 
       case "google":
         primaryProvider = await GoogleTTS.init(configs.googleTtsConfig);
-        // Google TTS → Kokoro fallback
-        // Lazy load Kokoro only if needed
+        // Google TTS → Gemini fallback
+        try {
+          fallbackProvider = new GeminiTTS(configs.geminiConfig);
+          logger.info("GeminiTTS fallback initialized for Google TTS");
+        } catch (e) {
+          logger.warn("GeminiTTS fallback not available");
+        }
+        break;
+
+      case "gemini":
+        // 🔥 Gemini TTS (REST API 직접 호출, 가장 안정적)
+        primaryProvider = new GeminiTTS(configs.geminiConfig);
+        // Gemini → ElevenLabs fallback
+        if (configs.elevenLabsConfig) {
+          try {
+            fallbackProvider = await ElevenLabsTTS.init(configs.elevenLabsConfig);
+            logger.info("ElevenLabs fallback initialized for Gemini TTS");
+          } catch (e) {
+            logger.warn("ElevenLabs fallback not available");
+          }
+        }
         break;
 
       case "kokoro":
       default:
         // Kokoro is disabled due to phonemizer crash issues
-        // Use ElevenLabs or Google TTS instead
-        throw new Error("Kokoro TTS is disabled. Please use 'elevenlabs' or 'google' as TTS_PROVIDER.");
+        // Use ElevenLabs, Google TTS, or Gemini instead
+        throw new Error("Kokoro TTS is disabled. Please use 'elevenlabs', 'google', or 'gemini' as TTS_PROVIDER.");
         break;
     }
 

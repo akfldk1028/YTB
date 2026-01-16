@@ -506,6 +506,19 @@ export class NewsProjectService {
         overlayCount: sceneOverlays.length
       }, '[NewsProject] 최종 자막/제목 수');
 
+      // 🔥 프로젝트별 폰트 설정 (n8n에서 제어 가능)
+      const fontConfig = config.font ? {
+        title_font: config.font.title_font,
+        subtitle_font: config.font.subtitle_font,
+        title_size: config.font.title_size,
+        subtitle_size: config.font.subtitle_size,
+        title_color: config.font.title_color,
+        title_bg_color: config.font.title_bg_color,
+        subtitle_color: config.font.subtitle_color,
+      } : undefined;
+
+      logger.info({ fontConfig: fontConfig || 'DEFAULT' }, '[NewsProject] 프로젝트 폰트 설정');
+
       await this.ffmpeg.combineVideoWithAudioAndCaptions(
         tempVideoPath,
         finalAudioPath,
@@ -515,7 +528,8 @@ export class NewsProjectService {
         orientationEnum,
         { orientation: orientationEnum },
         false, // 자막 활성화
-        sceneOverlays  // 🔥 씬별 제목 오버레이
+        sceneOverlays,  // 🔥 씬별 제목 오버레이
+        fontConfig      // 🔥 프로젝트별 폰트 설정
       );
 
       logger.info({ outputPath, totalDuration }, '✅ 최종 비디오 생성 완료');

@@ -50,6 +50,34 @@ export interface NewsVideo {
 export type ImageGenerationMode = 'pexels_stock' | 'nanoBanana' | 'hybrid';
 
 /**
+ * 🔥 폰트 프리셋
+ * - 'nanum': NanumGothicBold (시스템 설치, 한글 안정)
+ * - 'blackhansans': BlackHanSans (임팩트 강한 제목용)
+ * - 'gmarket': GmarketSansBold (깔끔한 본문용)
+ * - 'malgun': 맑은고딕 (Windows 전용)
+ */
+export type FontPreset = 'nanum' | 'blackhansans' | 'gmarket' | 'malgun';
+
+/**
+ * 🔥 프로젝트별 폰트 설정
+ * n8n에서 프로젝트마다 다른 폰트를 지정 가능
+ */
+export interface FontConfig {
+  // 제목 폰트 (상단 text_overlay)
+  title_font?: FontPreset;
+  // 자막 폰트 (본문 narration)
+  subtitle_font?: FontPreset;
+  // 자막 크기 (기본: portrait=90, landscape=72)
+  subtitle_size?: number;
+  // 제목 크기 (기본: portrait=52, landscape=42)
+  title_size?: number;
+  // 색상 설정
+  title_color?: string;      // 제목 텍스트 색 (기본: 000000 검정)
+  title_bg_color?: string;   // 제목 배경 색 (기본: FFEB3B 노랑)
+  subtitle_color?: string;   // 자막 텍스트 색 (기본: FFFFFF 흰색)
+}
+
+/**
  * n8n 페이로드 (핵심만)
  */
 export interface NewsPayload {
@@ -68,6 +96,8 @@ export interface NewsPayload {
     video: {
       orientation: 'portrait' | 'landscape';
     };
+    // 🔥 프로젝트별 폰트 설정 (한글/영어 프로젝트별로 다르게)
+    font?: FontConfig;
     nanoBanana?: {
       defaultStyle?: string;
     };

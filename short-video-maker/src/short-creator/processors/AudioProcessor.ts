@@ -21,7 +21,7 @@ export interface AudioProcessingConfig {
 export class AudioProcessor {
   constructor(
     private ttsProvider: TTSProvider,
-    private whisper: Whisper,
+    private whisper: Whisper | null,
     private ffmpeg: FFMpeg,
     private config: AudioProcessingConfig
   ) {}
@@ -55,6 +55,10 @@ export class AudioProcessor {
         // Fallback to Whisper (slower, may timeout in Cloud Run)
         logger.info({ hasAlignment: false }, "🎤 No alignment data, falling back to Whisper");
         try {
+          // Whisper가 초기화되지 않았으면 simple captions 사용
+          if (!this.whisper) {
+            throw new Error("Whisper not initialized");
+          }
           captions = await this.whisper.CreateCaption(tempWavPath);
           logger.info({ captionCount: captions.length }, "🎤 Whisper captions generated");
 
@@ -207,6 +211,10 @@ export class AudioProcessor {
   async generateCaptions(audioPath: string): Promise<any[]> {
     try {
       logger.debug({ audioPath }, "Generating captions for audio");
+      if (!this.whisper) {
+        logger.warn("Whisper not initialized, returning empty captions");
+        return [];
+      }
       return await this.whisper.CreateCaption(audioPath);
     } catch (error) {
       logger.error(error, "Failed to generate captions");

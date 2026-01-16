@@ -3,8 +3,9 @@ import { getOrientationConfig } from "../../components/utils";
 import { logger } from "../../logger";
 import { OrientationEnum, type Video } from "../../types/shorts";
 
-const jokerTerms: string[] = ["nature", "globe", "space", "ocean"];
-const imageJokerTerms: string[] = ["news", "business", "technology", "city"];
+// 🔥 뉴스에 적합한 jokerTerms - 최후의 수단에도 관련성 있는 영상이 나오도록
+const jokerTerms: string[] = ["technology", "business office", "corporate", "city skyline", "modern building"];
+const imageJokerTerms: string[] = ["news broadcast", "business meeting", "technology office", "corporate"];
 const durationBufferSeconds = 3;
 const defaultTimeoutMs = 5000;
 const retryTimes = 3;

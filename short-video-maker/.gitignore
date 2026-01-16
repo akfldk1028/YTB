@@ -46,3 +46,6 @@ nul
 # Character reference images
 docs/CatProject/character/*.png
 docs/CatProject/F/*.mp4
+
+
+tmpclaude-*

@@ -91,7 +91,7 @@ export class ShortCreatorRefactored {
   constructor(
     private config: Config,
     private ttsProvider: GoogleTTS | ElevenLabsTTS | TTSProvider,
-    private whisper: Whisper,
+    private whisper: Whisper | null,
     private ffmpeg: FFMpeg,
     private pexelsApi: PexelsAPI,
     private musicManager: MusicManager,

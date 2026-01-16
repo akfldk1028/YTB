@@ -229,8 +229,25 @@ export class SubtitleFilter {
           // textfile method for Korean UTF-8 support
           const textFilePath = path.join(tempDir, `subtitle_word_${Date.now()}_${captionIndex}.txt`);
           // 🔥 NFC 정규화: 한글 조합형으로 변환하여 폰트 글리프 매칭 보장
-          fs.writeFileSync(textFilePath, normalizeKoreanText(caption.text.toUpperCase()), 'utf-8');
+          const normalizedText = normalizeKoreanText(caption.text.toUpperCase());
+          fs.writeFileSync(textFilePath, normalizedText, 'utf-8');
           textFilePaths.push(textFilePath);
+
+          // 🔥 DEBUG: 텍스트 파일 내용 검증
+          if (captionIndex === 0) {
+            const writtenContent = fs.readFileSync(textFilePath, 'utf-8');
+            const originalHex = Buffer.from(caption.text, 'utf-8').toString('hex').substring(0, 60);
+            const writtenHex = Buffer.from(writtenContent, 'utf-8').toString('hex').substring(0, 60);
+            logger.info({
+              originalText: caption.text,
+              normalizedText,
+              writtenContent,
+              originalHex,
+              writtenHex,
+              textFilePath,
+              fileSize: fs.statSync(textFilePath).size,
+            }, '[DEBUG] 🔍 Subtitle textfile content verification');
+          }
 
           // 🔥 Docker에서는 fontconfig 사용 (더 안정적)
           const useFontConfig = shouldUseFontConfig();
