@@ -417,3 +417,196 @@ ffmpeg()
 **Cloud Run 환경변수**: `TTS_PROVIDER=gemini`
 
 **테스트 성공**: `news_korean-subtitle-test-01_cmkgh4u2500020ps6a8hh7efm`
+
+---
+
+### 9. 한글 자막 ☒☒☒ 박스 - 인코딩 추적 (2026-01-16 오후)
+
+**문제**: 한글 자막이 다시 ☒☒☒ 박스로 표시됨
+
+**디버깅 방법**: 인코딩 추적을 위한 debug logging 추가
+
+```typescript
+// src/YTB-news-project/routes.ts - API 진입점
+logger.info({
+  rawBodySample: rawBody.substring(0, 500),
+  narrationText,
+  narrationHex,  // 🔥 hex bytes로 인코딩 검증
+  narrationLength: narrationText.length,
+  contentType: req.headers['content-type'],
+}, '[DEBUG] 🔍 API 요청 원본 확인 (인코딩 추적)');
+
+// src/YTB-ffmpeg/SubtitleFilter.ts - 텍스트 파일 검증
+logger.info({
+  originalText: caption.text,
+  normalizedText,
+  writtenContent,
+  originalHex,  // 🔥 원본 hex
+  writtenHex,   // 🔥 파일에 쓴 후 hex
+  textFilePath,
+  fileSize: fs.statSync(textFilePath).size,
+}, '[DEBUG] 🔍 Subtitle textfile content verification');
+```
+
+**근본 원인 발견**:
+```
+# 정상 (bash heredoc / UTF-8 JSON 파일)
+narrationHex: ec9588eb8595ed9598ec84b8ec9a94  → "안녕하세요" ✅
+
+# 비정상 (Windows cmd/PowerShell curl)
+narrationHex: efbfbdc8b3efbfbdefbfbd...      → "�ȳ��ϼ���" ❌ (U+FFFD)
+```
+
+**결론**: 서버 코드 문제 아님! **클라이언트(Windows 터미널) 인코딩 문제**
+
+- Windows cmd/PowerShell에서 curl로 한글 전송 시 인코딩 손상
+- bash heredoc 또는 UTF-8 JSON 파일로 전송 시 정상 작동
+- n8n은 UTF-8로 전송하므로 프로덕션에서는 정상 동작
+
+**올바른 테스트 방법**:
+```bash
+# 방법 1: UTF-8 JSON 파일 사용 (권장)
+curl -X POST ".../api/news/create" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  -d @test_payload_utf8.json
+
+# 방법 2: bash heredoc (Git Bash에서)
+curl -X POST ".../api/news/create" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  --data-binary @- << 'JSONEOF'
+{
+  "narration": "안녕하세요"
+}
+JSONEOF
+```
+
+**테스트 성공**:
+- `news_encoding-test-01_cmkgq4vxg00000ps6dmedg176`
+- `news_file-encoding-test-01_cmkgq7z2q00010ps66c4lcwdx`
+
+---
+
+## 🔍 디버깅 로그 위치
+
+| 단계 | 파일 | 로그 메시지 |
+|------|------|------------|
+| API 진입점 | `routes.ts` | `[DEBUG] 🔍 API 요청 원본 확인` |
+| TTS 생성 | `GeminiTTS.ts` | `[GeminiTTS] REST API 호출` |
+| 자막 파일 | `SubtitleFilter.ts` | `[DEBUG] 🔍 Subtitle textfile content verification` |
+| FFmpeg 폰트 | `SubtitleFilter.ts` | `[FONT PARAM] Generating font parameter` |
+
+**Cloud Run 로그 확인**:
+```bash
+gcloud logging read "resource.type=cloud_run_revision \
+  AND resource.labels.service_name=short-video-maker \
+  AND jsonPayload.msg:\"API 요청 원본\"" \
+  --limit=5 --format="json" --freshness=10m
+```
+
+---
+
+### 10. 제목(Title) 및 자막(Subtitle) 구조 이해 (2026-01-16)
+
+#### 제목(Title) 생성 방식
+
+**중요**: `video.title`과 `scene.text_overlay`는 다른 용도입니다!
+
+| 필드 | 위치 | 용도 | 영상에 표시 |
+|------|------|------|------------|
+| `video.title` | 비디오 레벨 | YouTube 업로드 메타데이터 | ❌ 표시 안됨 |
+| `scene.text_overlay` | 씬 레벨 | **화면 상단 제목** (노란 배경) | ✅ 표시됨 |
+
+```json
+{
+  "videos": [{
+    "video_id": "news-001",
+    "title": "오늘의 뉴스",  // ⚠️ 영상에 표시 안됨 (메타데이터용)
+    "scenes": [{
+      "scene_id": 1,
+      "narration": "오늘 주요 뉴스입니다.",
+      "text_overlay": "속보",  // ✅ 영상 상단에 표시됨
+      "image_prompt": "news studio"
+    }]
+  }]
+}
+```
+
+**제목이 안 나오는 원인**:
+1. `text_overlay` 필드가 누락됨 → n8n 워크플로우에서 추가 필요
+2. `video.title`만 있고 `text_overlay`가 없음 → 구조 변경 필요
+
+#### 자막(Caption) 분리 로직
+
+**파일**: `utils/KoreanCaptionSplitter.ts`
+
+| 설정 | 기본값 | 설명 |
+|------|--------|------|
+| `maxCaptions` | 8 | 씬당 최대 자막 수 |
+| `groupSize` | 5 | 어절 그룹 크기 |
+| `minDurationMs` | 400ms | 최소 자막 표시 시간 |
+| `maxDurationMs` | 4000ms | 최대 자막 표시 시간 |
+
+**자막 병합 동작**:
+- 어절 수가 많으면 그룹화 → 최대 8개 자막으로 제한
+- 텍스트는 **짤리지 않음** (병합만 됨)
+- 긴 문장은 2줄로 자동 분리 (90px 기준 10자 초과 시)
+
+```typescript
+// 예시: "안녕하세요 반갑습니다 오늘 뉴스입니다 감사합니다" (10어절)
+// → 그룹화 후: ["안녕하세요 반갑습니다", "오늘 뉴스입니다 감사합니다"]
+// → 최대 8개 제한 적용
+```
+
+**자막이 짧게 느껴지는 원인**:
+
+| 원인 | 설명 | 해결 방법 |
+|------|------|-----------|
+| TTS < JSON duration | 자막이 TTS 길이에 맞춰지고, 무음 구간에는 자막 없음 | 정상 동작 (의도된 설계) |
+| `maxDurationMs: 4000ms` | 개별 자막 최대 4초 | 설정 변경 가능 |
+| 어절 병합 | 긴 narration이 8개 자막으로 압축됨 | `maxCaptions` 증가 |
+| 2줄 분리 실패 | 10자 초과 텍스트가 한 줄에 표시 | 자동 2줄 분리 작동 |
+
+**중요한 설계 결정**:
+```
+씬 타이밍: |--- effectiveDuration (5초) ---|
+자막 타이밍: |--- audioDuration (3초) ---|---- 무음 (2초) ----|
+                  ↑ 자막 표시                  ↑ 자막 없음
+```
+
+현재 자막은 **TTS 음성과 동기화**되도록 설계됨.
+무음 구간에는 의도적으로 자막이 표시되지 않음.
+
+**디버깅 로그**:
+```bash
+# 자막 타이밍 확인
+gcloud logging read "jsonPayload.msg:\"SUBTITLE TIMING DEBUG\"" --limit=5
+
+# 개별 씬 duration 확인
+gcloud logging read "jsonPayload.msg:\"음성 생성 완료\"" --limit=10
+```
+
+**코드 위치 (타이밍 조정 필요시)**:
+- `NewsProjectService.ts` Line 279-284: Gemini TTS 자막 생성
+- `KoreanCaptionSplitter.ts` Line 76-82: 자막 수 제한 설정
+
+---
+
+## ⚠️ 주의사항 (다음 AI를 위한 메모)
+
+1. **한글 자막 ☒☒☒ 문제 발생 시**:
+   - 먼저 Cloud Run 로그에서 `narrationHex` 확인
+   - `efbfbd` (U+FFFD) 보이면 → 클라이언트 인코딩 문제
+   - 정상 UTF-8 hex 보이면 → FFmpeg/폰트 문제
+
+2. **인코딩 검증 hex 패턴**:
+   - `ec9588` = 안, `eb8595` = 녕, `ed9598` = 하 (정상 UTF-8 한글)
+   - `efbfbd` = U+FFFD (Unicode Replacement Character = 손상됨)
+
+3. **fontconfig vs fontfile**:
+   - Docker: `font='Gmarket Sans TTF Bold'` (fontconfig 방식)
+   - Windows: `fontfile=/path/to/font.ttf` (파일 경로 방식)
+   - `shouldUseFontConfig()` 함수가 자동 결정
+
+4. **NFC 정규화 필수**:
+   - `normalizeKoreanText(text)` → `text.normalize('NFC')`
+   - NFD(분해형)로 저장되면 폰트 글리프 매칭 실패
