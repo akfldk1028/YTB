@@ -53,6 +53,78 @@ function toFFmpegPath(filePath: string): string {
 }
 
 /**
+ * 🔥 폰트 파일 경로에서 fontconfig 폰트 이름 추출
+ * GmarketSansTTFBold.ttf → "Gmarket Sans TTF Bold"
+ * BlackHanSans-Regular.ttf → "Black Han Sans"
+ */
+function getFontConfigName(fontPath: string): string | null {
+  const fileName = path.basename(fontPath).toLowerCase();
+
+  if (fileName.includes('gmarket')) {
+    if (fileName.includes('bold')) return 'Gmarket Sans TTF Bold';
+    if (fileName.includes('medium')) return 'Gmarket Sans TTF Medium';
+    if (fileName.includes('light')) return 'Gmarket Sans TTF Light';
+    return 'Gmarket Sans TTF';
+  }
+  if (fileName.includes('blackhansans')) {
+    return 'Black Han Sans';
+  }
+  if (fileName.includes('nanumgothic')) {
+    return 'NanumGothic';
+  }
+
+  return null;  // 알 수 없는 폰트는 fontfile 방식 사용
+}
+
+/**
+ * 🔥 Linux에서 fontconfig 사용 여부 결정
+ * Docker 환경에서는 fontconfig가 더 안정적
+ */
+function shouldUseFontConfig(): boolean {
+  return process.platform !== 'win32' && process.env.DOCKER === 'true';
+}
+
+/**
+ * 🔥 한글 텍스트를 NFC 정규화 (Unicode Normalization Form C)
+ * 한글이 NFD (초성+중성+종성 분해형)로 저장되면 폰트에서 글리프를 찾지 못해 ☒☒☒ 표시됨
+ * NFC는 조합형으로 변환하여 폰트 글리프 매칭 보장
+ */
+function normalizeKoreanText(text: string): string {
+  return text.normalize('NFC');
+}
+
+/**
+ * 🔥 FFmpeg drawtext용 폰트 파라미터 생성
+ * Docker: font='Gmarket Sans TTF Bold' (fontconfig 방식)
+ * Windows/Local: fontfile='/path/to/font.ttf' (파일 경로 방식)
+ *
+ * 🔥 중요: fontconfig 실패 시 fontfile로 폴백
+ */
+function getFontParam(fontPath: string): string {
+  const useFontConfig = shouldUseFontConfig();
+  const fontConfigName = getFontConfigName(fontPath);
+
+  // 🔥 로깅 추가: 어떤 방식을 사용하는지 확인
+  logger.info({
+    useFontConfig,
+    fontConfigName,
+    fontPath,
+    platform: process.platform,
+    dockerEnv: process.env.DOCKER
+  }, '[FONT PARAM] Generating font parameter');
+
+  if (useFontConfig && fontConfigName) {
+    const fontParam = `font='${fontConfigName}'`;
+    logger.info({ fontParam, method: 'fontconfig' }, '[FONT PARAM] Using fontconfig');
+    return fontParam;
+  } else {
+    const fontParam = `fontfile=${toFFmpegPath(fontPath)}`;
+    logger.info({ fontParam, method: 'fontfile' }, '[FONT PARAM] Using fontfile');
+    return fontParam;
+  }
+}
+
+/**
  * 🔥 폰트 파일 존재 및 유효성 검증
  * FFmpeg drawtext에서 폰트 로드 실패시 디버깅용
  */
@@ -135,6 +207,19 @@ export class SubtitleFilter {
 
       // 🔥 FIX: 각 자막의 개별 타이밍 사용 (TTS 싱크)
       // 그룹화 제거 - 각 caption의 startMs/endMs를 그대로 사용
+
+      // 🔥 DEBUG: 자막 타이밍 로그 (겹침 디버깅용)
+      logger.info({
+        totalCaptions: captions.length,
+        captionTimings: captions.map((c, i) => ({
+          idx: i,
+          text: c.text?.substring(0, 15),
+          start: c.startMs,
+          end: c.endMs,
+          duration: c.endMs - c.startMs
+        }))
+      }, '[SUBTITLE TIMING DEBUG] Caption timing values');
+
       captions.forEach((caption, captionIndex) => {
         const startTime = caption.startMs / 1000;
         const endTime = caption.endMs / 1000;
@@ -143,15 +228,32 @@ export class SubtitleFilter {
         if (tempDir) {
           // textfile method for Korean UTF-8 support
           const textFilePath = path.join(tempDir, `subtitle_word_${Date.now()}_${captionIndex}.txt`);
-          fs.writeFileSync(textFilePath, caption.text.toUpperCase(), 'utf-8');
+          // 🔥 NFC 정규화: 한글 조합형으로 변환하여 폰트 글리프 매칭 보장
+          fs.writeFileSync(textFilePath, normalizeKoreanText(caption.text.toUpperCase()), 'utf-8');
           textFilePaths.push(textFilePath);
 
-          // 🔥 toFFmpegPath 사용 (Windows/Linux 자동 처리)
-          const safeFontPath = toFFmpegPath(fontPath);
+          // 🔥 Docker에서는 fontconfig 사용 (더 안정적)
+          const useFontConfig = shouldUseFontConfig();
+          const fontConfigName = getFontConfigName(fontPath);
           const safeTextPath = toFFmpegPath(textFilePath);
 
+          let fontParam: string;
+          if (useFontConfig && fontConfigName) {
+            // fontconfig 방식: font='Gmarket Sans TTF Bold'
+            fontParam = `font='${fontConfigName}'`;
+            if (captionIndex === 0) {
+              logger.info({ fontConfigName, fontPath, method: 'fontconfig' }, '[FONT] Using fontconfig for subtitle');
+            }
+          } else {
+            // fontfile 방식: fontfile=/app/font/GmarketSansTTFBold.ttf
+            fontParam = `fontfile=${toFFmpegPath(fontPath)}`;
+            if (captionIndex === 0) {
+              logger.info({ fontPath, method: 'fontfile' }, '[FONT] Using fontfile for subtitle');
+            }
+          }
+
           drawTextFilters.push(
-            `drawtext=fontfile=${safeFontPath}:` +
+            `drawtext=${fontParam}:` +
             `textfile=${safeTextPath}:` +
             `fontcolor=0x${fontColor}:` +
             `fontsize=${fontSize}:` +
@@ -164,9 +266,14 @@ export class SubtitleFilter {
         } else {
           // Fallback: inline text (Korean may show as boxes)
           const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
-          const safeFontPath = toFFmpegPath(fontPath);
+          const useFontConfig = shouldUseFontConfig();
+          const fontConfigName = getFontConfigName(fontPath);
+          const fontParam = useFontConfig && fontConfigName
+            ? `font='${fontConfigName}'`
+            : `fontfile=${toFFmpegPath(fontPath)}`;
+
           drawTextFilters.push(
-            `drawtext=fontfile=${safeFontPath}:` +
+            `drawtext=${fontParam}:` +
             `text='${text} ':` +
             `fontcolor=0x${fontColor}:` +
             `fontsize=${fontSize}:` +
@@ -187,13 +294,34 @@ export class SubtitleFilter {
         return this.createSimplifiedSubtitleFilter(captions, orientation, tempDir, config);
       }
 
+      // 🔥 DEBUG: 타이밍 겹침 검사
+      let hasOverlap = false;
+      for (let i = 0; i < captions.length - 1; i++) {
+        if (captions[i].endMs > captions[i + 1].startMs) {
+          hasOverlap = true;
+          logger.warn({
+            caption1: { idx: i, text: captions[i].text?.substring(0, 10), end: captions[i].endMs },
+            caption2: { idx: i + 1, text: captions[i + 1].text?.substring(0, 10), start: captions[i + 1].startMs },
+            overlap: captions[i].endMs - captions[i + 1].startMs
+          }, '[SUBTITLE OVERLAP DETECTED] Caption timing overlap!');
+        }
+      }
+
+      // 🔥 DEBUG: 각 필터의 enable 타이밍 로그
+      const enableTimings = drawTextFilters.map((f, i) => {
+        // Regex to match enable=between(t\,START\,END)
+        const match = f.match(/enable=between\(t\\,(\d+\.?\d*)\\,(\d+\.?\d*)\)/);
+        return match ? { idx: i, start: parseFloat(match[1]), end: parseFloat(match[2]) } : { idx: i, error: 'no-match', sample: f.slice(-80) };
+      });
       logger.info({
         captionCount: captions.length,
         filterCount: drawTextFilters.length,
         textFileCount: textFilePaths.length,
         usingTextFiles: !!tempDir,
-        subtitleConfig: { normalColor, highlightColor, borderColor, borderWidth }
-      }, "Created TikTok style subtitle filter");
+        subtitleConfig: { normalColor, highlightColor, borderColor, borderWidth },
+        enableTimings,
+        hasOverlap
+      }, "Created TikTok style subtitle filter with enable timings");
 
       return { filter: drawTextFilters.join(','), textFilePaths };
     } catch (error) {
@@ -276,6 +404,19 @@ export class SubtitleFilter {
 
       const drawTextFilters: string[] = [];
 
+      // 🔥 DEBUG: 자막 타이밍 로그 (겹침 디버깅용)
+      logger.info({
+        method: 'createSimplifiedSubtitleFilter',
+        totalCaptions: captions.length,
+        captionTimings: captions.map((c, i) => ({
+          idx: i,
+          text: c.text?.substring(0, 15),
+          start: c.startMs,
+          end: c.endMs,
+          duration: c.endMs - c.startMs
+        }))
+      }, '[SUBTITLE TIMING DEBUG] Simplified filter caption timing');
+
       captions.forEach((caption, index) => {
         const startTime = caption.startMs / 1000;
         const endTime = caption.endMs / 1000;
@@ -284,47 +425,73 @@ export class SubtitleFilter {
         // 🔥 2줄 분리 로직: maxCharsPerLine 초과시 분리
         const needsTwoLines = text.length > maxCharsPerLine;
 
+        // 🔥 Docker에서는 fontconfig 사용
+        const useFontConfig = shouldUseFontConfig();
+        const fontConfigName = getFontConfigName(fontPath);
+        const fontParam = useFontConfig && fontConfigName
+          ? `font='${fontConfigName}'`
+          : `fontfile=${toFFmpegPath(fontPath)}`;
+
+        if (index === 0) {
+          logger.info({ useFontConfig, fontConfigName, fontPath, method: useFontConfig ? 'fontconfig' : 'fontfile' }, '[FONT] Simplified subtitle font method');
+        }
+
         if (needsTwoLines && tempDir) {
           // 🔥 2줄로 분리
           const { line1, line2 } = this.splitTextIntoTwoLines(text, maxCharsPerLine);
 
           // 첫째 줄
           const textFilePath1 = path.join(tempDir, `subtitle_2line_${Date.now()}_${index}_1.txt`);
-          fs.writeFileSync(textFilePath1, line1.toUpperCase(), 'utf-8');
+          // 🔥 NFC 정규화
+          fs.writeFileSync(textFilePath1, normalizeKoreanText(line1.toUpperCase()), 'utf-8');
           textFilePaths.push(textFilePath1);
 
           drawTextFilters.push(
-            `drawtext=fontfile=${toFFmpegPath(fontPath)}:textfile=${toFFmpegPath(textFilePath1)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${twoLineY1}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath1)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${twoLineY1}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
           );
 
           // 둘째 줄
           const textFilePath2 = path.join(tempDir, `subtitle_2line_${Date.now()}_${index}_2.txt`);
-          fs.writeFileSync(textFilePath2, line2.toUpperCase(), 'utf-8');
+          // 🔥 NFC 정규화
+          fs.writeFileSync(textFilePath2, normalizeKoreanText(line2.toUpperCase()), 'utf-8');
           textFilePaths.push(textFilePath2);
 
           drawTextFilters.push(
-            `drawtext=fontfile=${toFFmpegPath(fontPath)}:textfile=${toFFmpegPath(textFilePath2)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${twoLineY2}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath2)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${twoLineY2}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
           );
 
           logger.debug({ line1, line2, index }, "Split caption into 2 lines");
         } else if (tempDir) {
           // 1줄 (기존 로직)
           const textFilePath = path.join(tempDir, `subtitle_simple_${Date.now()}_${index}.txt`);
-          fs.writeFileSync(textFilePath, text.toUpperCase(), 'utf-8');
+          // 🔥 NFC 정규화
+          fs.writeFileSync(textFilePath, normalizeKoreanText(text.toUpperCase()), 'utf-8');
           textFilePaths.push(textFilePath);
 
           drawTextFilters.push(
-            `drawtext=fontfile=${toFFmpegPath(fontPath)}:textfile=${toFFmpegPath(textFilePath)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${baseY}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${baseY}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
           );
         } else {
           // Fallback: inline text (Korean may show as boxes)
           const escapedText = text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
-          const safeFontPath = toFFmpegPath(fontPath);
           drawTextFilters.push(
-            `drawtext=fontfile=${safeFontPath}:text='${escapedText}':fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${baseY}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParam}:text='${escapedText}':fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${baseY}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
           );
         }
       });
+
+      // 🔥 DEBUG: 타이밍 겹침 검사 (디버깅용)
+      let hasOverlap = false;
+      for (let i = 0; i < captions.length - 1; i++) {
+        if (captions[i].endMs > captions[i + 1].startMs) {
+          hasOverlap = true;
+          logger.warn({
+            caption1: { idx: i, text: captions[i].text?.substring(0, 10), end: captions[i].endMs },
+            caption2: { idx: i + 1, text: captions[i + 1].text?.substring(0, 10), start: captions[i + 1].startMs },
+            overlap: captions[i].endMs - captions[i + 1].startMs
+          }, '[SUBTITLE OVERLAP DETECTED] Caption timing overlap found!');
+        }
+      }
 
       logger.info({
         captionCount: captions.length,
@@ -332,7 +499,8 @@ export class SubtitleFilter {
         textFileCount: textFilePaths.length,
         usingTextFiles: !!tempDir,
         fontSize,
-        maxCharsPerLine
+        maxCharsPerLine,
+        hasOverlap
       }, "Created simplified subtitle filter with 2-line support (90px)");
 
       return { filter: drawTextFilters.join(','), textFilePaths };
@@ -449,7 +617,8 @@ export class SubtitleFilter {
         if (tempDir) {
           // textfile method: write UTF-8 file and read from it
           const textFilePath = path.join(tempDir, `subtitle_primary_${Date.now()}_${index}.txt`);
-          fs.writeFileSync(textFilePath, caption.text, 'utf-8');
+          // 🔥 NFC 정규화
+          fs.writeFileSync(textFilePath, normalizeKoreanText(caption.text), 'utf-8');
           textFilePaths.push(textFilePath);
 
           if (index === 0) {
@@ -473,19 +642,19 @@ export class SubtitleFilter {
             }, "First subtitle text file created - encoding verification");
           }
 
-          // 🔥 toFFmpegPath 사용 (Windows/Linux 자동 처리)
-          const safeFontPath = toFFmpegPath(fontPath);
+          // 🔥 Docker에서는 fontconfig 사용
+          const fontParam = getFontParam(fontPath);
           const safeTextPath = toFFmpegPath(textFilePath);
 
           drawTextFilters.push(
-            `drawtext=fontfile=${safeFontPath}:textfile=${safeTextPath}:fontcolor=0x${primaryColor}:fontsize=${primaryFontSize}:x=(w-text_w)/2:y=${primaryYPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=2:shadowy=2:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParam}:textfile=${safeTextPath}:fontcolor=0x${primaryColor}:fontsize=${primaryFontSize}:x=(w-text_w)/2:y=${primaryYPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=2:shadowy=2:enable=between(t\\,${startTime}\\,${endTime})`
           );
         } else {
           // Fallback: inline text (Korean may show as boxes)
           const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:');
-          const safeFontPath = toFFmpegPath(fontPath);
+          const fontParam = getFontParam(fontPath);
           drawTextFilters.push(
-            `drawtext=fontfile=${safeFontPath}:text='${text}':fontcolor=0x${primaryColor}:fontsize=${primaryFontSize}:x=(w-text_w)/2:y=${primaryYPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=2:shadowy=2:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParam}:text='${text}':fontcolor=0x${primaryColor}:fontsize=${primaryFontSize}:x=(w-text_w)/2:y=${primaryYPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=2:shadowy=2:enable=between(t\\,${startTime}\\,${endTime})`
           );
         }
       });
@@ -496,10 +665,10 @@ export class SubtitleFilter {
           const startTime = caption.startMs / 1000;
           const endTime = caption.endMs / 1000;
           const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:');
-          const safeFontPath = toFFmpegPath(fontPath);
+          const fontParam = getFontParam(fontPath);
 
           drawTextFilters.push(
-            `drawtext=fontfile=${safeFontPath}:text='${text}':fontcolor=0x${secondaryColor}:fontsize=${secondaryFontSize}:x=(w-text_w)/2:y=${secondaryYPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=2:shadowy=2:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParam}:text='${text}':fontcolor=0x${secondaryColor}:fontsize=${secondaryFontSize}:x=(w-text_w)/2:y=${secondaryYPosition}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=2:shadowy=2:enable=between(t\\,${startTime}\\,${endTime})`
           );
         });
       }
@@ -616,22 +785,22 @@ export class SubtitleFilter {
       let filter: string;
       let textFilePath: string | undefined;
 
+      // 🔥 Docker에서는 fontconfig 사용
+      const fontParam = getFontParam(fontPath);
+
       if (tempDir) {
         // textfile method for UTF-8 support (both Korean and emoji)
         textFilePath = path.join(tempDir, `title_text_${Date.now()}.txt`);
-        fs.writeFileSync(textFilePath, displayText, 'utf-8');
-        logger.info({ textFilePath, text: displayText, language }, "Created UTF-8 title text file for FFmpeg");
+        // 🔥 NFC 정규화
+        fs.writeFileSync(textFilePath, normalizeKoreanText(displayText), 'utf-8');
+        logger.info({ textFilePath, text: displayText, language, fontParam }, "Created UTF-8 title text file for FFmpeg");
 
-        // 🔥 toFFmpegPath 사용 (Windows/Linux 자동 처리)
-        const safeFontPath = toFFmpegPath(fontPath);
         const safeTextPath = toFFmpegPath(textFilePath);
-
-        filter = `drawtext=fontfile=${safeFontPath}:textfile=${safeTextPath}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}`;
+        filter = `drawtext=${fontParam}:textfile=${safeTextPath}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}`;
       } else {
         // Fallback: inline text (non-ASCII may not render correctly)
         const text = displayText.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').replace(/\n/g, '\\n');
-        const safeFontPath = toFFmpegPath(fontPath);
-        filter = `drawtext=fontfile=${safeFontPath}:text='${text}':fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}`;
+        filter = `drawtext=${fontParam}:text='${text}':fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}`;
         logger.warn({ text: displayText }, "Using inline text for FFmpeg (non-ASCII may not render correctly)");
       }
 
@@ -686,27 +855,31 @@ export class SubtitleFilter {
     const y1 = orientation === OrientationEnum.portrait ? 'h*0.06' : 'h*0.05';
     const y2 = orientation === OrientationEnum.portrait ? `h*0.06+${lineHeight}` : `h*0.05+${lineHeight}`;
 
+    // 🔥 Docker에서는 fontconfig 사용
+    const fontParam = getFontParam(fontPath);
+
     // 첫 번째 줄 (흰색)
     const textFile1 = path.join(tempDir, `title_line1_${Date.now()}.txt`);
-    fs.writeFileSync(textFile1, line1, 'utf-8');
+    // 🔥 NFC 정규화
+    fs.writeFileSync(textFile1, normalizeKoreanText(line1), 'utf-8');
     textFilePaths.push(textFile1);
 
-    const safeFontPath = toFFmpegPath(fontPath);
     const safePath1 = toFFmpegPath(textFile1);
 
     filters.push(
-      `drawtext=fontfile=${safeFontPath}:textfile=${safePath1}:fontcolor=0xFFFFFF:fontsize=${fontSize}:x=(w-text_w)/2:y=${y1}:borderw=5:bordercolor=black:shadowcolor=black@0.7:shadowx=2:shadowy=2`
+      `drawtext=${fontParam}:textfile=${safePath1}:fontcolor=0xFFFFFF:fontsize=${fontSize}:x=(w-text_w)/2:y=${y1}:borderw=5:bordercolor=black:shadowcolor=black@0.7:shadowx=2:shadowy=2`
     );
 
     // 두 번째 줄 (노란색)
     const textFile2 = path.join(tempDir, `title_line2_${Date.now()}.txt`);
-    fs.writeFileSync(textFile2, line2, 'utf-8');
+    // 🔥 NFC 정규화
+    fs.writeFileSync(textFile2, normalizeKoreanText(line2), 'utf-8');
     textFilePaths.push(textFile2);
 
     const safePath2 = toFFmpegPath(textFile2);
 
     filters.push(
-      `drawtext=fontfile=${safeFontPath}:textfile=${safePath2}:fontcolor=0xFFEB3B:fontsize=${fontSize}:x=(w-text_w)/2:y=${y2}:borderw=5:bordercolor=black:shadowcolor=black@0.7:shadowx=2:shadowy=2`
+      `drawtext=${fontParam}:textfile=${safePath2}:fontcolor=0xFFEB3B:fontsize=${fontSize}:x=(w-text_w)/2:y=${y2}:borderw=5:bordercolor=black:shadowcolor=black@0.7:shadowx=2:shadowy=2`
     );
 
     logger.info({
@@ -789,7 +962,8 @@ export class SubtitleFilter {
         if (tempDir) {
           // UTF-8 텍스트 파일 방식 (한글 지원)
           const textFilePath = path.join(tempDir, `overlay_${Date.now()}_${index}.txt`);
-          fs.writeFileSync(textFilePath, displayText, 'utf-8');
+          // 🔥 NFC 정규화: 한글 조합형으로 변환
+          fs.writeFileSync(textFilePath, normalizeKoreanText(displayText), 'utf-8');
           textFilePaths.push(textFilePath);
 
           // 🔥 텍스트 파일 검증
@@ -811,27 +985,27 @@ export class SubtitleFilter {
             endTime
           }, '[DEBUG] Scene overlay textfile created and verified');
 
-          const safeFontPath = toFFmpegPath(fontPath);
+          const fontParam = getFontParam(fontPath);  // 🔥 fontconfig or fontfile
           const safeTextPath = toFFmpegPath(textFilePath);
 
           // 🔥 필터 문자열 생성 및 로깅
-          const filterStr = `drawtext=fontfile=${safeFontPath}:textfile=${safeTextPath}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`;
+          const filterStr = `drawtext=${fontParam}:textfile=${safeTextPath}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`;
 
           if (index === 0) {
             logger.info({
               filterStr: filterStr.substring(0, 300),
-              safeFontPath,
+              fontParam,
               safeTextPath
             }, '[FILTER DEBUG] First scene overlay filter string');
           }
 
           filters.push(filterStr);
         } else {
-          // 인라인 방식 (한글 깨질 수 있음)
+          // 인라인 방식 (한글 깨질 수 있음 - fontconfig 사용으로 개선)
           const escapedText = displayText.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:');
-          const safeFontPathFallback = toFFmpegPath(fontPath);
+          const fontParamFallback = getFontParam(fontPath);  // 🔥 fontconfig or fontfile
           filters.push(
-            `drawtext=fontfile=${safeFontPathFallback}:text='${escapedText}':fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParamFallback}:text='${escapedText}':fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
           );
         }
       });

@@ -15,12 +15,51 @@ import { ffmpeg } from "./utils";
 export class AudioProcessor {
   /**
    * Normalize audio for Whisper (16kHz mono WAV)
+   * 🔥 Supports both standard audio formats and raw PCM (Gemini TTS)
    */
   async saveNormalizedAudio(
     audio: ArrayBuffer,
     outputPath: string
   ): Promise<string> {
-    logger.debug("Normalizing audio for Whisper");
+    logger.debug({ audioSize: audio.byteLength }, "Normalizing audio for Whisper");
+
+    // 🔥 Detect if audio is raw PCM (no header) or has format header
+    // MP3 starts with 0xFF 0xFB or ID3 tag (0x49 0x44 0x33)
+    // WAV starts with RIFF (0x52 0x49 0x46 0x46)
+    // OGG starts with OggS (0x4F 0x67 0x67 0x53)
+    const buffer = Buffer.from(audio);
+    const isMP3 = buffer[0] === 0xFF && (buffer[1] === 0xFB || buffer[1] === 0xFA);
+    const isID3 = buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33;
+    const isWAV = buffer.toString('ascii', 0, 4) === 'RIFF';
+    const isOGG = buffer.toString('ascii', 0, 4) === 'OggS';
+    const hasHeader = isMP3 || isID3 || isWAV || isOGG;
+
+    logger.debug({
+      hasHeader,
+      isMP3,
+      isID3,
+      isWAV,
+      isOGG,
+      firstBytes: buffer.slice(0, 4).toString('hex')
+    }, "Audio format detection");
+
+    if (hasHeader) {
+      // Standard audio format - FFmpeg will auto-detect
+      return this.normalizeStandardAudio(audio, outputPath);
+    } else {
+      // 🔥 Raw PCM (likely Gemini TTS: 24kHz, 16-bit, mono)
+      logger.info("Detected raw PCM audio (Gemini TTS), using PCM input format");
+      return this.normalizePcmAudio(audio, outputPath);
+    }
+  }
+
+  /**
+   * Normalize standard audio formats (MP3, WAV, OGG, etc.)
+   */
+  private async normalizeStandardAudio(
+    audio: ArrayBuffer,
+    outputPath: string
+  ): Promise<string> {
     const inputStream = new Readable();
     inputStream.push(Buffer.from(audio));
     inputStream.push(null);
@@ -33,11 +72,46 @@ export class AudioProcessor {
         .audioFrequency(16000)
         .toFormat("wav")
         .on("end", () => {
-          logger.debug("Audio normalization complete");
+          logger.debug("Audio normalization complete (standard format)");
           resolve(outputPath);
         })
         .on("error", (error: unknown) => {
-          logger.error(error, "Error normalizing audio:");
+          logger.error(error, "Error normalizing standard audio");
+          reject(error);
+        })
+        .save(outputPath);
+    });
+  }
+
+  /**
+   * 🔥 Normalize raw PCM audio (Gemini TTS: 24kHz, 16-bit, mono)
+   */
+  private async normalizePcmAudio(
+    audio: ArrayBuffer,
+    outputPath: string
+  ): Promise<string> {
+    const inputStream = new Readable();
+    inputStream.push(Buffer.from(audio));
+    inputStream.push(null);
+
+    return new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(inputStream)
+        .inputFormat('s16le')         // 16-bit signed little-endian PCM
+        .inputOptions([
+          '-ar 24000',                // Gemini TTS default: 24kHz
+          '-ac 1'                     // Mono
+        ])
+        .audioCodec("pcm_s16le")
+        .audioChannels(1)
+        .audioFrequency(16000)        // Whisper needs 16kHz
+        .toFormat("wav")
+        .on("end", () => {
+          logger.debug("Audio normalization complete (PCM format)");
+          resolve(outputPath);
+        })
+        .on("error", (error: unknown) => {
+          logger.error(error, "Error normalizing PCM audio");
           reject(error);
         })
         .save(outputPath);

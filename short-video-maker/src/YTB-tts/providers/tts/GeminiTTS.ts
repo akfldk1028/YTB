@@ -20,31 +20,33 @@ import { logger } from '../../../logger';
 export type GeminiVoiceGender = 'female' | 'male' | 'random';
 
 /**
- * Gemini Pro TTS 한국어 Voice 목록
- * - Google AI Studio에서 확인된 한국어 전용 Voice
- * - Model: Gemini Pro TTS, Language: Korean (South Korea)
+ * 🔥 Gemini TTS Voice 목록 (공식 API 지원 Voice)
+ * - 참고: https://ai.google.dev/gemini-api/docs/speech-generation
+ * - 총 30개 Voice 지원, 24개 언어 (한국어 포함)
  */
 export const GEMINI_KOREAN_VOICES = {
   female: [
-    { name: 'Achernar', style: 'soft', description: '부드럽고 차분한 목소리' },
+    { name: 'Kore', style: 'clear', description: '또렷하고 명확한 목소리 (뉴스/안내)' },
+    { name: 'Leda', style: 'warm', description: '따뜻하고 친근한 목소리' },
+    { name: 'Zephyr', style: 'gentle', description: '부드럽고 편안한 목소리' },
     { name: 'Aoede', style: 'bright', description: '밝고 생동감 있는 목소리' },
-    { name: 'Autonoe', style: 'warm', description: '따뜻하고 친근한 목소리' },
-    { name: 'Despina', style: 'clear', description: '또렷하고 명확한 목소리' },
-    { name: 'Erinome', style: 'gentle', description: '온화하고 편안한 목소리' },
-    { name: 'Leda', style: 'elegant', description: '우아하고 세련된 목소리' },
   ],
   male: [
-    { name: 'Alnilam', style: 'firm', description: '단단하고 힘 있는 목소리' },
+    { name: 'Puck', style: 'upbeat', description: '활기차고 경쾌한 목소리' },
+    { name: 'Charon', style: 'firm', description: '단단하고 힘 있는 목소리' },
+    { name: 'Fenrir', style: 'deep', description: '깊고 중후한 목소리' },
+    { name: 'Enceladus', style: 'calm', description: '차분하고 안정적인 목소리' },
   ],
 } as const;
 
 /**
  * 뉴스 숏츠 추천 Voice (빠르고 명확한 전달)
- * - 여성: 또렷하고 밝은 목소리 우선
+ * - 여성: Kore (또렷하고 명확)
+ * - 남성: Charon (단단하고 힘 있음)
  */
 export const NEWS_SHORTS_RECOMMENDED = {
-  female: ['Despina', 'Aoede', 'Autonoe'],  // 또렷하고 밝은 목소리
-  male: ['Alnilam'],                         // 단단하고 힘 있는 목소리
+  female: ['Kore', 'Aoede', 'Leda'],  // 또렷하고 밝은 목소리
+  male: ['Charon', 'Puck'],            // 단단하고 활기찬 목소리
 };
 
 // ==================== GeminiTTS Class ====================
@@ -78,8 +80,9 @@ export class GeminiTTS {
     }
 
     this.apiKey = apiKey;
-    // 🔥 Gemini Pro TTS가 더 자연스럽고 표현력이 좋음
-    this.model = config?.model || 'gemini-2.5-pro-preview-tts';
+    // 🔥 Flash TTS: 낮은 latency, 안정적 (기본값)
+    // Pro TTS: 더 자연스럽고 표현력이 좋음 (고품질 필요시)
+    this.model = config?.model || 'gemini-2.5-flash-preview-tts';
     this.defaultGender = config?.defaultGender || 'female';
 
     logger.info({ model: this.model }, '[GeminiTTS] 초기화 완료 (REST API 직접 호출)');
@@ -149,12 +152,26 @@ export class GeminiTTS {
     let selectedVoice: { name: string; gender: 'female' | 'male' };
 
     if (voice) {
-      // 명시적 voice 지정
+      // 🔥 voice가 유효한 Gemini voice인지 확인
       const isFemale = GEMINI_KOREAN_VOICES.female.some(v => v.name === voice);
-      selectedVoice = {
-        name: voice,
-        gender: isFemale ? 'female' : 'male',
-      };
+      const isMale = GEMINI_KOREAN_VOICES.male.some(v => v.name === voice);
+
+      if (isFemale || isMale) {
+        // 유효한 Gemini voice
+        selectedVoice = {
+          name: voice,
+          gender: isFemale ? 'female' : 'male',
+        };
+      } else {
+        // 🔥 유효하지 않은 voice (예: ElevenLabs ID) → 랜덤 voice 사용
+        logger.warn({
+          invalidVoice: voice,
+          fallbackTo: 'random'
+        }, '[GeminiTTS] 유효하지 않은 voice ID, 랜덤 voice로 대체');
+        selectedVoice = options?.useNewsVoice
+          ? this.getNewsVoice(options?.gender)
+          : this.getRandomVoice(options?.gender);
+      }
     } else if (options?.useNewsVoice) {
       // 뉴스용 추천 Voice
       selectedVoice = this.getNewsVoice(options?.gender);
@@ -172,10 +189,10 @@ export class GeminiTTS {
 
     try {
       // 🔥 REST API 직접 호출 (SDK 404 에러 문제 해결)
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+      // 공식 문서: https://ai.google.dev/gemini-api/docs/speech-generation
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
 
       // 🔥 공식 문서 기준 Request Body 구조
-      // https://ai.google.dev/gemini-api/docs/speech-generation
       const requestBody = {
         contents: [{
           parts: [{
@@ -192,30 +209,51 @@ export class GeminiTTS {
             },
           },
         },
-        // 🔥 공식 문서: model 필드 필수 (request body에도 포함해야 함)
-        model: this.model,
       };
 
-      logger.debug({
-        url: url.replace(this.apiKey, '***'),
+      // 🔥 전체 요청 로깅 (디버깅용)
+      logger.info({
+        url,
         voiceName: selectedVoice.name,
-        model: this.model
+        model: this.model,
+        textLength: text.length,
+        requestBody: JSON.stringify(requestBody).substring(0, 500),
       }, '[GeminiTTS] REST API 호출');
 
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-goog-api-key': this.apiKey,  // 🔥 공식 문서: Header로 API key 전달
         },
         body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
+        logger.error({
+          status: response.status,
+          errorText: errorText.substring(0, 500),
+          model: this.model,
+          voice: selectedVoice.name,
+        }, '[GeminiTTS] API 요청 실패');
         throw new Error(`API Error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
+
+      // 🔥 전체 API 응답 로깅 (디버깅용)
+      logger.info({
+        responseKeys: Object.keys(data),
+        candidates: data.candidates?.map((c: any) => ({
+          finishReason: c.finishReason,
+          hasParts: !!c.content?.parts,
+          partsLength: c.content?.parts?.length || 0,
+          firstPartType: c.content?.parts?.[0] ? Object.keys(c.content.parts[0]) : [],
+        })),
+        modelVersion: data.modelVersion,
+        usageMetadata: data.usageMetadata,
+      }, '[GeminiTTS] 전체 API 응답');
 
       // 🔥 API 응답 구조 디버깅 로깅
       logger.debug({

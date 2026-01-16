@@ -28,6 +28,13 @@ RUN sh ./download-ggml-model.sh base.en
 # Stage 2: Base image with system dependencies
 FROM node:22-bookworm-slim AS base
 ENV DEBIAN_FRONTEND=noninteractive
+
+# 🔥 CRITICAL: Set UTF-8 locale for Korean text support
+# FFmpeg drawtext filter needs UTF-8 locale to read Korean textfiles!
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV PYTHONIOENCODING=UTF-8
+
 WORKDIR /app
 
 # Install all required system dependencies
@@ -129,6 +136,14 @@ COPY static /app/static
 # BlackHanSans-Regular.ttf: 제목용 (큰 임팩트)
 # GmarketSansTTFBold.ttf: 자막용 (깔끔한 가독성)
 COPY font /app/font
+
+# 🔥 FIX: 폰트를 시스템 폰트 경로에 복사 + fontconfig 캐시 갱신
+# 이전 fc-cache는 base 스테이지에서 실행되어 /app/font를 모름
+# 폰트 복사 후 반드시 fc-cache 재실행 필요!
+RUN cp /app/font/*.ttf /usr/local/share/fonts/ 2>/dev/null || mkdir -p /usr/local/share/fonts && cp /app/font/*.ttf /usr/local/share/fonts/ && \
+    fc-cache -fv && \
+    echo "=== Installed fonts ===" && \
+    fc-list | grep -E "(Gmarket|BlackHan)" || echo "WARNING: Custom fonts not found!"
 
 # Copy Whisper binary and models
 COPY --from=install-whisper /whisper /app/data/libs/whisper
