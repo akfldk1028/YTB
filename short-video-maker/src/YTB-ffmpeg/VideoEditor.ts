@@ -193,6 +193,7 @@ export class VideoEditor {
    * Trim video to specified duration AND resize to target dimensions
    * Used for Pexels stock videos in NewsProject
    * ⚠️ 오디오 없이 출력 (나중에 TTS 오디오와 합성됨)
+   * 🔥 FIX: 비디오가 짧으면 loop 적용하여 duration 맞춤
    */
   async trimAndResizeVideo(
     inputPath: string,
@@ -202,9 +203,32 @@ export class VideoEditor {
   ): Promise<void> {
     logger.debug({ inputPath, outputPath, duration, dimensions }, "Trimming and resizing video (no audio)");
 
+    // 🔥 먼저 소스 비디오의 실제 길이 확인
+    const sourceDuration = await this.getVideoDuration(inputPath);
+    const needsLoop = sourceDuration < duration;
+
+    if (needsLoop) {
+      logger.warn({
+        inputPath,
+        sourceDuration,
+        requiredDuration: duration,
+        shortfall: duration - sourceDuration
+      }, "🔄 Source video shorter than required - applying loop");
+    }
+
     return new Promise((resolve, reject) => {
-      ffmpeg(inputPath)
-        .setDuration(duration)
+      const command = ffmpeg(inputPath);
+
+      // 🔥 비디오가 짧으면 loop 적용
+      if (needsLoop) {
+        command
+          .inputOptions(['-stream_loop', '-1'])  // 무한 루프
+          .setDuration(duration);  // 정확한 duration에서 자르기
+      } else {
+        command.setDuration(duration);
+      }
+
+      command
         .videoCodec('libx264')
         .noAudio()  // 🔥 오디오 제거 - TTS 오디오와 나중에 합성됨
         .size(`${dimensions.width}x${dimensions.height}`)
@@ -218,7 +242,7 @@ export class VideoEditor {
           logger.debug('FFmpeg trimAndResize command: ' + commandLine);
         })
         .on('end', () => {
-          logger.debug({ outputPath, duration, dimensions }, "Video trim+resize complete");
+          logger.debug({ outputPath, duration, dimensions, looped: needsLoop }, "Video trim+resize complete");
           resolve();
         })
         .on('error', (err) => {
@@ -226,6 +250,23 @@ export class VideoEditor {
           reject(err);
         })
         .save(outputPath);
+    });
+  }
+
+  /**
+   * Get video duration using ffprobe
+   */
+  private async getVideoDuration(videoPath: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      ffmpeg(videoPath).ffprobe((err, data) => {
+        if (err) {
+          logger.warn({ error: err.message, videoPath }, "Failed to get video duration, assuming 0");
+          resolve(0);
+          return;
+        }
+        const duration = data.format?.duration || 0;
+        resolve(duration);
+      });
     });
   }
 

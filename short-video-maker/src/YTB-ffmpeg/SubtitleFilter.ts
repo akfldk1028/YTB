@@ -78,10 +78,22 @@ function getFontConfigName(fontPath: string): string | null {
 
 /**
  * 🔥 Linux에서 fontconfig 사용 여부 결정
- * Docker 환경에서는 fontconfig가 더 안정적
+ *
+ * 🚨 2026-01-17 FIX: fontconfig 방식 비활성화!
+ * fontconfig는 폰트 이름(font='Gmarket Sans TTF Bold')을 사용하는데,
+ * fc-list에 등록된 실제 이름과 코드에서 기대하는 이름이 다르면 폰트 로드 실패!
+ * → 한글이 ☒☒☒ 박스로 표시됨
+ *
+ * 해결: fontfile 방식만 사용 (fontfile=/app/font/GmarketSansTTFBold.ttf)
+ * fontfile은 직접 파일 경로를 지정하므로 폰트 이름 불일치 문제 없음
  */
 function shouldUseFontConfig(): boolean {
-  return process.platform !== 'win32' && process.env.DOCKER === 'true';
+  // 🔥 항상 false 반환 → fontfile 방식만 사용
+  // fontconfig 방식은 폰트 이름 불일치로 한글 렌더링 실패 위험
+  return false;
+
+  // 이전 코드 (문제 발생):
+  // return process.platform !== 'win32' && process.env.DOCKER === 'true';
 }
 
 /**
@@ -183,6 +195,11 @@ export class SubtitleFilter {
       // 🔥 NewsProject 스타일 - 90px 크기 + 2줄 지원
       const fontSize = config?.fontSize || (orientation === OrientationEnum.portrait ? 90 : 72);
       const yPosition = config?.yPosition || (orientation === OrientationEnum.portrait ? 'h*0.50' : 'h*0.55');
+      // 🔥 2026-01-17: 자막 2줄 지원 - 긴 자막 처리
+      const maxCharsPerLine = orientation === OrientationEnum.portrait ? 12 : 16;  // 자막 최대 글자수
+      const lineHeight = fontSize * 1.3;  // 줄 간격
+      const twoLineY1 = orientation === OrientationEnum.portrait ? 'h*0.47' : 'h*0.52';  // 2줄일 때 첫째 줄
+      const twoLineY2 = `(${twoLineY1})+${lineHeight}`;  // 2줄일 때 둘째 줄
       // 🔥 자막은 Gmarket Sans Bold 사용
       const fontPath = findSubtitleFontPath();
       const textFilePaths: string[] = [];
@@ -224,62 +241,90 @@ export class SubtitleFilter {
         const startTime = caption.startMs / 1000;
         const endTime = caption.endMs / 1000;
         const fontColor = highlightColor;
+        const captionText = caption.text.toUpperCase();
+
+        // 🔥 2026-01-17: 긴 자막 2줄 분리
+        const needsTwoLines = captionText.length > maxCharsPerLine;
 
         if (tempDir) {
-          // textfile method for Korean UTF-8 support
-          const textFilePath = path.join(tempDir, `subtitle_word_${Date.now()}_${captionIndex}.txt`);
-          // 🔥 NFC 정규화: 한글 조합형으로 변환하여 폰트 글리프 매칭 보장
-          const normalizedText = normalizeKoreanText(caption.text.toUpperCase());
-          fs.writeFileSync(textFilePath, normalizedText, 'utf-8');
-          textFilePaths.push(textFilePath);
-
-          // 🔥 DEBUG: 텍스트 파일 내용 검증
-          if (captionIndex === 0) {
-            const writtenContent = fs.readFileSync(textFilePath, 'utf-8');
-            const originalHex = Buffer.from(caption.text, 'utf-8').toString('hex').substring(0, 60);
-            const writtenHex = Buffer.from(writtenContent, 'utf-8').toString('hex').substring(0, 60);
-            logger.info({
-              originalText: caption.text,
-              normalizedText,
-              writtenContent,
-              originalHex,
-              writtenHex,
-              textFilePath,
-              fileSize: fs.statSync(textFilePath).size,
-            }, '[DEBUG] 🔍 Subtitle textfile content verification');
-          }
-
           // 🔥 Docker에서는 fontconfig 사용 (더 안정적)
           const useFontConfig = shouldUseFontConfig();
           const fontConfigName = getFontConfigName(fontPath);
-          const safeTextPath = toFFmpegPath(textFilePath);
 
           let fontParam: string;
           if (useFontConfig && fontConfigName) {
-            // fontconfig 방식: font='Gmarket Sans TTF Bold'
             fontParam = `font='${fontConfigName}'`;
             if (captionIndex === 0) {
               logger.info({ fontConfigName, fontPath, method: 'fontconfig' }, '[FONT] Using fontconfig for subtitle');
             }
           } else {
-            // fontfile 방식: fontfile=/app/font/GmarketSansTTFBold.ttf
             fontParam = `fontfile=${toFFmpegPath(fontPath)}`;
             if (captionIndex === 0) {
               logger.info({ fontPath, method: 'fontfile' }, '[FONT] Using fontfile for subtitle');
             }
           }
 
-          drawTextFilters.push(
-            `drawtext=${fontParam}:` +
-            `textfile=${safeTextPath}:` +
-            `fontcolor=0x${fontColor}:` +
-            `fontsize=${fontSize}:` +
-            `x=(w-tw)/2:` +
-            `y=${yPosition}:` +
-            `borderw=${borderWidth}:` +
-            `bordercolor=${borderColor}:` +
-            `enable=between(t\\,${startTime}\\,${endTime})`
-          );
+          if (needsTwoLines) {
+            // 🔥 2줄로 분리
+            const { line1, line2 } = this.splitTextIntoTwoLines(captionText, maxCharsPerLine);
+
+            // 첫째 줄
+            const textFilePath1 = path.join(tempDir, `subtitle_2line_${Date.now()}_${captionIndex}_1.txt`);
+            fs.writeFileSync(textFilePath1, normalizeKoreanText(line1), 'utf-8');
+            textFilePaths.push(textFilePath1);
+            const safeTextPath1 = toFFmpegPath(textFilePath1);
+            drawTextFilters.push(
+              `drawtext=${fontParam}:textfile=${safeTextPath1}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${twoLineY1}:borderw=${borderWidth}:bordercolor=${borderColor}:enable=between(t\\,${startTime}\\,${endTime})`
+            );
+
+            // 둘째 줄
+            const textFilePath2 = path.join(tempDir, `subtitle_2line_${Date.now()}_${captionIndex}_2.txt`);
+            fs.writeFileSync(textFilePath2, normalizeKoreanText(line2), 'utf-8');
+            textFilePaths.push(textFilePath2);
+            const safeTextPath2 = toFFmpegPath(textFilePath2);
+            drawTextFilters.push(
+              `drawtext=${fontParam}:textfile=${safeTextPath2}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${twoLineY2}:borderw=${borderWidth}:bordercolor=${borderColor}:enable=between(t\\,${startTime}\\,${endTime})`
+            );
+
+            if (captionIndex === 0) {
+              logger.info({ originalText: captionText, line1, line2, maxCharsPerLine }, '[DEBUG] 🔍 Subtitle split into 2 lines');
+            }
+          } else {
+            // 1줄 (기존 로직)
+            const textFilePath = path.join(tempDir, `subtitle_word_${Date.now()}_${captionIndex}.txt`);
+            const normalizedText = normalizeKoreanText(captionText);
+            fs.writeFileSync(textFilePath, normalizedText, 'utf-8');
+            textFilePaths.push(textFilePath);
+
+            // 🔥 DEBUG: 텍스트 파일 내용 검증
+            if (captionIndex === 0) {
+              const writtenContent = fs.readFileSync(textFilePath, 'utf-8');
+              const originalHex = Buffer.from(caption.text, 'utf-8').toString('hex').substring(0, 60);
+              const writtenHex = Buffer.from(writtenContent, 'utf-8').toString('hex').substring(0, 60);
+              logger.info({
+                originalText: caption.text,
+                normalizedText,
+                writtenContent,
+                originalHex,
+                writtenHex,
+                textFilePath,
+                fileSize: fs.statSync(textFilePath).size,
+              }, '[DEBUG] 🔍 Subtitle textfile content verification');
+            }
+
+            const safeTextPath = toFFmpegPath(textFilePath);
+            drawTextFilters.push(
+              `drawtext=${fontParam}:` +
+              `textfile=${safeTextPath}:` +
+              `fontcolor=0x${fontColor}:` +
+              `fontsize=${fontSize}:` +
+              `x=(w-tw)/2:` +
+              `y=${yPosition}:` +
+              `borderw=${borderWidth}:` +
+              `bordercolor=${borderColor}:` +
+              `enable=between(t\\,${startTime}\\,${endTime})`
+            );
+          }
         } else {
           // Fallback: inline text (Korean may show as boxes)
           const text = caption.text.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:').toUpperCase();
@@ -393,9 +438,10 @@ export class SubtitleFilter {
       // 🔥 NewsProject 스타일 - 90px 큰 폰트 + 2줄 지원
       const fontSize = config?.fontSize || (orientation === OrientationEnum.portrait ? 90 : 72);
       // 🔥 2줄 자막을 위한 y 위치 (위쪽 줄, 아래쪽 줄)
+      // 2026-01-16: 자막 위치 아래로 조정 (h*0.48 → h*0.55)
       const lineHeight = fontSize * 1.15;  // 줄 간격
-      const baseY = orientation === OrientationEnum.portrait ? 'h*0.48' : 'h*0.50';  // 1줄일 때 위치
-      const twoLineY1 = orientation === OrientationEnum.portrait ? 'h*0.45' : 'h*0.47';  // 2줄일 때 첫째 줄
+      const baseY = orientation === OrientationEnum.portrait ? 'h*0.55' : 'h*0.55';  // 1줄일 때 위치
+      const twoLineY1 = orientation === OrientationEnum.portrait ? 'h*0.52' : 'h*0.52';  // 2줄일 때 첫째 줄
       const twoLineY2 = `(${twoLineY1})+${lineHeight}`;  // 2줄일 때 둘째 줄
 
       // 🔥 자막은 Gmarket Sans Bold 사용
@@ -747,8 +793,8 @@ export class SubtitleFilter {
       // Settings
       const style = titleText.style || 'twoLine'; // 🔥 기본값을 twoLine으로 변경
       const position = titleText.position || 'top';
-      // 🔥 어마어마하게 큰 폰트 - 자극적인 뉴스 쇼츠 스타일!
-      const fontSize = titleText.fontSize || (orientation === OrientationEnum.portrait ? 130 : 100);
+      // 🔥 적절한 크기의 폰트 - 가독성 좋은 쇼츠 스타일
+      const fontSize = titleText.fontSize || (orientation === OrientationEnum.portrait ? 90 : 70);
 
       // Display duration
       const duration = titleText.duration === 'full' || !titleText.duration
@@ -955,11 +1001,18 @@ export class SubtitleFilter {
       }
 
       // 🔥 스타일: 프로젝트 설정 또는 기본값 (노란 배경 + 검은 텍스트)
-      const defaultFontSize = orientation === OrientationEnum.portrait ? 52 : 42;
+      // 2026-01-17: 폰트 크기 추가 증가 (72→90, 56→72) for better visibility
+      const defaultFontSize = orientation === OrientationEnum.portrait ? 90 : 72;
       const fontSize = fontConfig?.title_size || defaultFontSize;
       const textColor = fontConfig?.title_color?.replace('#', '') || '000000';  // 검은색
       const bgColor = fontConfig?.title_bg_color?.replace('#', '') || 'FFEB3B';    // 노란색
-      const yPosition = orientation === OrientationEnum.portrait ? 'h*0.08' : 'h*0.06';
+
+      // 🔥 2026-01-16: 제목 2줄 지원 추가
+      const lineHeight = fontSize * 1.2;  // 줄 간격
+      const baseY = orientation === OrientationEnum.portrait ? 'h*0.08' : 'h*0.06';  // 1줄일 때 위치
+      const twoLineY1 = orientation === OrientationEnum.portrait ? 'h*0.06' : 'h*0.05';  // 2줄일 때 첫째 줄
+      const twoLineY2 = `(${twoLineY1})+${lineHeight}`;  // 2줄일 때 둘째 줄
+      const maxCharsPerLine = orientation === OrientationEnum.portrait ? 10 : 14;  // 한 줄 최대 글자
 
       logger.info({
         fontConfig: fontConfig || 'DEFAULT',
@@ -976,53 +1029,63 @@ export class SubtitleFilter {
 
         if (!displayText) return;
 
-        if (tempDir) {
-          // UTF-8 텍스트 파일 방식 (한글 지원)
-          const textFilePath = path.join(tempDir, `overlay_${Date.now()}_${index}.txt`);
-          // 🔥 NFC 정규화: 한글 조합형으로 변환
-          fs.writeFileSync(textFilePath, normalizeKoreanText(displayText), 'utf-8');
-          textFilePaths.push(textFilePath);
+        // 🔥 2줄 분리 여부 판단
+        const needsTwoLines = displayText.length > maxCharsPerLine;
+        const fontParam = getFontParam(fontPath);  // 🔥 fontconfig or fontfile
 
-          // 🔥 텍스트 파일 검증
-          const writtenContent = fs.readFileSync(textFilePath, 'utf-8');
-          const textFileExists = fs.existsSync(textFilePath);
-          const textFileStats = textFileExists ? fs.statSync(textFilePath) : null;
+        if (tempDir) {
+          if (needsTwoLines) {
+            // 🔥 2줄로 분리
+            const { line1, line2 } = this.splitTextIntoTwoLines(displayText, maxCharsPerLine);
+
+            // 첫째 줄
+            const textFilePath1 = path.join(tempDir, `overlay_2line_${Date.now()}_${index}_1.txt`);
+            fs.writeFileSync(textFilePath1, normalizeKoreanText(line1), 'utf-8');
+            textFilePaths.push(textFilePath1);
+            const safeTextPath1 = toFFmpegPath(textFilePath1);
+            filters.push(
+              `drawtext=${fontParam}:textfile=${safeTextPath1}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${twoLineY1}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
+            );
+
+            // 둘째 줄
+            const textFilePath2 = path.join(tempDir, `overlay_2line_${Date.now()}_${index}_2.txt`);
+            fs.writeFileSync(textFilePath2, normalizeKoreanText(line2), 'utf-8');
+            textFilePaths.push(textFilePath2);
+            const safeTextPath2 = toFFmpegPath(textFilePath2);
+            filters.push(
+              `drawtext=${fontParam}:textfile=${safeTextPath2}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${twoLineY2}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
+            );
+
+            logger.info({
+              originalText: displayText,
+              line1,
+              line2,
+              maxCharsPerLine
+            }, '[DEBUG] Scene overlay split into 2 lines');
+          } else {
+            // 1줄 (기존 로직)
+            const textFilePath = path.join(tempDir, `overlay_${Date.now()}_${index}.txt`);
+            fs.writeFileSync(textFilePath, normalizeKoreanText(displayText), 'utf-8');
+            textFilePaths.push(textFilePath);
+            const safeTextPath = toFFmpegPath(textFilePath);
+
+            filters.push(
+              `drawtext=${fontParam}:textfile=${safeTextPath}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${baseY}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
+            );
+          }
 
           logger.info({
-            textFilePath,
-            textFileExists,
-            textFileSizeBytes: textFileStats?.size || 0,
-            originalText: overlay.text?.substring(0, 50),
             displayText: displayText.substring(0, 50),
-            writtenContent: writtenContent.substring(0, 50),
-            writtenLength: writtenContent.length,
-            writtenBytes: Buffer.from(writtenContent, 'utf-8').length,
+            needsTwoLines,
             fontPath,
             startTime,
             endTime
-          }, '[DEBUG] Scene overlay textfile created and verified');
-
-          const fontParam = getFontParam(fontPath);  // 🔥 fontconfig or fontfile
-          const safeTextPath = toFFmpegPath(textFilePath);
-
-          // 🔥 필터 문자열 생성 및 로깅
-          const filterStr = `drawtext=${fontParam}:textfile=${safeTextPath}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`;
-
-          if (index === 0) {
-            logger.info({
-              filterStr: filterStr.substring(0, 300),
-              fontParam,
-              safeTextPath
-            }, '[FILTER DEBUG] First scene overlay filter string');
-          }
-
-          filters.push(filterStr);
+          }, '[DEBUG] Scene overlay textfile created');
         } else {
-          // 인라인 방식 (한글 깨질 수 있음 - fontconfig 사용으로 개선)
+          // 인라인 방식 (한글 깨질 수 있음 - tempDir 권장)
           const escapedText = displayText.replace(/'/g, "'\\\\\\''").replace(/:/g, '\\:');
-          const fontParamFallback = getFontParam(fontPath);  // 🔥 fontconfig or fontfile
           filters.push(
-            `drawtext=${fontParamFallback}:text='${escapedText}':fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
+            `drawtext=${fontParam}:text='${escapedText}':fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${baseY}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
           );
         }
       });

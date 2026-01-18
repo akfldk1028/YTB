@@ -1365,11 +1365,40 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
                 }
               }
 
+              // 🔥 FIX: Also adjust English captions for xfade overlap
+              // This was missing, causing English subtitles to extend beyond video duration!
+              let englishCaptionIndex = 0;
+              for (let i = 0; i < scenes.length; i++) {
+                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
+                const originalSceneOffset = i === 0 ? 0 :
+                  scenes.slice(0, i).reduce((sum, s) => sum + Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION), 0);
+
+                // Adjust all English captions for this scene
+                while (englishCaptionIndex < allEnglishCaptions.length) {
+                  const caption = allEnglishCaptions[englishCaptionIndex];
+
+                  // Check if this caption belongs to current scene
+                  if (caption.startMs >= originalSceneOffset * 1000 &&
+                      caption.startMs < (originalSceneOffset + sceneDuration) * 1000) {
+                    // Adjust for xfade overlap (earlier scenes)
+                    const xfadeOffset = i * sceneTransitionDuration * 1000;
+                    caption.startMs -= xfadeOffset;
+                    caption.endMs -= xfadeOffset;
+                    if (caption.start !== undefined) caption.start -= xfadeOffset / 1000;
+                    if (caption.end !== undefined) caption.end -= xfadeOffset / 1000;
+                    englishCaptionIndex++;
+                  } else {
+                    break;
+                  }
+                }
+              }
+
               logger.info({
                 transitionCount,
                 totalOverlap,
                 transitionGapMs,
-                adjustedCaptionCount: allCaptions.length
+                adjustedCaptionCount: allCaptions.length,
+                adjustedEnglishCaptionCount: allEnglishCaptions.length
               }, "🎬 Adjusted caption timing for xfade overlap (with gap)");
             }
 
@@ -1559,10 +1588,34 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
                 }
               }
 
+              // 🔥 FIX: Also adjust English captions for xfade overlap (mixed mode)
+              let englishCaptionIndexMixed = 0;
+              for (let i = 0; i < scenes.length; i++) {
+                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
+                const originalSceneOffset = i === 0 ? 0 :
+                  scenes.slice(0, i).reduce((sum, s) => sum + Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION), 0);
+
+                while (englishCaptionIndexMixed < allEnglishCaptions.length) {
+                  const caption = allEnglishCaptions[englishCaptionIndexMixed];
+                  if (caption.startMs >= originalSceneOffset * 1000 &&
+                      caption.startMs < (originalSceneOffset + sceneDuration) * 1000) {
+                    const xfadeOffset = i * sceneTransitionDurationMixed * 1000;
+                    caption.startMs -= xfadeOffset;
+                    caption.endMs -= xfadeOffset;
+                    if (caption.start !== undefined) caption.start -= xfadeOffset / 1000;
+                    if (caption.end !== undefined) caption.end -= xfadeOffset / 1000;
+                    englishCaptionIndexMixed++;
+                  } else {
+                    break;
+                  }
+                }
+              }
+
               logger.info({
                 transitionCount: processedClips.length - 1,
                 transitionGapMs: transitionGapMsMixed,
-                adjustedCaptionCount: allCaptions.length
+                adjustedCaptionCount: allCaptions.length,
+                adjustedEnglishCaptionCount: allEnglishCaptions.length
               }, "🎬 Adjusted caption timing for xfade overlap (mixed mode, with gap)");
             }
 

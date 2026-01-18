@@ -44,7 +44,7 @@ export const IMAGE_MODELS: Record<ImageModelType, ImageModelConfig> = {
     name: "Gemini 2.5 Flash Image (Nano Banana)",
     description: "Advanced image generation with style consistency and editing capabilities",
     apiEndpoint: "https://generativelanguage.googleapis.com/v1beta",
-    modelId: "gemini-2.5-flash-image-preview",
+    modelId: "gemini-2.5-flash-image",  // 🔥 2026-01-17: preview → production
     maxImages: 2,
     supportedSizes: ["1024x1024", "1792x1024", "1024x1792"],
     supportedAspectRatios: ["1:1", "16:9", "9:16"],

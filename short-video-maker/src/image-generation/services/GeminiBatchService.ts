@@ -8,7 +8,7 @@ import { ImageGenerationResult, ImageGenerationQuery } from "../types/imagen";
 export class GeminiBatchService {
   private apiKey: string;
   private baseUrl = "https://generativelanguage.googleapis.com/v1beta";
-  private modelId = "gemini-2.5-flash-image-preview";
+  private modelId = "gemini-2.5-flash-image";  // 🔥 2026-01-17: preview → production
 
   constructor(apiKey: string) {
     if (!apiKey) {

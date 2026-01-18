@@ -11,7 +11,7 @@ import { saveImageSet } from "../utils/imageUtils";
 export class NanoBananaService {
   private apiKey: string;
   private baseUrl = "https://generativelanguage.googleapis.com/v1beta";
-  private modelId = "gemini-2.5-flash-image-preview";
+  private modelId = "gemini-2.5-flash-image";  // 🔥 2026-01-17: preview → production model
   private tempDirPath: string;
 
   constructor(apiKey: string, tempDirPath?: string) {

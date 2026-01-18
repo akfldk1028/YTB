@@ -127,6 +127,30 @@ ffmpeg(input)
   .outputOptions(['-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p'])
 ```
 
+### 🔄 Short Video Loop (2026-01-17)
+
+**문제**: Pexels 비디오가 필요한 duration보다 짧으면 영상이 멈추는 현상 발생
+
+**해결**: `trimAndResizeVideo()`에서 자동 loop 적용
+
+```typescript
+// 1. 먼저 소스 비디오 길이 확인
+const sourceDuration = await this.getVideoDuration(inputPath);
+const needsLoop = sourceDuration < duration;
+
+// 2. 짧으면 무한 루프 적용
+if (needsLoop) {
+  command
+    .inputOptions(['-stream_loop', '-1'])  // 무한 루프
+    .setDuration(duration);  // 정확한 duration에서 자르기
+}
+```
+
+**동작 원리**:
+- `-stream_loop -1`: FFmpeg 입력 옵션으로 무한 반복
+- `setDuration(duration)`: 정확한 길이에서 자르기
+- 로그: `🔄 Source video shorter than required - applying loop`
+
 ### xfade Transitions
 `concatVideosWithXfade()`는 부드러운 장면 전환 지원:
 

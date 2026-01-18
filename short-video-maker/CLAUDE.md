@@ -29,6 +29,15 @@ YouTube Shorts 자동 생성 시스템. 캐릭터 기반 일관성 있는 영상
 | `POST` | `/api/video/consistent-shorts` | 캐릭터 기반 영상 생성 |
 | `GET` | `/api/video/consistent-shorts/:videoId/status` | 생성 상태 확인 |
 
+### 뉴스 비디오 생성 (NewsProject)
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| `POST` | `/api/news/create` | 뉴스 비디오 생성 (finalNode.json) |
+| `GET` | `/api/news/status/:videoId` | 생성 상태 조회 |
+| `GET` | `/api/news/download/:videoId` | 비디오 다운로드 |
+| `GET` | `/api/news/health` | 헬스 체크 |
+
 ### YouTube 업로드
 
 | Method | Endpoint | 설명 |
@@ -156,6 +165,8 @@ gcloud secrets versions add YOUTUBE_DATA --data-file=youtube-data.tar.gz
 - `docs/CHARACTER-MANAGEMENT-GUIDE.md` - 캐릭터 관리 전체 가이드
 - `docs/2025-12-23-character-image-registration.md` - 이미지 등록 기능 상세
 - `docs/2025-12-22-scene-character-and-frame-interpolation.md` - Scene별 캐릭터 + VEO 3.1
+- `src/YTB-news-project/README.md` - 뉴스 비디오 생성 가이드 (Gemini TTS, 한글 자막)
+- `src/YTB-ffmpeg/README.md` - FFmpeg 모듈 (비디오 합성, loop 처리)
 
 ---
 
@@ -180,4 +191,15 @@ curl -X POST ".../api/video/consistent-shorts" \
 
 # YouTube 채널 목록
 curl -s ".../api/youtube/channels"
+
+# 뉴스 비디오 생성 (finalNode.json 사용)
+curl -X POST ".../api/news/create" \
+  -H "Content-Type: application/json" \
+  -d @docs/NewsProject/finalNode.json
+
+# 뉴스 비디오 상태 확인
+curl -s ".../api/news/status/{videoId}"
+
+# 뉴스 비디오 다운로드
+curl -L -o output.mp4 ".../api/news/download/{videoId}"
 ```
