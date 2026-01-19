@@ -366,6 +366,7 @@ export class VideoProcessor {
   /**
    * 🔥 상단 제목(titleText)과 이중 자막을 함께 적용
    * Title text (hook) and dual language subtitles combined
+   * 🔥 2026-01-19: subtitleConfig 추가 - catproject는 자막 위치 하단 (h*0.70)
    */
   async addTitleAndSubtitlesToVideo(
     videoPath: string,
@@ -375,7 +376,8 @@ export class VideoProcessor {
     secondaryCaptions: any[] | null, // 영어 (optional)
     orientation: OrientationEnum,
     videoDuration: number,
-    language?: 'english' | 'korean'
+    language?: 'english' | 'korean',
+    subtitleConfig?: SubtitleConfig  // 🔥 catproject: { yPosition: 'h*0.70' }
   ): Promise<VideoProcessingResult> {
     try {
       logger.debug({
@@ -387,7 +389,8 @@ export class VideoProcessor {
         language,
         primaryCount: primaryCaptions.length,
         secondaryCount: secondaryCaptions?.length || 0,
-        videoDuration
+        videoDuration,
+        subtitleYPosition: subtitleConfig?.yPosition || 'default'
       }, "Adding title text and subtitles to video");
 
       await this.ffmpeg.addTitleAndSubtitlesToVideo(
@@ -398,7 +401,8 @@ export class VideoProcessor {
         secondaryCaptions,
         orientation,
         videoDuration,
-        language
+        language,
+        subtitleConfig  // 🔥 전달
       );
 
       const stats = fs.statSync(outputPath);

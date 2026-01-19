@@ -400,6 +400,7 @@ export class VideoEditor {
 
   /**
    * Add title text and dual subtitles to video
+   * 🔥 2026-01-19: subtitleConfig 추가 - catproject는 자막 위치 하단 (h*0.70)
    */
   async addTitleAndSubtitlesToVideo(
     inputVideoPath: string,
@@ -409,7 +410,8 @@ export class VideoEditor {
     secondaryCaptions: any[] | null,
     orientation: OrientationEnum,
     videoDuration: number,
-    language?: 'english' | 'korean'
+    language?: 'english' | 'korean',
+    subtitleConfig?: SubtitleConfig  // 🔥 catproject: { yPosition: 'h*0.70' }
   ): Promise<string> {
     logger.info({
       inputVideoPath,
@@ -420,7 +422,8 @@ export class VideoEditor {
       language,
       primaryCaptionCount: primaryCaptions?.length || 0,
       secondaryCaptionCount: secondaryCaptions?.length || 0,
-      videoDuration
+      videoDuration,
+      subtitleYPosition: subtitleConfig?.yPosition || 'default'
     }, "Adding title and subtitles to video");
 
     const tempDir = path.dirname(outputVideoPath);
@@ -445,20 +448,22 @@ export class VideoEditor {
         }
       }
 
-      // Dual subtitle filter
+      // Dual subtitle filter - 🔥 subtitleConfig로 위치 조정 가능
       if (primaryCaptions && primaryCaptions.length > 0) {
         const subtitleResult = this.subtitleFilter.createDualLanguageSubtitleFilter(
           primaryCaptions,
           secondaryCaptions || [],
           orientation,
-          tempDir
+          tempDir,
+          subtitleConfig  // 🔥 catproject: { yPosition: 'h*0.70' } 전달
         );
         if (subtitleResult) {
           filters.push(subtitleResult.filter);
           subtitleTextFilePaths = subtitleResult.textFilePaths;
           logger.info({
             subtitleTextFileCount: subtitleTextFilePaths.length,
-            filterLength: subtitleResult.filter.length
+            filterLength: subtitleResult.filter.length,
+            subtitleYPosition: subtitleConfig?.yPosition || 'default'
           }, "Added dual language subtitle filter (textfile mode)");
         }
       }

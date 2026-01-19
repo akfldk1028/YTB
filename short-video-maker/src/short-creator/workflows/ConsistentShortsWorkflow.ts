@@ -10,10 +10,13 @@ import { logger } from "../../logger";
 import { ImageGenerationService } from "../../image-generation/services/ImageGenerationService";
 import { ImageModelType } from "../../image-generation/models/imageModels";
 import { CharacterStorageService } from "../../character-store/CharacterStorageService";
-import type { CharacterProfile, Character } from "../../character-store/types";
-import type { Scene, SceneInput, AudioConfig, SoundEffectConfig, SceneCharacterImages, CharacterImageInfo, TitleTextConfig } from "../../types/shorts";
+// CharacterProfile, Character types moved to CharacterHelper.ts
+import type { Scene, SceneInput, AudioConfig, SoundEffectConfig, SceneCharacterImages, TitleTextConfig } from "../../types/shorts";
 // Phase 3 Migration: YTB-tts 모듈로 전환
 import { FreesoundSoundEffects, FREESOUND_PRESETS as FreesoundPresets, LoudlyBGM } from "../../YTB-tts";
+// 🔥 2026-01-19: 분리된 서비스 import
+import { captionService } from "../services/CaptionService";
+import { characterHelper } from "../services/CharacterHelper";
 
 /**
  * Minimum scene duration in seconds.
@@ -49,50 +52,6 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
     private characterStorage?: CharacterStorageService
   ) {
     super();
-  }
-
-  /**
-   * 🔥 Generate English captions synced to Korean audio timing
-   * Uses Korean TTS captions timing with English text
-   */
-  private generateSyncedEnglishCaptions(
-    englishText: string,
-    koreanCaptions: any[],
-    totalDuration: number
-  ): any[] {
-    if (!englishText || !koreanCaptions || koreanCaptions.length === 0) {
-      return [];
-    }
-
-    const englishWords = englishText.split(/\s+/).filter(w => w.trim());
-    if (englishWords.length === 0) return [];
-
-    const firstCaption = koreanCaptions[0];
-    const lastCaption = koreanCaptions[koreanCaptions.length - 1];
-    const koreanStartTime = firstCaption?.startMs ?? (firstCaption?.start ? firstCaption.start * 1000 : 0);
-    const koreanEndTime = lastCaption?.endMs ?? (lastCaption?.end ? lastCaption.end * 1000 : totalDuration * 1000);
-    const totalTime = koreanEndTime - koreanStartTime;
-    const timePerWord = totalTime / englishWords.length;
-
-    const englishCaptions: any[] = [];
-
-    for (let i = 0; i < englishWords.length; i++) {
-      englishCaptions.push({
-        text: englishWords[i],
-        startMs: koreanStartTime + (i * timePerWord),
-        endMs: koreanStartTime + ((i + 1) * timePerWord),
-        start: (koreanStartTime + (i * timePerWord)) / 1000,
-        end: (koreanStartTime + ((i + 1) * timePerWord)) / 1000
-      });
-    }
-
-    logger.debug({
-      englishWordCount: englishWords.length,
-      koreanCaptionCount: koreanCaptions.length,
-      totalDuration: totalTime / 1000
-    }, "🔥 Generated synced English captions");
-
-    return englishCaptions;
   }
 
   /**
@@ -536,111 +495,6 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
   }
 
   /**
-   * Build character description from stored profile
-   */
-  private buildCharacterDescription(profile: CharacterProfile, characters: Character[]): string {
-    const descriptions = characters.map(c => {
-      let desc = c.description;
-      if (c.distinguishingFeatures) {
-        desc += `. Distinguishing features: ${c.distinguishingFeatures}`;
-      }
-      return `${c.name}: ${desc}`;
-    });
-
-    let fullDescription = descriptions.join('\n');
-    if (profile.defaultStyle) {
-      fullDescription += `\nStyle: ${profile.defaultStyle}`;
-    }
-    if (profile.defaultMood) {
-      fullDescription += `\nMood: ${profile.defaultMood}`;
-    }
-
-    return fullDescription;
-  }
-
-  /**
-   * ⭐ Get all character images for a scene (supports N characters)
-   * @param characterIds - Array of character IDs for this scene
-   * @param imageMap - Map of characterId → image data
-   * @returns SceneCharacterImages with all available character images
-   */
-  private getSceneCharacterImages(
-    characterIds: string[],
-    imageMap: Map<string, { data: Buffer; mimeType: string; description: string }>
-  ): SceneCharacterImages {
-    const images: CharacterImageInfo[] = [];
-
-    for (const characterId of characterIds) {
-      const imageData = imageMap.get(characterId);
-      if (imageData) {
-        images.push({
-          characterId,
-          data: imageData.data,
-          mimeType: imageData.mimeType,
-          description: imageData.description
-        });
-      } else {
-        logger.warn({ characterId }, "⚠️ Character image not found in map");
-      }
-    }
-
-    const result: SceneCharacterImages = {
-      characterIds,
-      images,
-      isSingleCharacter: images.length === 1,
-      isMultiCharacter: images.length > 1,
-      characterCount: images.length
-    };
-
-    logger.debug({
-      requestedCharacters: characterIds.length,
-      foundCharacters: images.length,
-      characterIds: images.map(img => img.characterId)
-    }, "📸 Got scene character images");
-
-    return result;
-  }
-
-  /**
-   * ⭐ Build prompt for multi-character scene
-   * Combines all character descriptions with the scene prompt
-   * @param sceneCharacters - SceneCharacterImages with character info
-   * @param scenePrompt - Original scene prompt/description
-   * @param style - Image generation style
-   * @param mood - Image generation mood
-   * @returns Enhanced prompt for NANO BANANA
-   */
-  private buildMultiCharacterPrompt(
-    sceneCharacters: SceneCharacterImages,
-    scenePrompt: string,
-    style: string = "pixar",
-    mood: string = "dynamic"
-  ): string {
-    // Build character descriptions
-    const characterDescriptions = sceneCharacters.images
-      .map(img => `[${img.characterId}]: ${img.description}`)
-      .join('\n');
-
-    // Combine into enhanced prompt
-    const enhancedPrompt = `Scene with ${sceneCharacters.characterCount} characters together:
-${characterDescriptions}
-
-Scene: ${scenePrompt}
-Style: ${style}
-Mood: ${mood}
-
-IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the same scene. Maintain each character's unique appearance and features.`;
-
-    logger.debug({
-      characterCount: sceneCharacters.characterCount,
-      characterIds: sceneCharacters.characterIds,
-      promptLength: enhancedPrompt.length
-    }, "📝 Built multi-character prompt");
-
-    return enhancedPrompt;
-  }
-
-  /**
    * Validate scenes for Consistent Shorts workflow
    * Unlike base validation, we only require audio since we generate our own images/videos
    */
@@ -827,7 +681,7 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
           }
 
           // ⭐ Multi-Character Support: Get ALL character images for this scene
-          const sceneCharacterImages = this.getSceneCharacterImages(
+          const sceneCharacterImages = characterHelper.getSceneCharacterImages(
             sceneCharacterIds || [],
             storedCharacterImageMap
           );
@@ -916,7 +770,7 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
             this.imageGenerationService.setModel(ImageModelType.NANO_BANANA);
 
             // Build multi-character prompt
-            const multiCharPrompt = this.buildMultiCharacterPrompt(
+            const multiCharPrompt = characterHelper.buildMultiCharacterPrompt(
               sceneCharacterImages,
               scene.imageData.prompt || scene.text,
               scene.imageData.style || "pixar",
@@ -1268,17 +1122,20 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
                 allCaptions.push(...adjustedCaptions);
 
                 // 🔥 이중 자막: 영어 캡션 수집
+                // catproject (skipTTS): 문장 통으로 / TTS mode: 단어별 쪼개기
                 const textEnglish = (inputScene as any)?.textEnglish;
                 if (textEnglish) {
-                  const englishCaptions = this.generateSyncedEnglishCaptions(
+                  const englishCaptions = captionService.generateSyncedEnglishCaptions(
                     textEnglish,
                     adjustedCaptions,
-                    sceneDuration
+                    sceneDuration,
+                    context.config?.skipTTS === true  // 🔥 catproject: 문장 통으로
                   );
                   allEnglishCaptions.push(...englishCaptions);
                   logger.debug({
                     sceneIndex: i + 1,
-                    englishCaptionCount: englishCaptions.length
+                    englishCaptionCount: englishCaptions.length,
+                    skipTTS: context.config?.skipTTS === true
                   }, "📝 Collected English captions for dual subtitles");
                 }
 
@@ -1454,12 +1311,14 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
                 allCaptions.push(...adjustedCaptions);
 
                 // 🔥 이중 자막: 영어 캡션 수집 (static mode)
+                // catproject (skipTTS): 문장 통으로 / TTS mode: 단어별 쪼개기
                 const textEnglish = (inputScene as any)?.textEnglish;
                 if (textEnglish) {
-                  const englishCaptions = this.generateSyncedEnglishCaptions(
+                  const englishCaptions = captionService.generateSyncedEnglishCaptions(
                     textEnglish,
                     adjustedCaptions,
-                    sceneDuration
+                    sceneDuration,
+                    context.config?.skipTTS === true  // 🔥 catproject: 문장 통으로
                   );
                   allEnglishCaptions.push(...englishCaptions);
                 }
@@ -1522,12 +1381,14 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
                 allCaptions.push(...adjustedCaptions);
 
                 // 🔥 이중 자막: 영어 캡션 수집 (mixed mode)
+                // catproject (skipTTS): 문장 통으로 / TTS mode: 단어별 쪼개기
                 const textEnglish = (inputScene as any)?.textEnglish;
                 if (textEnglish) {
-                  const englishCaptions = this.generateSyncedEnglishCaptions(
+                  const englishCaptions = captionService.generateSyncedEnglishCaptions(
                     textEnglish,
                     adjustedCaptions,
-                    sceneDuration
+                    sceneDuration,
+                    context.config?.skipTTS === true  // 🔥 catproject: 문장 통으로
                   );
                   allEnglishCaptions.push(...englishCaptions);
                 }
@@ -1747,6 +1608,11 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               videoId: context.videoId
             }, "🎬 Applying title and subtitles to video (single language mode)");
 
+            // 🔥 2026-01-19: catproject (skipTTS) 자막 위치 하단 (h*0.70)
+            const subtitleConfig = skipTTSMode
+              ? { yPosition: 'h*0.70' }  // catproject: 자막 하단
+              : undefined;               // 기본값 (중앙)
+
             await this.videoProcessor.addTitleAndSubtitlesToVideo(
               tempFinalPath,
               standardVideoPath,
@@ -1755,7 +1621,8 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               secondaryCaptions,    // null - 이중 자막 비활성화
               context.orientation,
               cumulativeDuration,   // 영상 총 길이 (제목 duration 계산용)
-              titleLanguage         // 🔥 타이틀 언어 (english: en 사용, korean: ko 사용)
+              titleLanguage,        // 🔥 타이틀 언어 (english: en 사용, korean: ko 사용)
+              subtitleConfig        // 🔥 catproject: 자막 위치 하단
             );
 
             logger.info({
@@ -1813,12 +1680,14 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               allCaptions.push(...adjustedCaptions);
 
               // 🔥 이중 자막: 영어 캡션 수집 (no VEO3 static mode)
+              // catproject (skipTTS): 문장 통으로 / TTS mode: 단어별 쪼개기
               const textEnglish = (inputScene as any)?.textEnglish;
               if (textEnglish) {
-                const englishCaptions = this.generateSyncedEnglishCaptions(
+                const englishCaptions = captionService.generateSyncedEnglishCaptions(
                   textEnglish,
                   adjustedCaptions,
-                  sceneDuration
+                  sceneDuration,
+                  context.config?.skipTTS === true  // 🔥 catproject: 문장 통으로
                 );
                 allEnglishCaptions.push(...englishCaptions);
               }
@@ -1926,6 +1795,11 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               videoId: context.videoId
             }, "📝 Applying title text and subtitles (no VEO3 static mode, single language)");
 
+            // 🔥 2026-01-19: catproject (skipTTS) 자막 위치 하단 (h*0.70)
+            const subtitleConfigNoVeo = skipTTSMode
+              ? { yPosition: 'h*0.70' }  // catproject: 자막 하단
+              : undefined;               // 기본값 (중앙)
+
             await this.videoProcessor.addTitleAndSubtitlesToVideo(
               tempFinalPath,
               standardVideoPath,
@@ -1934,7 +1808,8 @@ IMPORTANT: Show ALL ${sceneCharacters.characterCount} characters together in the
               secondaryCaptionsNoVeo,    // null - 이중 자막 비활성화
               context.orientation,
               cumulativeDuration,
-              titleLanguageNoVeo   // 🔥 타이틀 언어
+              titleLanguageNoVeo,        // 🔥 타이틀 언어
+              subtitleConfigNoVeo        // 🔥 catproject: 자막 위치 하단
             );
 
             logger.info({

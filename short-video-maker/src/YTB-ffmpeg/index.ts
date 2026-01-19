@@ -229,7 +229,8 @@ export class FFMpeg {
     secondaryCaptions: any[] | null,
     orientation: OrientationEnum,
     videoDuration: number,
-    language?: 'english' | 'korean'
+    language?: 'english' | 'korean',
+    subtitleConfig?: SubtitleConfig  // 🔥 2026-01-19: catproject 자막 위치 하단
   ): Promise<string> {
     return this.videoEditor.addTitleAndSubtitlesToVideo(
       inputVideoPath,
@@ -239,7 +240,8 @@ export class FFMpeg {
       secondaryCaptions,
       orientation,
       videoDuration,
-      language
+      language,
+      subtitleConfig  // 🔥 전달
     );
   }
 

@@ -1030,8 +1030,8 @@ export class SubtitleFilter {
       // Settings
       const style = titleText.style || 'twoLine'; // 🔥 기본값을 twoLine으로 변경
       const position = titleText.position || 'top';
-      // 🔥 적절한 크기의 폰트 - 가독성 좋은 쇼츠 스타일
-      const fontSize = titleText.fontSize || (orientation === OrientationEnum.portrait ? 90 : 70);
+      // 🔥 2026-01-19: 폰트 크기 줄임 (90→75) - 긴 제목 짤림 방지
+      const fontSize = titleText.fontSize || (orientation === OrientationEnum.portrait ? 75 : 60);
 
       // Display duration
       const duration = titleText.duration === 'full' || !titleText.duration
@@ -1238,8 +1238,8 @@ export class SubtitleFilter {
       }
 
       // 🔥 스타일: 프로젝트 설정 또는 기본값 (노란 배경 + 검은 텍스트)
-      // 2026-01-17: 폰트 크기 추가 증가 (72→90, 56→72) for better visibility
-      const defaultFontSize = orientation === OrientationEnum.portrait ? 90 : 72;
+      // 2026-01-19: 폰트 크기 줄임 (90→75, 72→60) - 긴 제목 짤림 방지
+      const defaultFontSize = orientation === OrientationEnum.portrait ? 75 : 60;
       const fontSize = fontConfig?.title_size || defaultFontSize;
       const textColor = fontConfig?.title_color?.replace('#', '') || '000000';  // 검은색
       const bgColor = fontConfig?.title_bg_color?.replace('#', '') || 'FFEB3B';    // 노란색
