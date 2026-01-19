@@ -14,7 +14,7 @@
 import path from "path";
 import fs from "fs-extra";
 import { logger } from "../logger";
-import { OrientationEnum, RenderConfig, TitleTextConfig } from "../types/shorts";
+import { OrientationEnum, RenderConfig, TitleTextConfig, SubtitleConfig } from "../types/shorts";
 import { ffmpeg } from "./utils";
 import { SubtitleFilter, ProjectFontConfig } from "./SubtitleFilter";
 
@@ -29,6 +29,7 @@ export class VideoEditor {
    * Combine video with audio and captions
    * 🔥 sceneOverlays 추가: 씬별 제목 오버레이 지원
    * 🔥 fontConfig 추가: 프로젝트별 폰트 설정
+   * 🔥 subtitleConfig 추가: 프로젝트별 자막 위치/스타일 설정
    */
   async combineVideoWithAudioAndCaptions(
     videoPath: string,
@@ -40,7 +41,8 @@ export class VideoEditor {
     config: RenderConfig,
     skipSubtitles = false,
     sceneOverlays?: Array<{ text: string; startMs: number; endMs: number }>,  // 🔥 씬별 제목
-    fontConfig?: ProjectFontConfig  // 🔥 프로젝트별 폰트 설정 (SubtitleFilter에서 import)
+    fontConfig?: ProjectFontConfig,  // 🔥 프로젝트별 폰트 설정 (SubtitleFilter에서 import)
+    subtitleConfig?: SubtitleConfig  // 🔥 2026-01-19: 프로젝트별 자막 위치 (NewsProject=중앙, CatProject=하단)
   ): Promise<string> {
     logger.debug({ videoPath, audioPath, outputPath, hasOverlays: !!sceneOverlays }, "Combining video with audio using FFmpeg");
 
@@ -68,9 +70,9 @@ export class VideoEditor {
         }
       }
 
-      // 2. 자막 (하단/중앙)
+      // 2. 자막 (하단/중앙) - 🔥 subtitleConfig로 위치 제어 가능
       if (!skipSubtitles && captions && captions.length > 0) {
-        const subtitleResult = this.subtitleFilter.createSubtitleFilter(captions, orientation, tempDir);
+        const subtitleResult = this.subtitleFilter.createSubtitleFilter(captions, orientation, tempDir, subtitleConfig);
         if (subtitleResult) {
           filters.push(subtitleResult.filter);
           allTextFilePaths.push(...subtitleResult.textFilePaths);

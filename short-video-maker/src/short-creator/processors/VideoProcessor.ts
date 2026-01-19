@@ -5,7 +5,8 @@ import { FFMpeg } from "../../YTB-ffmpeg";
 import { OrientationEnum } from "../../types/shorts";
 import { VIDEO_DIMENSIONS } from "../utils/Constants";
 import { logger } from "../../logger";
-import type { RenderConfig, TitleTextConfig } from "../../types/shorts";
+import type { RenderConfig, TitleTextConfig, SubtitleConfig } from "../../types/shorts";
+import type { ProjectFontConfig } from "../../YTB-ffmpeg/SubtitleFilter";
 
 export interface VideoProcessingConfig {
   tempDirPath: string;
@@ -82,6 +83,17 @@ export class VideoProcessor {
         throw new Error(`Temp audio file not found: ${tempAudioPath}`);
       }
       
+      // 🔥 2026-01-19: ShortCreator (CatProject) 프로젝트별 설정
+      // - 자막 위치: 하단 (h*0.72)
+      // - 제목 크기: 70 (기본값 90보다 작게)
+      const fontConfig: ProjectFontConfig = {
+        title_size: 70,  // 고양이 채널은 제목 작게 (기본 90)
+      };
+
+      const subtitleConfig: SubtitleConfig = {
+        yPosition: 'h*0.72',  // 고양이 채널은 하단 자막
+      };
+
       // Use FFmpeg to combine video with audio and captions
       await this.ffmpeg.combineVideoWithAudioAndCaptions(
         tempVideoPath,
@@ -91,7 +103,10 @@ export class VideoProcessor {
         duration,
         orientation,
         renderConfig,
-        skipSubtitles
+        skipSubtitles,
+        undefined,      // sceneOverlays - ShortCreator에서는 사용 안함
+        fontConfig,     // 🔥 CatProject용 폰트 설정 (제목 크기 70)
+        subtitleConfig  // 🔥 하단 자막 위치
       );
 
       return {

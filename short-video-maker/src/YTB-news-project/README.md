@@ -875,3 +875,297 @@ command.setDuration(duration);
 4. **NFC 정규화 필수**:
    - `normalizeKoreanText(text)` → `text.normalize('NFC')`
    - NFD(분해형)로 저장되면 폰트 글리프 매칭 실패
+
+---
+
+## 🔴🔵 뉴스 채널 설정 (2026-01-18)
+
+### YouTube 채널
+
+| channelName | YouTube 채널명 | Channel ID | 성향 |
+|-------------|---------------|------------|------|
+| `red_news` | 빨강나라 보수공주 | UC8wQlyHC7iYjzZYBoOAYaKw | 🔴 보수 |
+| `blue_news` | 파랑나라 진보왕자 | UC7Pj-MJOYkYgONLsk3uejSA | 🔵 진보 |
+
+**계정**: clickaround8@gmail.com (전체 동일)
+
+### n8n 워크플로우
+
+**파일**: `docs/NewsProject/YTB_260118_NEWS_VIDEO_v2.1.json`
+
+### 채널 타입 옵션
+
+```javascript
+// n8n Set Channel Type 노드에서 설정
+channel_type: "red_news" | "blue_news" | "news_politics" | "news_economy" | "news_social"
+tone: "conservative_fun" | "progressive_fun" | "neutral_fun" | ...
+target: "ajae" | "mz" | "senior"
+```
+
+### 톤별 스타일
+
+| tone | 설명 | 타겟 |
+|------|------|------|
+| `conservative_fun` | 🔴 보수 + 유머 | 아재 |
+| `progressive_fun` | 🔵 진보 + 유머 | MZ |
+| `neutral_fun` | 중립 + 유머 | 전체 |
+
+### 말투 스타일 설정 (2026-01-19 업데이트)
+
+n8n 워크플로우에서 Gemini systemMessage를 통해 말투 스타일 조정:
+
+**핵심 설정 위치**: `Gemini Script (RED/BLUE)` 노드의 `systemMessage`
+
+**현재 스타일**: 디시인사이드/에펨코리아 인터넷 커뮤니티 말투
+- 예시 표현: `실화냐?`, `이게 뭔 말임? ㅋㅋ`, `아 진짜 ㅋㅋㅋ`, `미쳤다 진짜`, `대박 ㅋㅋ`, `헐 ㅋㅋ`, `와 진짜`, `뭐하냐고 ㅋㅋ`
+- **욕설 절대 금지**: 과장된 감탄과 ㅋㅋㅋ로 유쾌하게
+- MZ세대 밈/신조어 적극 활용
+
+**TARGET_OPTIONS speechStyle**:
+| target | speechStyle |
+|--------|-------------|
+| `ajae` | 인터넷 커뮤니티 반말 (실화냐, 미쳤다 진짜, ㅋㅋㅋ) |
+| `mz` | 밈/신조어 + 커뮤니티 반말 (ㅋㅋㅋ, 실화냐, 대박) |
+| `senior` | 존댓말 |
+
+### 관련 문서
+
+- `docs/Update/NEWS_CHANNEL_SETUP.md` - 뉴스 채널 설정 가이드
+- `docs/NewsProject/news_channel_config.js` - n8n 채널 설정 코드 참조
+
+---
+
+## ⏱️ 자막 타이밍 조정 (2026-01-19)
+
+### initialDelayMs 설정
+
+TTS 음성 시작 전 자막이 먼저 나오는 문제 해결을 위한 지연 설정:
+
+**파일**: `src/YTB-news-project/utils/KoreanCaptionSplitter.ts`
+
+```typescript
+const initialDelay = options?.initialDelayMs ?? 500;  // 기본값 500ms
+```
+
+| 값 | 설명 |
+|----|------|
+| 100ms | 자막이 TTS보다 빠름 (너무 빠름) |
+| 300ms | 기존 기본값 |
+| **500ms** | 현재 기본값 (TTS와 동기화 최적) |
+
+### 조정 히스토리
+- 2026-01-19: 300ms → 100ms (사용자 피드백: 느림) → **500ms** (최종: 빠름 수정)
+
+---
+
+## 🎬 비디오 Concat 문제 해결 (2026-01-18)
+
+### 증상
+- 4번째 씬부터 Pexels 비디오가 멈춤
+- 씬과 씬이 겹침 (예: 151초 concat vs 93초 예상)
+- 전체 duration은 맞지만 개별 씬 재생 오류
+
+### 원인
+FFmpeg stream copy concat 방식의 한계:
+- Pexels 비디오 간 keyframe/GOP 구조 차이
+- FFmpeg 공식 문서: "Filters are incompatible with stream copying"
+- 서로 다른 비디오 소스를 stream copy로 concat하면 재생 오류 발생
+
+### 해결 (VideoConcat.ts)
+
+**이전 방식 (문제 발생)**:
+```typescript
+// Stream copy - keyframe 불일치로 재생 오류
+await runFFmpegSpawn([
+  ...inputArgs,
+  '-f', 'concat', '-safe', '0', '-i', listFilePath,
+  '-c', 'copy',  // ❌ 문제!
+  '-y', outputPath
+]);
+```
+
+**새로운 방식 (정상 동작)**:
+```typescript
+// 🔥 Filter complex + re-encoding
+// 모든 비디오를 정규화 (fps=30, setsar=1, format=yuv420p) 후 concat
+const normalizeFilters = inputPaths.map((_, i) =>
+  `[${i}:v]fps=30,setsar=1,format=yuv420p[v${i}]`
+).join(';');
+const concatInputs = inputPaths.map((_, i) => `[v${i}]`).join('');
+const filterComplex = `${normalizeFilters};${concatInputs}concat=n=${inputPaths.length}:v=1:a=0[outv]`;
+
+await runFFmpegSpawn([
+  ...inputArgs,
+  '-filter_complex', filterComplex,
+  '-map', '[outv]',
+  '-c:v', 'libx264',
+  '-preset', 'ultrafast',
+  '-crf', '23',
+  '-pix_fmt', 'yuv420p',
+  '-an',
+  '-y',
+  outputPath
+], 300000); // 5분 타임아웃
+```
+
+### FFmpeg 공식 문서 참조
+- https://trac.ffmpeg.org/wiki/Concatenate
+- "All segments must have same framerate"
+- "Filters are incompatible with stream copying"
+
+### 검증 로그
+```
+📹 [CONCAT VERIFY] 클립 concat 검증
+   actualDuration: 96.267
+   expectedDuration: 96.262
+   difference: 0.005  ✅ (이전: 57.45초 차이)
+```
+
+### 관련 파일
+- `src/YTB-ffmpeg/VideoConcat.ts` - `concatVideos()`
+- `src/YTB-news-project/NewsProjectService.ts` - Pexels 비디오 검증 로그
+
+---
+
+## 🔤 자막 텍스트 Corruption 디버깅 (2026-01-18)
+
+### 증상
+- TTS는 정확하게 읽지만 자막에 이상한 문자 표시
+- 예: "정의는 반드시 승리한다" → "정의는 반드시 게승리한다"
+- 줄바꿈 시 문자 깨짐
+
+### 디버깅 로그 위치
+
+| 단계 | 파일 | 로그 태그 |
+|------|------|-----------|
+| API 입력 | `routes.ts` | `[DEBUG] 🔍 API 요청 원본 확인` |
+| 자막 분리 입력 | `KoreanCaptionSplitter.ts` | `[CAPTION SPLIT DEBUG] 입력 narration 검증` |
+| 자막 분리 출력 | `KoreanCaptionSplitter.ts` | `[KoreanCaptionSplitter] 자막 분리 완료` |
+| 2줄 분리 | `SubtitleFilter.ts` | `[SPLIT 2LINE DEBUG]` |
+| 3줄 분리 | `SubtitleFilter.ts` | `[SPLIT 3LINE DEBUG]` |
+| 텍스트 파일 | `SubtitleFilter.ts` | `[DEBUG] 🔍 Subtitle textfile content verification` |
+
+### 유니코드 안전 처리 (2026-01-18 수정)
+
+**이전 방식 (문제 가능)**:
+```typescript
+// substring은 surrogate pair를 깨뜨릴 수 있음
+const mid = Math.ceil(text.length / 2);
+line1 = text.substring(0, mid);
+line2 = text.substring(mid);
+```
+
+**새로운 방식 (유니코드 안전)**:
+```typescript
+// [...text]는 유니코드 코드포인트 배열로 변환
+const chars = [...text];
+const mid = Math.ceil(chars.length / 2);
+line1 = chars.slice(0, mid).join('');
+line2 = chars.slice(mid).join('');
+```
+
+### 텍스트 무결성 검증
+```typescript
+// 분리 전후 텍스트 비교
+const combinedText = line1.trim() + ' ' + line2.trim();
+const originalNormalized = text.replace(/\s+/g, ' ').trim();
+logger.debug({
+  textIntegrity: combinedText === originalNormalized,
+  combinedText,
+  originalNormalized
+}, '[SPLIT 2LINE DEBUG] 텍스트 무결성 검증');
+```
+
+### Cloud Run 로그 확인
+```bash
+# 자막 분리 입력 검증
+gcloud logging read "jsonPayload.msg:\"CAPTION SPLIT DEBUG\"" --limit=5
+
+# 2줄 분리 디버깅
+gcloud logging read "jsonPayload.msg:\"SPLIT 2LINE DEBUG\"" --limit=5
+
+# hex 인코딩 확인 (corruption 추적)
+gcloud logging read "jsonPayload.narrationHex:*" --limit=5
+```
+
+### Hex 패턴 가이드
+- 정상 한글: `ec9588` (안), `eb8595` (녕), `ed9598` (하)
+- 손상됨: `efbfbd` (U+FFFD = Unicode Replacement Character)
+- 정상 공백: `20`
+
+---
+
+## 📊 프로젝트 현황 요약
+
+### 지원 기능
+
+| 기능 | 상태 | 설명 |
+|------|------|------|
+| Pexels 스톡 이미지 | ✅ | YouTube 정책 안전 |
+| Nano Banana AI 이미지 | ✅ | fallback 용 |
+| Gemini Pro TTS | ✅ | 고품질 한국어 음성 |
+| ElevenLabs TTS | ✅ | 영어/다국어 |
+| 한글 자막 | ✅ | NFC 정규화 + fontfile 방식 |
+| 자막 2줄 분리 | ✅ | 12자 초과 시 자동 |
+| 제목 2줄 분리 | ✅ | 10자 초과 시 자동 |
+| GCS 업로드 | ✅ | Signed URL 다운로드 |
+| 비디오 루프 | ✅ | 짧은 비디오 자동 루프 |
+
+### 해결된 주요 이슈
+
+| 이슈 | 원인 | 해결 |
+|------|------|------|
+| ☒☒☒ 한글 박스 | 인코딩/폰트 | fontfile 방식 + NFC |
+| 비디오 프리즈 | 소스 비디오 짧음 | stream_loop 자동 적용 |
+| TTS 오디오 없음 | model 필드 누락 | request body에 model 추가 |
+| 자막 동기화 | 그룹 타이밍 | 개별 타이밍 적용 |
+| 씬 겹침/멈춤 | stream copy concat | filter_complex + re-encoding |
+| 자막 문자 깨짐 | substring 유니코드 | [...text] 코드포인트 배열 |
+| 자막 TTS 동기화 | 자막이 TTS보다 빠름 | initialDelayMs=500ms |
+| 말투 스타일 | 단조로운 말투 | 인터넷 커뮤니티 말투 (ㅋㅋㅋ, 실화냐) |
+
+---
+
+## 🎯 프로젝트별 설정 (2026-01-19)
+
+### 자막 위치 (SubtitleConfig)
+
+| 프로젝트 | 자막 위치 | yPosition | 설정 파일 |
+|---------|----------|-----------|-----------|
+| NewsProject | 화면 중앙 | `h*0.50` | `NewsProjectService.ts` |
+| CatProject (ShortCreator) | 화면 하단 | `h*0.72` | `VideoProcessor.ts` |
+
+**코드 예시**:
+```typescript
+// NewsProject: 중앙 자막
+const subtitleConfig: SubtitleConfig = {
+  yPosition: 'h*0.50',  // 정치 채널은 중앙 자막
+};
+
+// CatProject: 하단 자막
+const subtitleConfig: SubtitleConfig = {
+  yPosition: 'h*0.72',  // 고양이 채널은 하단 자막
+};
+```
+
+### 제목 크기 (ProjectFontConfig)
+
+| 프로젝트 | 제목 크기 | 기본값 | 설정 파일 |
+|---------|----------|--------|-----------|
+| NewsProject | 90 (기본) | 90 | `NewsProjectService.ts` |
+| CatProject | 70 | 90 | `VideoProcessor.ts` |
+
+**코드 예시**:
+```typescript
+// CatProject: 제목 작게
+const fontConfig: ProjectFontConfig = {
+  title_size: 70,  // 고양이 채널은 제목 작게 (기본 90)
+};
+```
+
+### n8n 수정 필요 없음
+
+프로젝트별 설정은 **코드에서 자동 적용**됨:
+- n8n에서 채널별 switch → 다른 API endpoint 호출
+- 각 프로젝트 코드에서 자막 위치, 제목 크기 자동 설정
+- fontConfig, subtitleConfig 추가 파라미터 필요 없음

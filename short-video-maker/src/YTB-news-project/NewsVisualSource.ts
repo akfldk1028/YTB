@@ -86,9 +86,22 @@ export class NewsVisualSource {
   }
 
   /**
+   * 🔥 기본 대체 검색어 (Pexels에서 항상 찾을 수 있는 일반적인 뉴스 관련 용어)
+   * 이 용어들은 Pexels에서 반드시 결과가 나오도록 검증된 용어들
+   */
+  private readonly FALLBACK_SEARCH_TERMS = [
+    'news anchor',          // 뉴스 앵커 - 항상 결과 있음
+    'business meeting',     // 비즈니스 미팅
+    'office worker',        // 사무실 직원
+    'city skyline',         // 도시 스카이라인
+    'technology office',    // 테크놀로지 오피스
+  ];
+
+  /**
    * 비주얼 가져오기 (메인 메서드)
    *
-   * 우선순위: Pexels 비디오 → Pexels 이미지 → AI 이미지
+   * 🔥 Pexels ONLY 모드: AI 생성 없이 Pexels만 사용
+   * 우선순위: Pexels 비디오 → Pexels 이미지 → 기본 대체 비주얼
    */
   async getVisual(
     request: VisualRequest,
@@ -110,30 +123,27 @@ export class NewsVisualSource {
       ? OrientationEnum.portrait
       : OrientationEnum.landscape;
 
-    // 모드별 처리
-    switch (mode) {
-      case 'pexels_stock':
-        // Pexels만 사용 (비디오 → 이미지 순)
-        return this.getPexelsVisual(searchTerms, orientationEnum, sceneIndex, videoId, duration);
+    // 🔥 모든 모드에서 Pexels ONLY 사용 (AI 제거)
+    // 1차: 추출된 검색어로 Pexels 시도
+    if (this.pexelsApi) {
+      try {
+        return await this.getPexelsVisual(searchTerms, orientationEnum, sceneIndex, videoId, duration);
+      } catch (pexelsError) {
+        logger.warn({ error: pexelsError, searchTerms }, '[NewsVisualSource] Pexels 1차 검색 실패 - 대체 검색어 시도');
+      }
 
-      case 'nanoBanana':
-        // AI만 사용
-        return this.getAIImage(prompt, orientation, style, sceneIndex, videoId);
-
-      case 'hybrid':
-      default:
-        // 1차: Pexels 비디오/이미지 시도
-        if (this.pexelsApi) {
-          try {
-            return await this.getPexelsVisual(searchTerms, orientationEnum, sceneIndex, videoId, duration);
-          } catch (pexelsError) {
-            logger.warn({ error: pexelsError, searchTerms }, '[NewsVisualSource] Pexels 실패, AI fallback');
-          }
-        }
-
-        // 2차: AI fallback
-        return this.getAIImage(prompt, orientation, style, sceneIndex, videoId);
+      // 2차: 기본 대체 검색어로 재시도 (이건 반드시 성공해야 함)
+      try {
+        logger.info({ sceneIndex, fallbackTerms: this.FALLBACK_SEARCH_TERMS }, '[NewsVisualSource] 🔄 기본 대체 검색어로 재시도');
+        return await this.getPexelsVisual(this.FALLBACK_SEARCH_TERMS, orientationEnum, sceneIndex, videoId, duration);
+      } catch (fallbackError) {
+        logger.error({ error: fallbackError, sceneIndex }, '[NewsVisualSource] ❌ 대체 검색어도 실패 - 에러 발생');
+        throw new Error(`Pexels 비주얼 획득 실패 (scene ${sceneIndex}): 모든 검색어 실패`);
+      }
     }
+
+    // Pexels API가 없으면 에러
+    throw new Error('Pexels API가 초기화되지 않음 - 비주얼 획득 불가');
   }
 
   /**
@@ -362,6 +372,31 @@ export class NewsVisualSource {
       'election': ['election', 'voting', 'politics'],
       'policy': ['government', 'politics', 'meeting'],
 
+      // 🔥 정치 인사/임명 (보은 인사 등)
+      'appointment': ['politician speech', 'government official', 'parliament'],
+      'appointed': ['politician speech', 'government official', 'parliament'],
+      'nominee': ['politician speech', 'government official', 'press conference'],
+      'confirmation': ['parliament', 'politician speech', 'government'],
+      'loyalty': ['politician handshake', 'government official', 'politics'],
+      'reward': ['award ceremony', 'politician speech', 'ceremony'],
+      'cronyism': ['politician speech', 'government', 'parliament'],
+
+      // 🔥 시상식/의식/행사 (theatrical/ceremony prompts)
+      'ceremony': ['award ceremony', 'ceremony', 'speech podium'],
+      'award': ['award ceremony', 'ceremony', 'trophy'],
+      'certificate': ['award ceremony', 'document signing', 'ceremony'],
+      'stage': ['speech podium', 'press conference', 'ceremony'],
+      'theatrical': ['politician speech', 'press conference', 'ceremony'],
+      'spotlight': ['press conference', 'speech podium', 'politician speech'],
+      'podium': ['speech podium', 'press conference', 'politician speech'],
+
+      // 🔥 비유적/풍자적 표현 (satirical content)
+      'satirical': ['politician speech', 'press conference', 'parliament'],
+      'shadowy': ['government building', 'politics', 'parliament'],
+      'figure': ['politician speech', 'government official', 'business executive'],
+      'leader': ['politician speech', 'government official', 'press conference'],
+      'actor': ['politician speech', 'press conference', 'business executive'],
+
       // 법률/사법
       'court': ['court', 'law', 'justice'],
       'law': ['court', 'law', 'justice'],
@@ -456,14 +491,96 @@ export class NewsVisualSource {
 
   /**
    * 파일 다운로드 (비디오/이미지 공용)
+   * 🔥 개선: 타임아웃, 검증, 재시도 로직 추가
    */
-  private async downloadFile(url: string, outputPath: string): Promise<void> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to download: ${response.status}`);
+  private async downloadFile(url: string, outputPath: string, maxRetries: number = 3): Promise<void> {
+    const timeoutMs = 60000; // 60초 타임아웃
+    const minVideoSize = 100 * 1024; // 최소 100KB (비디오용)
+    const minImageSize = 10 * 1024;  // 최소 10KB (이미지용)
+    const isVideo = outputPath.endsWith('.mp4');
+    const minSize = isVideo ? minVideoSize : minImageSize;
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        logger.debug({ url: url.substring(0, 80), attempt, outputPath }, '[NewsVisualSource] 파일 다운로드 시작');
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        const response = await fetch(url, {
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const buffer = Buffer.from(await response.arrayBuffer());
+
+        // 🔥 파일 크기 검증
+        if (buffer.length < minSize) {
+          throw new Error(`파일 크기 너무 작음: ${buffer.length} bytes (최소: ${minSize} bytes)`);
+        }
+
+        // 🔥 비디오 파일 헤더 검증 (MP4 signature)
+        if (isVideo) {
+          // MP4 파일은 보통 'ftyp' 또는 'moov' 박스로 시작
+          const header = buffer.slice(0, 12).toString('hex');
+          const hasValidMp4Header = header.includes('66747970') || // 'ftyp'
+                                     header.includes('6d6f6f76') || // 'moov'
+                                     header.includes('6d646174');    // 'mdat'
+
+          if (!hasValidMp4Header) {
+            // 시그니처가 다를 수 있으므로 경고만 (일부 MP4는 다른 헤더로 시작)
+            logger.warn({ header, outputPath }, '[NewsVisualSource] ⚠️ MP4 헤더 비표준 - 계속 진행');
+          }
+        }
+
+        await fs.writeFile(outputPath, buffer);
+
+        // 🔥 파일 저장 후 재검증
+        const stats = await fs.stat(outputPath);
+        if (stats.size !== buffer.length) {
+          throw new Error(`파일 저장 검증 실패: 예상 ${buffer.length}, 실제 ${stats.size}`);
+        }
+
+        logger.info({
+          outputPath,
+          size: buffer.length,
+          sizeMB: (buffer.length / 1024 / 1024).toFixed(2),
+          attempt,
+        }, '[NewsVisualSource] ✅ 파일 다운로드 완료');
+
+        return; // 성공시 종료
+
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        const isAbort = lastError.name === 'AbortError' || lastError.message.includes('abort');
+        const errorType = isAbort ? '타임아웃' : '다운로드 실패';
+
+        logger.warn({
+          url: url.substring(0, 80),
+          outputPath,
+          attempt,
+          maxRetries,
+          error: lastError.message,
+          errorType,
+        }, `[NewsVisualSource] ⚠️ ${errorType} (시도 ${attempt}/${maxRetries})`);
+
+        // 마지막 시도 아니면 잠시 대기 후 재시도
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // 점진적 대기
+        }
+      }
     }
-    const buffer = Buffer.from(await response.arrayBuffer());
-    await fs.writeFile(outputPath, buffer);
+
+    // 모든 재시도 실패
+    throw new Error(`파일 다운로드 실패 (${maxRetries}회 시도): ${lastError?.message}`);
   }
 
   /**

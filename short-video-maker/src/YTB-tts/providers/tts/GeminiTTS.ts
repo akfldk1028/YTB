@@ -137,6 +137,21 @@ export class GeminiTTS {
   }
 
   /**
+   * Voice 이름으로 성별 반환
+   */
+  getVoiceGender(voiceName: string): 'female' | 'male' {
+    const femaleVoices = GEMINI_KOREAN_VOICES.female.map(v => v.name) as string[];
+    const maleVoices = GEMINI_KOREAN_VOICES.male.map(v => v.name) as string[];
+
+    if (femaleVoices.includes(voiceName)) return 'female';
+    if (maleVoices.includes(voiceName)) return 'male';
+
+    // 알 수 없는 voice는 female로 기본값
+    logger.warn({ voiceName }, '[GeminiTTS] 알 수 없는 voice, female로 기본 설정');
+    return 'female';
+  }
+
+  /**
    * 텍스트를 음성으로 변환 (Gemini API)
    */
   async generate(

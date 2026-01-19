@@ -12,7 +12,7 @@
  */
 
 import { logger } from "../logger";
-import { OrientationEnum, RenderConfig, TitleTextConfig } from "../types/shorts";
+import { OrientationEnum, RenderConfig, TitleTextConfig, SubtitleConfig } from "../types/shorts";
 import { initFFmpeg, getVideoDuration } from "./utils";
 import { AudioProcessor } from "./AudioProcessor";
 import { SubtitleFilter, ProjectFontConfig } from "./SubtitleFilter";
@@ -165,7 +165,8 @@ export class FFMpeg {
     config: RenderConfig,
     skipSubtitles?: boolean,
     sceneOverlays?: Array<{ text: string; startMs: number; endMs: number }>,  // 🔥 씬별 제목
-    fontConfig?: ProjectFontConfig  // 🔥 프로젝트별 폰트 설정
+    fontConfig?: ProjectFontConfig,  // 🔥 프로젝트별 폰트 설정
+    subtitleConfig?: SubtitleConfig  // 🔥 2026-01-19: 프로젝트별 자막 위치
   ): Promise<string> {
     return this.videoEditor.combineVideoWithAudioAndCaptions(
       videoPath,
@@ -177,7 +178,8 @@ export class FFMpeg {
       config,
       skipSubtitles,
       sceneOverlays,
-      fontConfig
+      fontConfig,
+      subtitleConfig
     );
   }
 

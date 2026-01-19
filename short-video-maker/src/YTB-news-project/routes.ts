@@ -57,18 +57,35 @@ const NewsPayloadSchema = z.object({
     nanoBanana: z.object({
       defaultStyle: z.string().optional(),
     }).optional(),
+    // 🔥 YouTube 자동 업로드 설정 (n8n payload 구조)
+    youtube: z.object({
+      channelName: z.string(),
+      channelId: z.string().optional(),
+      defaultTags: z.array(z.string()).optional(),
+      defaultPrivacyStatus: z.enum(['private', 'unlisted', 'public']).optional(),
+    }).optional(),
   }),
   videos: z.array(z.object({
     video_id: z.string(),
     title: z.string(),
     scenes: z.array(z.object({
       scene_id: z.number(),
-      scene_type: z.enum(['intro', 'news', 'outro']).optional(),  // 🔥 씬 타입
+      scene_type: z.string().optional(),  // 'intro' | 'news' | 'news_1' | 'news_2' | ... | 'outro'
+      news_rank: z.number().optional(),   // v1.6 형식 호환
       narration: z.string(),
+      news_title: z.string().optional(),  // TTS로 읽을 뉴스 제목
       image_prompt: z.string(),
       duration: z.number(),
-      text_overlay: z.string().optional(),  // 🔥 화면 텍스트
+      text_overlay: z.string().optional(),  // 화면 텍스트
     })).min(1),
+    // 🔥 n8n payload: video.hashtags
+    hashtags: z.array(z.string()).optional(),
+    // 비디오별 YouTube 메타데이터 (선택적)
+    youtube: z.object({
+      finalTitle: z.string(),
+      finalHashtags: z.array(z.string()),
+      defaultPrivacy: z.string(),
+    }).optional(),
   })).min(1),
 });
 

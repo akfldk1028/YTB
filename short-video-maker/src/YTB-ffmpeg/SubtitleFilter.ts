@@ -225,6 +225,26 @@ export class SubtitleFilter {
       // 🔥 FIX: 각 자막의 개별 타이밍 사용 (TTS 싱크)
       // 그룹화 제거 - 각 caption의 startMs/endMs를 그대로 사용
 
+      // 🔥 FIX 2026-01-19: 자막 타이밍 겹침 자동 수정
+      // endMs >= 다음 startMs인 경우 겹쳐서 표시되어 글자가 섞여 보이는 버그 수정
+      for (let i = 0; i < captions.length - 1; i++) {
+        const current = captions[i];
+        const next = captions[i + 1];
+        if (current.endMs >= next.startMs) {
+          // 겹침 발견 - endMs를 startMs - 1로 조정
+          const oldEndMs = current.endMs;
+          current.endMs = next.startMs - 1;
+          logger.warn({
+            captionIdx: i,
+            text: current.text?.substring(0, 15),
+            oldEndMs,
+            newEndMs: current.endMs,
+            nextStartMs: next.startMs,
+            overlap: oldEndMs - next.startMs + 1
+          }, '[SUBTITLE FIX] 자막 타이밍 겹침 자동 수정');
+        }
+      }
+
       // 🔥 DEBUG: 자막 타이밍 로그 (겹침 디버깅용)
       logger.info({
         totalCaptions: captions.length,
@@ -435,14 +455,19 @@ export class SubtitleFilter {
     try {
       if (!captions || captions.length === 0) return null;
 
-      // 🔥 NewsProject 스타일 - 90px 큰 폰트 + 2줄 지원
+      // 🔥 NewsProject 스타일 - 90px 큰 폰트 + 2줄/3줄 지원
       const fontSize = config?.fontSize || (orientation === OrientationEnum.portrait ? 90 : 72);
-      // 🔥 2줄 자막을 위한 y 위치 (위쪽 줄, 아래쪽 줄)
+      // 🔥 2줄/3줄 자막을 위한 y 위치
       // 2026-01-16: 자막 위치 아래로 조정 (h*0.48 → h*0.55)
+      // 2026-01-18: 3줄 자막 지원 추가
       const lineHeight = fontSize * 1.15;  // 줄 간격
       const baseY = orientation === OrientationEnum.portrait ? 'h*0.55' : 'h*0.55';  // 1줄일 때 위치
       const twoLineY1 = orientation === OrientationEnum.portrait ? 'h*0.52' : 'h*0.52';  // 2줄일 때 첫째 줄
       const twoLineY2 = `(${twoLineY1})+${lineHeight}`;  // 2줄일 때 둘째 줄
+      // 🔥 3줄용 Y 위치 (조금 더 위에서 시작)
+      const threeLineY1 = orientation === OrientationEnum.portrait ? 'h*0.47' : 'h*0.47';  // 3줄일 때 첫째 줄
+      const threeLineY2 = `(${threeLineY1})+${lineHeight}`;  // 3줄일 때 둘째 줄
+      const threeLineY3 = `(${threeLineY1})+${lineHeight}*2`;  // 3줄일 때 셋째 줄
 
       // 🔥 자막은 Gmarket Sans Bold 사용
       const fontPath = findSubtitleFontPath();
@@ -467,6 +492,26 @@ export class SubtitleFilter {
 
       const drawTextFilters: string[] = [];
 
+      // 🔥 FIX 2026-01-19: 자막 타이밍 겹침 자동 수정
+      // endMs >= 다음 startMs인 경우 겹쳐서 표시되어 글자가 섞여 보이는 버그 수정
+      for (let i = 0; i < captions.length - 1; i++) {
+        const current = captions[i];
+        const next = captions[i + 1];
+        if (current.endMs >= next.startMs) {
+          const oldEndMs = current.endMs;
+          current.endMs = next.startMs - 1;
+          logger.warn({
+            captionIdx: i,
+            text: current.text?.substring(0, 15),
+            oldEndMs,
+            newEndMs: current.endMs,
+            nextStartMs: next.startMs,
+            overlap: oldEndMs - next.startMs + 1,
+            method: 'createSimplifiedSubtitleFilter'
+          }, '[SUBTITLE FIX] 자막 타이밍 겹침 자동 수정');
+        }
+      }
+
       // 🔥 DEBUG: 자막 타이밍 로그 (겹침 디버깅용)
       logger.info({
         method: 'createSimplifiedSubtitleFilter',
@@ -485,8 +530,10 @@ export class SubtitleFilter {
         const endTime = caption.endMs / 1000;
         const text = caption.text.trim();
 
-        // 🔥 2줄 분리 로직: maxCharsPerLine 초과시 분리
-        const needsTwoLines = text.length > maxCharsPerLine;
+        // 🔥 2줄/3줄 분리 로직
+        // 2026-01-18: 3줄 자막 지원 추가 (20자 초과시)
+        const needsThreeLines = text.length > maxCharsPerLine * 2;  // 20자 초과 → 3줄
+        const needsTwoLines = text.length > maxCharsPerLine && !needsThreeLines;  // 10~20자 → 2줄
 
         // 🔥 Docker에서는 fontconfig 사용
         const useFontConfig = shouldUseFontConfig();
@@ -499,8 +546,37 @@ export class SubtitleFilter {
           logger.info({ useFontConfig, fontConfigName, fontPath, method: useFontConfig ? 'fontconfig' : 'fontfile' }, '[FONT] Simplified subtitle font method');
         }
 
-        if (needsTwoLines && tempDir) {
-          // 🔥 2줄로 분리
+        if (needsThreeLines && tempDir) {
+          // 🔥 3줄로 분리 (20자 초과)
+          const { line1, line2, line3 } = this.splitTextIntoThreeLines(text, maxCharsPerLine);
+
+          // 첫째 줄
+          const textFilePath1 = path.join(tempDir, `subtitle_3line_${Date.now()}_${index}_1.txt`);
+          fs.writeFileSync(textFilePath1, normalizeKoreanText(line1.toUpperCase()), 'utf-8');
+          textFilePaths.push(textFilePath1);
+          drawTextFilters.push(
+            `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath1)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${threeLineY1}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
+          );
+
+          // 둘째 줄
+          const textFilePath2 = path.join(tempDir, `subtitle_3line_${Date.now()}_${index}_2.txt`);
+          fs.writeFileSync(textFilePath2, normalizeKoreanText(line2.toUpperCase()), 'utf-8');
+          textFilePaths.push(textFilePath2);
+          drawTextFilters.push(
+            `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath2)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${threeLineY2}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
+          );
+
+          // 셋째 줄
+          const textFilePath3 = path.join(tempDir, `subtitle_3line_${Date.now()}_${index}_3.txt`);
+          fs.writeFileSync(textFilePath3, normalizeKoreanText(line3.toUpperCase()), 'utf-8');
+          textFilePaths.push(textFilePath3);
+          drawTextFilters.push(
+            `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath3)}:fontcolor=0x${fontColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${threeLineY3}:borderw=${borderWidth}:bordercolor=${borderColor}:shadowcolor=${shadowColor}:shadowx=3:shadowy=3:enable=between(t\\,${startTime}\\,${endTime})`
+          );
+
+          logger.debug({ line1, line2, line3, index, textLength: text.length }, "Split caption into 3 lines");
+        } else if (needsTwoLines && tempDir) {
+          // 🔥 2줄로 분리 (10~20자)
           const { line1, line2 } = this.splitTextIntoTwoLines(text, maxCharsPerLine);
 
           // 첫째 줄
@@ -564,7 +640,7 @@ export class SubtitleFilter {
         fontSize,
         maxCharsPerLine,
         hasOverlap
-      }, "Created simplified subtitle filter with 2-line support (90px)");
+      }, "Created simplified subtitle filter with 2/3-line support (90px)");
 
       return { filter: drawTextFilters.join(','), textFilePaths };
     } catch (error) {
@@ -575,41 +651,202 @@ export class SubtitleFilter {
 
   /**
    * 🔥 텍스트를 2줄로 분리 (공백 기준, 균등 분배)
+   * 2026-01-18: 한글 텍스트 분리 디버깅 로그 추가
    */
   private splitTextIntoTwoLines(text: string, maxCharsPerLine: number): { line1: string; line2: string } {
+    // 🔥 DEBUG: 입력 텍스트 검증
+    const inputHex = Buffer.from(text, 'utf-8').toString('hex');
+    const inputChars = [...text];  // 유니코드 코드포인트 배열
+    logger.debug({
+      input: text,
+      inputHex: inputHex.substring(0, 100),
+      inputLength: text.length,
+      inputCharCount: inputChars.length,
+      maxCharsPerLine
+    }, '[SPLIT 2LINE DEBUG] 입력 텍스트 검증');
+
     // 공백으로 분리
     const words = text.split(/\s+/);
 
     if (words.length === 1) {
-      // 단어가 하나면 강제로 중간에서 분리
-      const mid = Math.ceil(text.length / 2);
-      return {
-        line1: text.substring(0, mid),
-        line2: text.substring(mid)
-      };
+      // 단어가 하나면 유니코드 코드포인트 기준으로 중간에서 분리
+      // 🔥 FIX: [...text]를 사용하여 surrogate pair 안전하게 처리
+      const chars = [...text];
+      const mid = Math.ceil(chars.length / 2);
+      const line1 = chars.slice(0, mid).join('');
+      const line2 = chars.slice(mid).join('');
+
+      // 🔥 DEBUG: 분리 결과 검증
+      const line1Hex = Buffer.from(line1, 'utf-8').toString('hex');
+      const line2Hex = Buffer.from(line2, 'utf-8').toString('hex');
+      logger.debug({
+        originalText: text,
+        line1,
+        line2,
+        line1Hex: line1Hex.substring(0, 60),
+        line2Hex: line2Hex.substring(0, 60),
+        method: 'single-word-split',
+        midPoint: mid,
+        totalChars: chars.length
+      }, '[SPLIT 2LINE DEBUG] 단일 단어 분리 결과');
+
+      return { line1, line2 };
     }
 
-    // 균등하게 2줄로 분배
+    // 🔥 FIX 2026-01-19: 순차적으로 2줄 분배 (단어 순서 유지)
+    // 이전 버그: line1에 공간 있으면 계속 추가 → 짧은 단어가 뒤에서 line1으로 돌아가서 순서 뒤바뀜
+    // 수정: 한번 line2로 가면 다시 line1으로 안 돌아감
     let line1 = '';
     let line2 = '';
     const targetLength = Math.ceil(text.length / 2);
+    let switchedToLine2 = false;  // 🔥 line2로 전환 후 돌아가지 않음
 
     for (const word of words) {
-      if (line1.length + word.length + 1 <= targetLength || line2.length === 0 && line1.length === 0) {
+      if (!switchedToLine2 && (line1.length + word.length + 1 <= targetLength || line1.length === 0)) {
         line1 += (line1 ? ' ' : '') + word;
       } else {
+        switchedToLine2 = true;  // 🔥 한번 line2로 가면 고정
         line2 += (line2 ? ' ' : '') + word;
       }
     }
 
-    // 두 번째 줄이 비어있으면 강제 분리
+    // 두 번째 줄이 비어있으면 강제 분리 (유니코드 안전)
     if (!line2) {
-      const mid = Math.ceil(line1.length / 2);
-      line2 = line1.substring(mid).trim();
-      line1 = line1.substring(0, mid).trim();
+      const chars = [...line1];
+      const mid = Math.ceil(chars.length / 2);
+      line2 = chars.slice(mid).join('').trim();
+      line1 = chars.slice(0, mid).join('').trim();
     }
 
+    // 🔥 DEBUG: 최종 분리 결과 검증
+    const finalLine1Hex = Buffer.from(line1.trim(), 'utf-8').toString('hex');
+    const finalLine2Hex = Buffer.from(line2.trim(), 'utf-8').toString('hex');
+    const combinedText = line1.trim() + ' ' + line2.trim();
+    const originalNormalized = text.replace(/\s+/g, ' ').trim();
+
+    logger.debug({
+      originalText: text,
+      line1: line1.trim(),
+      line2: line2.trim(),
+      line1Hex: finalLine1Hex.substring(0, 60),
+      line2Hex: finalLine2Hex.substring(0, 60),
+      method: 'word-based-split',
+      wordCount: words.length,
+      // 🔥 텍스트 변조 검사
+      textIntegrity: combinedText === originalNormalized,
+      combinedText,
+      originalNormalized
+    }, '[SPLIT 2LINE DEBUG] 단어 기반 분리 결과');
+
     return { line1: line1.trim(), line2: line2.trim() };
+  }
+
+  /**
+   * 🔥 텍스트를 3줄로 분리 (공백 기준, 균등 분배)
+   * 2026-01-18: 긴 자막 지원 (20자 초과시 3줄 분리) + 유니코드 안전 처리
+   */
+  private splitTextIntoThreeLines(text: string, maxCharsPerLine: number): { line1: string; line2: string; line3: string } {
+    // 🔥 DEBUG: 입력 텍스트 검증
+    const inputHex = Buffer.from(text, 'utf-8').toString('hex');
+    logger.debug({
+      input: text,
+      inputHex: inputHex.substring(0, 100),
+      inputLength: text.length,
+      maxCharsPerLine
+    }, '[SPLIT 3LINE DEBUG] 입력 텍스트 검증');
+
+    // 공백으로 분리
+    const words = text.split(/\s+/);
+
+    if (words.length === 1) {
+      // 단어가 하나면 유니코드 코드포인트 기준으로 3등분
+      const chars = [...text];
+      const third = Math.ceil(chars.length / 3);
+      const line1 = chars.slice(0, third).join('');
+      const line2 = chars.slice(third, third * 2).join('');
+      const line3 = chars.slice(third * 2).join('');
+
+      logger.debug({
+        originalText: text,
+        line1, line2, line3,
+        method: 'single-word-split'
+      }, '[SPLIT 3LINE DEBUG] 단일 단어 3등분');
+
+      return { line1, line2, line3 };
+    }
+
+    if (words.length === 2) {
+      // 단어가 2개면 첫 줄 + 둘째 단어를 반으로 (유니코드 안전)
+      const secondChars = [...words[1]];
+      const mid = Math.ceil(secondChars.length / 2);
+      const line1 = words[0];
+      const line2 = secondChars.slice(0, mid).join('');
+      const line3 = secondChars.slice(mid).join('');
+
+      logger.debug({
+        originalText: text,
+        line1, line2, line3,
+        method: 'two-word-split'
+      }, '[SPLIT 3LINE DEBUG] 2단어 분리');
+
+      return { line1, line2, line3 };
+    }
+
+    // 🔥 FIX 2026-01-19: 순차적으로 3줄 분배 (단어 순서 유지)
+    // 이전 버그: 공간 있으면 이전 줄로 돌아감 → 순서 뒤바뀜
+    // 수정: 한번 다음 줄로 가면 이전 줄로 안 돌아감
+    let line1 = '';
+    let line2 = '';
+    let line3 = '';
+    const targetLength = Math.ceil(text.length / 3);
+    let currentLine = 1;  // 🔥 현재 줄 번호 (1, 2, 3)
+
+    for (const word of words) {
+      if (currentLine === 1) {
+        if (line1.length + word.length + 1 <= targetLength || line1.length === 0) {
+          line1 += (line1 ? ' ' : '') + word;
+        } else {
+          currentLine = 2;  // 🔥 다음 줄로 전환
+          line2 += word;
+        }
+      } else if (currentLine === 2) {
+        if (line2.length + word.length + 1 <= targetLength || line2.length === 0) {
+          line2 += (line2 ? ' ' : '') + word;
+        } else {
+          currentLine = 3;  // 🔥 다음 줄로 전환
+          line3 += word;
+        }
+      } else {
+        line3 += (line3 ? ' ' : '') + word;
+      }
+    }
+
+    // 빈 줄이 있으면 재분배 (유니코드 안전)
+    if (!line2 && !line3) {
+      const chars = [...line1];
+      const third = Math.ceil(chars.length / 3);
+      line3 = chars.slice(third * 2).join('').trim();
+      line2 = chars.slice(third, third * 2).join('').trim();
+      line1 = chars.slice(0, third).join('').trim();
+    } else if (!line3 && line2) {
+      // line3만 비어있으면 line2에서 분리 (유니코드 안전)
+      const chars = [...line2];
+      const mid = Math.ceil(chars.length / 2);
+      line3 = chars.slice(mid).join('').trim();
+      line2 = chars.slice(0, mid).join('').trim();
+    }
+
+    // 🔥 DEBUG: 최종 결과 검증
+    logger.debug({
+      originalText: text,
+      line1: line1.trim(),
+      line2: line2.trim(),
+      line3: line3.trim(),
+      method: 'word-based-split',
+      wordCount: words.length
+    }, '[SPLIT 3LINE DEBUG] 단어 기반 3줄 분리 결과');
+
+    return { line1: line1.trim(), line2: line2.trim(), line3: line3.trim() };
   }
 
   /**
@@ -1008,11 +1245,16 @@ export class SubtitleFilter {
       const bgColor = fontConfig?.title_bg_color?.replace('#', '') || 'FFEB3B';    // 노란색
 
       // 🔥 2026-01-16: 제목 2줄 지원 추가
+      // 🔥 2026-01-18: 제목 3줄 지원 추가
       const lineHeight = fontSize * 1.2;  // 줄 간격
       const baseY = orientation === OrientationEnum.portrait ? 'h*0.08' : 'h*0.06';  // 1줄일 때 위치
       const twoLineY1 = orientation === OrientationEnum.portrait ? 'h*0.06' : 'h*0.05';  // 2줄일 때 첫째 줄
       const twoLineY2 = `(${twoLineY1})+${lineHeight}`;  // 2줄일 때 둘째 줄
-      const maxCharsPerLine = orientation === OrientationEnum.portrait ? 10 : 14;  // 한 줄 최대 글자
+      // 🔥 3줄용 Y 위치
+      const threeLineY1 = orientation === OrientationEnum.portrait ? 'h*0.04' : 'h*0.03';  // 3줄일 때 첫째 줄
+      const threeLineY2 = `(${threeLineY1})+${lineHeight}`;  // 3줄일 때 둘째 줄
+      const threeLineY3 = `(${threeLineY1})+${lineHeight}*2`;  // 3줄일 때 셋째 줄
+      const maxCharsPerLine = orientation === OrientationEnum.portrait ? 8 : 12;  // 🔥 2026-01-19: 10→8 (제목 잘림 방지)
 
       logger.info({
         fontConfig: fontConfig || 'DEFAULT',
@@ -1029,13 +1271,51 @@ export class SubtitleFilter {
 
         if (!displayText) return;
 
-        // 🔥 2줄 분리 여부 판단
-        const needsTwoLines = displayText.length > maxCharsPerLine;
+        // 🔥 2줄/3줄 분리 여부 판단
+        // 2026-01-18: 3줄 지원 추가 (20자 초과시)
+        const needsThreeLines = displayText.length > maxCharsPerLine * 2;  // 20자 초과 → 3줄
+        const needsTwoLines = displayText.length > maxCharsPerLine && !needsThreeLines;  // 10~20자 → 2줄
         const fontParam = getFontParam(fontPath);  // 🔥 fontconfig or fontfile
 
         if (tempDir) {
-          if (needsTwoLines) {
-            // 🔥 2줄로 분리
+          if (needsThreeLines) {
+            // 🔥 3줄로 분리 (20자 초과)
+            const { line1, line2, line3 } = this.splitTextIntoThreeLines(displayText, maxCharsPerLine);
+
+            // 첫째 줄
+            const textFilePath1 = path.join(tempDir, `overlay_3line_${Date.now()}_${index}_1.txt`);
+            fs.writeFileSync(textFilePath1, normalizeKoreanText(line1), 'utf-8');
+            textFilePaths.push(textFilePath1);
+            filters.push(
+              `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath1)}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${threeLineY1}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
+            );
+
+            // 둘째 줄
+            const textFilePath2 = path.join(tempDir, `overlay_3line_${Date.now()}_${index}_2.txt`);
+            fs.writeFileSync(textFilePath2, normalizeKoreanText(line2), 'utf-8');
+            textFilePaths.push(textFilePath2);
+            filters.push(
+              `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath2)}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${threeLineY2}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
+            );
+
+            // 셋째 줄
+            const textFilePath3 = path.join(tempDir, `overlay_3line_${Date.now()}_${index}_3.txt`);
+            fs.writeFileSync(textFilePath3, normalizeKoreanText(line3), 'utf-8');
+            textFilePaths.push(textFilePath3);
+            filters.push(
+              `drawtext=${fontParam}:textfile=${toFFmpegPath(textFilePath3)}:fontcolor=0x${textColor}:fontsize=${fontSize}:x=(w-text_w)/2:y=${threeLineY3}:box=1:boxcolor=0x${bgColor}@0.95:boxborderw=20:enable=between(t\\,${startTime}\\,${endTime})`
+            );
+
+            logger.info({
+              originalText: displayText,
+              line1,
+              line2,
+              line3,
+              maxCharsPerLine,
+              textLength: displayText.length
+            }, '[DEBUG] Scene overlay split into 3 lines');
+          } else if (needsTwoLines) {
+            // 🔥 2줄로 분리 (10~20자)
             const { line1, line2 } = this.splitTextIntoTwoLines(displayText, maxCharsPerLine);
 
             // 첫째 줄
@@ -1076,6 +1356,7 @@ export class SubtitleFilter {
 
           logger.info({
             displayText: displayText.substring(0, 50),
+            needsThreeLines,
             needsTwoLines,
             fontPath,
             startTime,

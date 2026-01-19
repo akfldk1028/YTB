@@ -29,39 +29,22 @@ export class VideoConcat {
       return outputPath;
     }
 
-    // 🚀 1단계: concat demuxer + stream copy (가장 빠름, re-encoding 없음)
-    // 모든 클립이 trimAndResizeVideo에서 동일한 형식으로 정규화되었으므로 가능
-    try {
-      const listPath = outputPath.replace(/\.mp4$/, '_concat_list.txt');
-      const listContent = inputPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
-      fs.writeFileSync(listPath, listContent);
-
-      logger.info({ listPath }, "Using concat demuxer with stream copy (fastest)");
-
-      await runFFmpegSpawn([
-        '-f', 'concat',
-        '-safe', '0',
-        '-i', listPath,
-        '-c', 'copy',  // stream copy - no re-encoding!
-        '-y',
-        outputPath
-      ], 60000); // 1분 타임아웃 (stream copy는 매우 빠름)
-
-      // 임시 리스트 파일 삭제
-      fs.removeSync(listPath);
-
-      logger.info({ outputPath }, "Video concat complete with stream copy (fastest)");
-      return outputPath;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      logger.warn({ error: errorMsg }, "Stream copy concat failed, trying filter_complex with ultrafast");
-    }
-
-    // 🔄 2단계: filter_complex + ultrafast (fallback)
+    // 🔥 FIX: Stream copy 제거 - Pexels 비디오 간 keyframe/GOP 차이로 재생 오류 발생
+    // 항상 filter_complex + re-encoding 사용하여 안정적인 concat 보장
+    // FFmpeg 공식 문서: "Filters are incompatible with stream copying"
+    // https://trac.ffmpeg.org/wiki/Concatenate
+    logger.info({ clipCount: inputPaths.length }, "Using filter_complex concat with re-encoding (reliable)");
     try {
       const inputArgs = inputPaths.flatMap(p => ['-i', p]);
-      const filterInputs = inputPaths.map((_, i) => `[${i}:v]`).join('');
-      const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=1:a=0[outv]`;
+
+      // 🔥 각 비디오를 정규화 (fps + setsar) 후 concat
+      // FFmpeg 공식 문서: "All segments must have same framerate"
+      // scale은 trimAndResizeVideo에서 이미 처리됨
+      const normalizeFilters = inputPaths.map((_, i) =>
+        `[${i}:v]fps=30,setsar=1,format=yuv420p[v${i}]`
+      ).join(';');
+      const concatInputs = inputPaths.map((_, i) => `[v${i}]`).join('');
+      const filterComplex = `${normalizeFilters};${concatInputs}concat=n=${inputPaths.length}:v=1:a=0[outv]`;
 
       await runFFmpegSpawn([
         ...inputArgs,
@@ -74,7 +57,7 @@ export class VideoConcat {
         '-an',
         '-y',
         outputPath
-      ], 180000); // 3분 타임아웃
+      ], 300000); // 5분 타임아웃 (fps 정규화 + concat 처리)
 
       logger.info({ outputPath }, "Video concat complete with ultrafast encoding");
       return outputPath;

@@ -28,6 +28,9 @@ import { Config } from '../config';
 // 🔥 GCS 업로드 (다운로드 URL 제공용)
 import { GoogleCloudStorageService } from '../storage/GoogleCloudStorageService';
 
+// 🔥 YouTube 업로드 (자동 업로드)
+import { YouTubeUploader } from '../youtube-upload/services/YouTubeUploader';
+
 // 타입
 import type {
   NewsPayload,
@@ -60,6 +63,7 @@ export class NewsProjectService {
   private googleTTS?: GoogleTTS;
   private geminiTTS?: GeminiTTS;  // 🔥 Gemini TTS (자연스러운 숏츠 음성)
   private gcsService?: GoogleCloudStorageService;
+  private youtubeUploader?: YouTubeUploader;  // 🔥 YouTube 자동 업로드
   private states = new Map<string, ProcessingState>();
   private initialized = false;
 
@@ -113,6 +117,14 @@ export class NewsProjectService {
       logger.info('[NewsProject] GCS 업로드 사용 가능');
     } catch (gcsError) {
       logger.warn({ error: gcsError }, '[NewsProject] GCS 사용 불가 - 로컬 저장만 사용');
+    }
+
+    // 🔥 YouTube 업로더 초기화 (자동 업로드용)
+    try {
+      this.youtubeUploader = new YouTubeUploader(this.config);
+      logger.info('[NewsProject] YouTube 자동 업로드 사용 가능');
+    } catch (ytError) {
+      logger.warn({ error: ytError }, '[NewsProject] YouTube 업로더 초기화 실패 - 수동 업로드 필요');
     }
 
     this.initialized = true;
@@ -236,17 +248,22 @@ export class NewsProjectService {
       // 🔥 영상 전체에서 동일한 voice 사용 (한 번만 선택)
       let selectedVoiceForVideo: { name: string; gender: 'female' | 'male' } | null = null;
       let selectedGoogleVoice: string | null = null;  // 🔥 Google TTS fallback용 voice도 미리 선택
+      const configuredVoice = config.audio.voice;  // n8n에서 지정한 voice (Leda, Puck 등)
 
       if (this.geminiTTS && (ttsProvider === 'gemini' || !ttsProvider)) {
-        // 🔥 뉴스 숏츠 추천 여자 voice에서 랜덤 선택 (Despina, Aoede, Autonoe)
-        selectedVoiceForVideo = this.geminiTTS.getNewsVoice('female');
+        // 🔥 voice 선택: config에서 지정했으면 사용, 아니면 랜덤
+        if (configuredVoice && configuredVoice !== 'random') {
+          // config에서 지정한 voice 사용 (Leda, Puck, Aoede 등)
+          const voiceGender = this.geminiTTS.getVoiceGender(configuredVoice);
+          selectedVoiceForVideo = { name: configuredVoice, gender: voiceGender };
+          logger.info({ voice: configuredVoice, gender: voiceGender }, '[NewsProject] 🎙️ config에서 지정한 voice 사용');
+        } else {
+          // 랜덤 선택 (기본 female)
+          selectedVoiceForVideo = this.geminiTTS.getNewsVoice('female');
+          logger.info({ voice: selectedVoiceForVideo.name, gender: selectedVoiceForVideo.gender }, '[NewsProject] 🎙️ 랜덤 voice 선택');
+        }
         // 🔥 Google TTS fallback용 voice도 영상 시작 시 선택 (전체 영상에서 동일 voice 사용)
         selectedGoogleVoice = this.getGoogleVoiceByGender(selectedVoiceForVideo.gender);
-        logger.info({
-          voice: selectedVoiceForVideo.name,
-          gender: selectedVoiceForVideo.gender,
-          googleFallbackVoice: selectedGoogleVoice
-        }, '[NewsProject] 🎙️ 영상 전체 voice 선택 (랜덤)');
       }
 
       for (let i = 0; i < video.scenes.length; i++) {
@@ -255,6 +272,27 @@ export class NewsProjectService {
 
         const audioPath = path.join(tempDir, `audio_${i}.mp3`);
         let audioDuration = 0;
+
+        // 🔥 TTS 텍스트: 본문(narration)만 읽음 (news_title은 화면에 text_overlay로 표시)
+        // - 자막 싱크 개선: 헤드라인 특수문자/포맷 제거로 타이밍 정확도 향상
+        // - 정보 중복 제거: 제목은 눈으로, 본문은 귀로
+        const baseText = scene.narration;
+
+        // 🔥 Gemini Director's Notes - 일관된 톤 유지를 위한 스타일 가이드
+        // 공식 문서: https://ai.google.dev/gemini-api/docs/speech-generation
+        const defaultTtsStyle = '발랄하고 에너지 넘치는 뉴스 앵커. 밝고 활기찬 톤으로 모든 문장을 흥미진진하게 전달해줘. 제목과 본문 모두 같은 에너지로!';
+        const ttsStyle = config.audio.tts_style || defaultTtsStyle;
+
+        // 🔥 Gemini TTS용 텍스트 (Director's Notes 포함)
+        const geminiTtsText = `### DIRECTOR'S NOTES
+Style: ${ttsStyle}
+
+${baseText}`;
+
+        // 🔥 기타 TTS용 텍스트 (Director's Notes 없음)
+        const ttsText = baseText;
+
+        logger.debug({ hasTitle: !!scene.news_title, ttsTextLength: ttsText.length, hasDirectorsNote: true }, '[NewsProject] TTS 텍스트 결합 (Director\'s Notes 적용)');
 
         // 🔥 TTS 생성 우선순위: Gemini(기본) → ElevenLabs → Google (fallback)
         let usedProvider: string = ttsProvider;
@@ -265,10 +303,11 @@ export class NewsProjectService {
         if ((ttsProvider === 'gemini' || !ttsProvider) && this.geminiTTS && selectedVoiceForVideo) {
           try {
             const ttsResult = await this.geminiTTS.generate(
-              scene.narration,
+              geminiTtsText,  // 🔥 Director's Notes + narration (본문만, 일관된 톤)
               selectedVoiceForVideo.name,  // 🔥 영상 전체 동일 voice 사용
               { useNewsVoice: false }  // 이미 선택된 voice 사용
             );
+            logger.info({ ttsStyle, hasDirectorsNote: true }, '[NewsProject] 🎙️ Gemini TTS with Director\'s Notes');
 
             // 🔥 Gemini TTS는 RAW PCM (L16, 24kHz, mono) → MP3로 변환 필요
             await this.ffmpeg.savePcmToMp3(ttsResult.audio, audioPath);
@@ -276,13 +315,37 @@ export class NewsProjectService {
             usedVoice = ttsResult.voice;
 
             // 🔥 Gemini는 alignment 없음 - 어절 단위로 분리하여 자막 생성
+            // 🔥 FIX: TTS와 동일한 텍스트 사용 (narration만) - 싱크 맞춤
+
+            // 🔥 DEBUG: 자막 생성 전 원본 텍스트 로깅 (텍스트 불일치 디버깅용)
+            logger.info({
+              scene: i + 1,
+              news_title: scene.news_title?.substring(0, 100),
+              narration: scene.narration?.substring(0, 100),
+              ttsText: ttsText?.substring(0, 150),
+              ttsTextFull: ttsText,  // 🔥 전체 텍스트 (긴 경우 확인용)
+            }, '[NewsProject] 🔍 자막 생성 전 텍스트 확인 (DEBUG)');
+
             const geminiCaptions = splitNarrationToCaptions(
-              scene.narration,
+              ttsText,  // 🔥 narration 기반 자막 (본문만)
               audioDuration * 1000,  // 밀리초
               cumulativeTime * 1000  // 시작 시간 (밀리초)
             );
+
+            // 🔥 DEBUG: 생성된 자막 내용 로깅
+            logger.info({
+              scene: i + 1,
+              captionCount: geminiCaptions.length,
+              captions: geminiCaptions.map((c, idx) => ({
+                idx,
+                text: c.text,
+                startMs: c.startMs,
+                endMs: c.endMs,
+              })),
+            }, '[NewsProject] 🔍 생성된 자막 확인 (DEBUG)');
+
             allCaptions.push(...geminiCaptions);
-            logger.debug({ captionCount: geminiCaptions.length }, '[NewsProject] Gemini TTS 어절 자막 생성');
+            logger.debug({ captionCount: geminiCaptions.length, hasTitleInCaption: !!scene.news_title }, '[NewsProject] Gemini TTS 어절 자막 생성 (TTS 텍스트와 동기화)');
 
             usedProvider = 'gemini';
             ttsSuccess = true;
@@ -297,7 +360,7 @@ export class NewsProjectService {
         if (!ttsSuccess && this.elevenLabsTTS) {
           try {
             const ttsResult = await this.elevenLabsTTS.generate(
-              scene.narration,
+              ttsText,  // 🔥 narration (본문만)
               config.audio.voice
             );
 
@@ -307,13 +370,30 @@ export class NewsProjectService {
 
             // 🔥 FIX: ElevenLabs도 동일하게 어절 단위로 자막 생성 (자막 수 제한 적용)
             // alignment가 있어도 word-by-word는 자막이 너무 많아짐
+            // 🔥 FIX: TTS와 동일한 텍스트 사용 (narration만) - 싱크 맞춤
+
+            // 🔥 DEBUG: 자막 생성 전 원본 텍스트 로깅
+            logger.info({
+              scene: i + 1,
+              provider: 'elevenlabs',
+              ttsText: ttsText?.substring(0, 150),
+            }, '[NewsProject] 🔍 ElevenLabs 자막 생성 전 텍스트 (DEBUG)');
+
             const elevenLabsCaptions = splitNarrationToCaptions(
-              scene.narration,
+              ttsText,  // 🔥 narration 기반 자막 (본문만)
               audioDuration * 1000,  // 밀리초
               cumulativeTime * 1000  // 시작 시간 (밀리초)
             );
+
+            // 🔥 DEBUG: 생성된 자막 내용 로깅
+            logger.info({
+              scene: i + 1,
+              captionCount: elevenLabsCaptions.length,
+              captions: elevenLabsCaptions.map((c, idx) => ({ idx, text: c.text })),
+            }, '[NewsProject] 🔍 ElevenLabs 생성된 자막 (DEBUG)');
+
             allCaptions.push(...elevenLabsCaptions);
-            logger.debug({ captionCount: elevenLabsCaptions.length }, '[NewsProject] ElevenLabs TTS 어절 자막 생성');
+            logger.debug({ captionCount: elevenLabsCaptions.length, hasTitleInCaption: !!scene.news_title }, '[NewsProject] ElevenLabs TTS 어절 자막 생성 (TTS 텍스트와 동기화)');
 
             usedProvider = 'elevenlabs';
             ttsSuccess = true;
@@ -329,7 +409,7 @@ export class NewsProjectService {
             const googleVoice = selectedGoogleVoice || this.getGoogleVoiceByGender(selectedVoiceForVideo?.gender);
 
             const ttsResult = await this.googleTTS.generate(
-              scene.narration,
+              ttsText,  // 🔥 narration (본문만)
               googleVoice
             );
 
@@ -338,11 +418,28 @@ export class NewsProjectService {
             audioDuration = ttsResult.audioLength;
 
             // 🔥 Google TTS도 alignment 없음 - 어절 단위로 분리하여 자막 생성
+            // 🔥 FIX: TTS와 동일한 텍스트 사용 (narration만) - 싱크 맞춤
+
+            // 🔥 DEBUG: 자막 생성 전 원본 텍스트 로깅
+            logger.info({
+              scene: i + 1,
+              provider: 'google',
+              ttsText: ttsText?.substring(0, 150),
+            }, '[NewsProject] 🔍 Google TTS 자막 생성 전 텍스트 (DEBUG)');
+
             const googleCaptions = splitNarrationToCaptions(
-              scene.narration,
+              ttsText,  // 🔥 narration 기반 자막 (본문만)
               audioDuration * 1000,  // 밀리초
               cumulativeTime * 1000  // 시작 시간 (밀리초)
             );
+
+            // 🔥 DEBUG: 생성된 자막 내용 로깅
+            logger.info({
+              scene: i + 1,
+              captionCount: googleCaptions.length,
+              captions: googleCaptions.map((c, idx) => ({ idx, text: c.text })),
+            }, '[NewsProject] 🔍 Google TTS 생성된 자막 (DEBUG)');
+
             allCaptions.push(...googleCaptions);
 
             usedProvider = 'google';
@@ -432,6 +529,29 @@ export class NewsProjectService {
         const clipPath = path.join(tempDir, `clip_${i}.mp4`);
 
         if (visual.type === 'video') {
+          // 🔥 FIX: 소스 비디오 duration 사전 검증
+          const sourceDuration = await this.ffmpeg.getVideoDuration(visual.path);
+          const sourceStats = await fs.stat(visual.path);
+
+          logger.info({
+            scene: i + 1,
+            sourcePath: path.basename(visual.path),
+            sourceSize: sourceStats.size,
+            sourceSizeMB: (sourceStats.size / 1024 / 1024).toFixed(2),
+            sourceDuration,
+            requiredDuration: visual.duration,
+            willLoop: sourceDuration < visual.duration,
+          }, '📹 Pexels 비디오 소스 검증');
+
+          // 🔥 소스 비디오가 너무 짧거나 duration=0이면 경고
+          if (sourceDuration <= 0) {
+            logger.error({
+              scene: i + 1,
+              sourcePath: visual.path,
+              sourceDuration,
+            }, '❌ Pexels 비디오 duration=0 (손상된 파일?)');
+          }
+
           // 📹 Pexels 비디오: duration만큼 트림 + 리사이즈
           await this.ffmpeg.trimAndResizeVideo(
             visual.path,
@@ -439,7 +559,7 @@ export class NewsProjectService {
             visual.duration,
             dimensions
           );
-          logger.info({ scene: i + 1, type: 'video', duration: visual.duration }, '✅ 비디오 클립 트림 완료');
+          logger.info({ scene: i + 1, type: 'video', duration: visual.duration, sourceDuration }, '✅ 비디오 클립 트림 완료');
         } else {
           // 🖼️ 이미지: 정적 비디오로 변환
           await this.ffmpeg.createStaticVideoFromMultipleImages(
@@ -453,12 +573,63 @@ export class NewsProjectService {
         sceneClips.push(clipPath);
       }
 
+      // 🔥 FIX: 클립 연결 전 각 클립 파일 검증 (scene 누락 디버깅용)
+      logger.info({ clipCount: sceneClips.length }, '📋 클립 검증 시작');
+      for (let i = 0; i < sceneClips.length; i++) {
+        const clipPath = sceneClips[i];
+        const exists = await fs.pathExists(clipPath);
+        if (!exists) {
+          logger.error({ scene: i + 1, clipPath }, '❌ 클립 파일 누락!');
+          throw new Error(`Scene ${i + 1} 클립 누락: ${clipPath}`);
+        }
+        const stats = await fs.stat(clipPath);
+        if (stats.size < 1000) {  // 1KB 미만은 비정상
+          logger.error({ scene: i + 1, clipPath, size: stats.size }, '❌ 클립 파일 비정상 (너무 작음)');
+          throw new Error(`Scene ${i + 1} 클립 비정상 (크기: ${stats.size}): ${clipPath}`);
+        }
+        // 🔥 클립 duration 확인 (ffprobe)
+        const clipDuration = await this.ffmpeg.getVideoDuration(clipPath);
+        logger.info({
+          scene: i + 1,
+          clipPath: path.basename(clipPath),
+          size: stats.size,
+          duration: clipDuration,
+          expectedDuration: visualDataList[i].duration
+        }, '✅ 클립 검증 통과');
+      }
+
       // 모든 클립 연결
+      const expectedTotalDuration = visualDataList.reduce((sum, v) => sum + v.duration, 0);
+
       if (sceneClips.length > 1) {
         await this.ffmpeg.concatVideos(sceneClips, tempVideoPath);
         logger.info({ clipCount: sceneClips.length }, '✅ 클립 연결 완료');
       } else {
         await fs.copy(sceneClips[0], tempVideoPath);
+      }
+
+      // 🔥 FIX: concat 후 실제 duration 검증 (scene 누락 감지)
+      const actualConcatDuration = await this.ffmpeg.getVideoDuration(tempVideoPath);
+      const durationDiff = Math.abs(actualConcatDuration - expectedTotalDuration);
+
+      logger.info({
+        expectedDuration: expectedTotalDuration,
+        actualDuration: actualConcatDuration,
+        difference: durationDiff,
+        clipCount: sceneClips.length
+      }, '📊 Concat 결과 검증');
+
+      if (durationDiff > 2) {  // 2초 이상 차이나면 경고
+        logger.warn({
+          expectedDuration: expectedTotalDuration,
+          actualDuration: actualConcatDuration,
+          difference: durationDiff,
+          clips: sceneClips.map((c, i) => ({
+            scene: i + 1,
+            path: path.basename(c),
+            expectedDur: visualDataList[i].duration
+          }))
+        }, '⚠️ Concat duration 불일치! Scene 누락 가능성');
       }
 
       logger.info('✅ 비디오 합성 완료');
@@ -519,6 +690,11 @@ export class NewsProjectService {
 
       logger.info({ fontConfig: fontConfig || 'DEFAULT' }, '[NewsProject] 프로젝트 폰트 설정');
 
+      // 🔥 2026-01-19: NewsProject 자막 위치 = 중앙 (h*0.50)
+      const subtitleConfig = {
+        yPosition: 'h*0.50',  // 정치 채널은 중앙 자막
+      };
+
       await this.ffmpeg.combineVideoWithAudioAndCaptions(
         tempVideoPath,
         finalAudioPath,
@@ -529,10 +705,25 @@ export class NewsProjectService {
         { orientation: orientationEnum },
         false, // 자막 활성화
         sceneOverlays,  // 🔥 씬별 제목 오버레이
-        fontConfig      // 🔥 프로젝트별 폰트 설정
+        fontConfig,     // 🔥 프로젝트별 폰트 설정
+        subtitleConfig  // 🔥 중앙 자막 위치
       );
 
-      logger.info({ outputPath, totalDuration }, '✅ 최종 비디오 생성 완료');
+      // 🔥 FIX: 최종 출력 비디오 duration 검증
+      const finalOutputDuration = await this.ffmpeg.getVideoDuration(outputPath);
+      logger.info({
+        outputPath,
+        expectedDuration: totalDuration,
+        actualDuration: finalOutputDuration,
+        difference: Math.abs(finalOutputDuration - totalDuration)
+      }, '✅ 최종 비디오 생성 완료');
+
+      if (Math.abs(finalOutputDuration - totalDuration) > 2) {
+        logger.warn({
+          expectedDuration: totalDuration,
+          actualDuration: finalOutputDuration
+        }, '⚠️ 최종 비디오 duration 불일치!');
+      }
 
       // 임시 파일 정리
       await fs.remove(tempDir);
@@ -561,6 +752,64 @@ export class NewsProjectService {
       }
 
       // ============================================
+      // 🔥 YouTube 자동 업로드
+      // ============================================
+      let youtubeUrl: string | undefined;
+      const youtubeConfig = payload.global_config.youtube;
+      const videoYoutubeConfig = video.youtube;
+
+      // 🔥 n8n payload: channelName만 있으면 업로드 (enabled 체크 제거)
+      if (youtubeConfig?.channelName && this.youtubeUploader) {
+        try {
+          this.updateState(videoId, 'processing', 'YouTube 업로드 중');
+
+          const channelName = youtubeConfig.channelName;
+
+          // 채널 인증 확인
+          if (!this.youtubeUploader.isChannelAuthenticated(channelName)) {
+            logger.warn({ videoId, channelName }, '[NewsProject] YouTube 채널 미인증 - 업로드 스킵');
+          } else {
+            // 🔥 n8n payload 구조에 맞게 메타데이터 구성
+            const hashtags = video.hashtags || youtubeConfig.defaultTags || ['뉴스', 'shorts'];
+            const hashtagString = hashtags.map((t: string) => `#${t}`).join(' ');
+
+            const metadata = {
+              title: video.title || `News ${videoId}`,
+              description: `${video.title}\n\n#shorts ${hashtagString}`,
+              tags: hashtags,
+              privacyStatus: (youtubeConfig.defaultPrivacyStatus || 'unlisted') as 'private' | 'unlisted' | 'public',
+              categoryId: '25', // News & Politics
+            };
+
+            logger.info({
+              videoId,
+              channelName,
+              title: metadata.title,
+              privacy: metadata.privacyStatus
+            }, '[NewsProject] 📺 YouTube 업로드 시작');
+
+            const youtubeVideoId = await this.youtubeUploader.uploadVideo(
+              videoId,
+              channelName,
+              metadata,
+              false // notifySubscribers
+            );
+
+            youtubeUrl = `https://youtube.com/shorts/${youtubeVideoId}`;
+            logger.info({ videoId, youtubeVideoId, youtubeUrl }, '[NewsProject] ✅ YouTube 업로드 완료');
+          }
+        } catch (ytError) {
+          logger.error({ videoId, error: ytError }, '[NewsProject] YouTube 업로드 실패 - 계속 진행');
+        }
+      } else {
+        logger.info({
+          videoId,
+          channelName: youtubeConfig?.channelName,
+          uploaderReady: !!this.youtubeUploader
+        }, '[NewsProject] YouTube 업로드 스킵 (channelName 없음)');
+      }
+
+      // ============================================
       // 완료
       // ============================================
       const result: NewsVideoResult = {
@@ -570,6 +819,7 @@ export class NewsProjectService {
         duration: totalDuration,
         downloadUrl,
         gcsPath,
+        youtubeUrl,
       };
 
       const state = this.states.get(videoId);

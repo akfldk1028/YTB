@@ -18,11 +18,13 @@ export type { Caption };
  */
 export interface NewsScene {
   scene_id: number;
-  scene_type?: 'intro' | 'news' | 'outro';
-  narration: string;       // TTS 텍스트
+  scene_type?: string;     // 'intro' | 'news' | 'news_1' | 'news_2' | ... | 'outro'
+  news_rank?: number;      // v1.6 형식: scene_type='news' + news_rank=1,2,3,4
+  narration: string;       // TTS 내용 텍스트
+  news_title?: string;     // 🔥 TTS로 읽을 뉴스 제목 (narration 앞에 읽음)
   image_prompt: string;    // 이미지 생성 프롬프트
   duration: number;        // 예상 길이
-  text_overlay?: string;   // 화면 텍스트
+  text_overlay?: string;   // 화면 텍스트 (2줄 제목)
 }
 
 /**
@@ -33,6 +35,7 @@ export interface NewsVideo {
   title: string;
   theme?: string;
   scenes: NewsScene[];
+  hashtags?: string[];  // 🔥 n8n payload: video.hashtags
   source_news?: Array<{ title: string; link: string; rank: number }>;
   youtube?: {
     finalTitle: string;
@@ -92,6 +95,9 @@ export interface NewsPayload {
     audio: {
       voice: string;
       tts_provider?: 'elevenlabs' | 'google' | 'gemini';  // TTS 프로바이더 선택
+      // 🔥 TTS 스타일 (Gemini Director's Notes)
+      // 예: "발랄하고 에너지 넘치는 뉴스 앵커" 또는 "차분하고 신뢰감 있는 앵커"
+      tts_style?: string;
     };
     video: {
       orientation: 'portrait' | 'landscape';
@@ -101,9 +107,12 @@ export interface NewsPayload {
     nanoBanana?: {
       defaultStyle?: string;
     };
+    // 🔥 n8n payload 구조에 맞게 수정
     youtube?: {
-      enabled: boolean;
       channelName: string;
+      channelId?: string;
+      defaultTags?: string[];
+      defaultPrivacyStatus?: 'private' | 'unlisted' | 'public';
     };
   };
   videos: NewsVideo[];

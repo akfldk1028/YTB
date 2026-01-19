@@ -74,12 +74,24 @@ export function splitNarrationToCaptions(
     maxDurationMs?: number;  // 최대 자막 표시 시간 (기본 4000ms)
     groupSize?: number;      // 그룹당 최대 어절 수 (기본 5)
     maxCaptions?: number;    // 🔥 최대 자막 수 제한 (기본 8)
+    initialDelayMs?: number; // 🔥 TTS 시작 지연 (기본 300ms) - 자막이 TTS보다 빨리 나오는 문제 해결
   }
 ): Caption[] {
   const minDuration = options?.minDurationMs ?? 400;
   const maxDuration = options?.maxDurationMs ?? 4000;
   const groupSize = options?.groupSize ?? 5;  // 🔥 3 → 5 (더 큰 그룹)
   const maxCaptions = options?.maxCaptions ?? 8;  // 🔥 씬당 최대 8개 자막
+  const initialDelay = options?.initialDelayMs ?? 500;  // 🔥 TTS startup delay 보정 (자막이 빠름 → 500ms)
+
+  // 🔥 DEBUG: 입력 narration 검증 (자막 corruption 추적용)
+  const narrationHex = Buffer.from(narration, 'utf-8').toString('hex');
+  logger.debug({
+    narrationInput: narration.substring(0, 100),
+    narrationHex: narrationHex.substring(0, 150),
+    narrationLength: narration.length,
+    totalDurationMs,
+    startTimeMs
+  }, '[CAPTION SPLIT DEBUG] 입력 narration 검증');
 
   // 공백 기준 어절 분리 (빈 문자열 제거)
   const words = narration.split(/\s+/).filter(w => w.length > 0);
@@ -118,45 +130,61 @@ export function splitNarrationToCaptions(
   const unitTexts = processedUnits.map(group => group.join(' '));
   const timeRatios = calculateTimeRatios(unitTexts);
 
+  // 🔥 실제 자막에 사용할 duration (initialDelay 제외)
+  const effectiveDuration = totalDurationMs - initialDelay;
+
   // Caption 생성
   const captions: Caption[] = [];
-  let currentTime = startTimeMs;
+  // 🔥 TTS startup delay 적용 - 자막이 TTS보다 빨리 나오는 문제 해결
+  let currentTime = startTimeMs + initialDelay;
 
   for (let i = 0; i < processedUnits.length; i++) {
     const text = unitTexts[i];
     const ratio = timeRatios[i];
 
-    // 시간 할당 (비율 기반)
-    let duration = totalDurationMs * ratio;
+    // 시간 할당 (비율 기반) - 🔥 effectiveDuration 사용 (initialDelay 제외)
+    let duration = effectiveDuration * ratio;
 
     // 최소/최대 제한 적용
     duration = Math.max(minDuration, Math.min(maxDuration, duration));
 
+    // 🔥 FIX: 자막 타이밍 겹침 방지
+    // Math.round() 대신 ceil/floor 사용하여 겹침 방지
+    // startMs는 올림, endMs는 내림 → 최소 1ms 갭 보장
+    const captionStartMs = Math.ceil(currentTime);
+    const captionEndMs = Math.floor(currentTime + duration);
+
     captions.push({
       text,
-      startMs: Math.round(currentTime),
-      endMs: Math.round(currentTime + duration),
+      startMs: captionStartMs,
+      endMs: captionEndMs,
     });
 
     currentTime += duration;
   }
 
-  // 마지막 자막의 endMs를 전체 duration에 맞춤
+  // 🔥 마지막 자막의 endMs를 전체 duration에 맞춤 (initialDelay 고려)
   if (captions.length > 0) {
     const lastCaption = captions[captions.length - 1];
     const expectedEndMs = startTimeMs + totalDurationMs;
+    const captionStartTime = startTimeMs + initialDelay;  // 🔥 자막 시작 시간 (delay 포함)
 
     // 시간 조정이 필요하면 비례 조정
     if (lastCaption.endMs !== expectedEndMs) {
-      const scaleFactor = totalDurationMs / (lastCaption.endMs - startTimeMs);
-      let adjustedTime = startTimeMs;
+      // 🔥 scaleFactor 계산: 자막 시작부터 끝까지의 비율
+      const actualCaptionDuration = lastCaption.endMs - captionStartTime;
+      const targetCaptionDuration = totalDurationMs - initialDelay;
+      const scaleFactor = targetCaptionDuration / actualCaptionDuration;
+
+      let adjustedTime = captionStartTime;  // 🔥 initialDelay 이후부터 시작
 
       for (const caption of captions) {
         const originalDuration = caption.endMs - caption.startMs;
-        caption.startMs = Math.round(adjustedTime);
+        // 🔥 FIX: 자막 타이밍 겹침 방지 (ceil/floor 사용)
+        caption.startMs = Math.ceil(adjustedTime);
         const adjustedDuration = originalDuration * scaleFactor;
         adjustedTime += adjustedDuration;
-        caption.endMs = Math.round(adjustedTime);
+        caption.endMs = Math.floor(adjustedTime);
       }
 
       // 마지막 자막 endMs 정확히 맞춤
@@ -164,13 +192,23 @@ export function splitNarrationToCaptions(
     }
   }
 
+  // 🔥 DEBUG: 최종 자막 텍스트 검증 (corruption 추적용)
+  const captionTexts = captions.map(c => c.text);
+  const captionHexSamples = captions.slice(0, 3).map(c => ({
+    text: c.text.substring(0, 30),
+    hex: Buffer.from(c.text, 'utf-8').toString('hex').substring(0, 60)
+  }));
+
   logger.debug({
     narration: narration.substring(0, 50) + '...',
     wordCount: words.length,
     captionCount: captions.length,
+    captionTexts: captionTexts.slice(0, 5),  // 첫 5개 자막 텍스트
+    captionHexSamples,  // 첫 3개 자막 hex
     totalDurationMs,
+    initialDelayMs: initialDelay,
     grouped: shouldGroup,
-  }, '[KoreanCaptionSplitter] 자막 분리 완료');
+  }, '[KoreanCaptionSplitter] 자막 분리 완료 (자막 텍스트 검증)');
 
   return captions;
 }

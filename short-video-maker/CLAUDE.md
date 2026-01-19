@@ -53,7 +53,37 @@ YouTube Shorts 자동 생성 시스템. 캐릭터 기반 일관성 있는 영상
 | profileId | channelName | characters |
 |-----------|-------------|------------|
 | `cat-couple` | `why_cat` | `kami`, `dalgi` |
-| `otter-couple` | `수달TV` | `husband`, `wife` |
+
+### YouTube 채널 구조
+
+| channelName | YouTube 채널 | Type |
+|-------------|-------------|:----:|
+| `clickaround` | ClickAround | **Main** |
+| `why_cat` | 왜저러냥 | Sub |
+| `red_news` | 빨강나라 보수공주 | 🔴 News |
+| `blue_news` | 파랑나라 진보왕자 | 🔵 News |
+
+**계정**: clickaround8@gmail.com (전체 동일)
+
+---
+
+## 뉴스 채널 (NewsProject)
+
+| channelName | YouTube 채널 | Channel ID | 성향 |
+|-------------|-------------|------------|------|
+| `red_news` | 빨강나라 보수공주 | UC8wQlyHC7iYjzZYBoOAYaKw | 🔴 보수 |
+| `blue_news` | 파랑나라 진보왕자 | UC7Pj-MJOYkYgONLsk3uejSA | 🔵 진보 |
+
+**n8n 워크플로우**: `docs/NewsProject/YTB_260118_NEWS_VIDEO_v1.9.json`
+
+### 뉴스 워크플로우 옵션
+
+```javascript
+// Set Channel Type 노드에서 설정
+channel_type: "red_news" | "blue_news" | "news_politics" | "news_economy" | "news_social"
+tone: "conservative_fun" | "progressive_fun" | "neutral_fun" | ...
+target: "ajae" | "mz" | "senior"
+```
 
 ---
 
@@ -167,6 +197,9 @@ gcloud secrets versions add YOUTUBE_DATA --data-file=youtube-data.tar.gz
 - `docs/2025-12-22-scene-character-and-frame-interpolation.md` - Scene별 캐릭터 + VEO 3.1
 - `src/YTB-news-project/README.md` - 뉴스 비디오 생성 가이드 (Gemini TTS, 한글 자막)
 - `src/YTB-ffmpeg/README.md` - FFmpeg 모듈 (비디오 합성, loop 처리)
+- `docs/Update/NEWS_CHANNEL_SETUP.md` - 🔴🔵 빨강나라/파랑나라 뉴스 채널 설정
+- `docs/Update/YOUTUBE_TOKEN_UPDATE.md` - YouTube 토큰 업데이트 가이드
+- `docs/NewsProject/news_channel_config.js` - n8n 채널 설정 참조
 
 ---
 

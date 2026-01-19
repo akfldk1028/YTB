@@ -4,8 +4,25 @@ import { logger } from "../../logger";
 import { OrientationEnum, type Video } from "../../types/shorts";
 
 // 🔥 뉴스에 적합한 jokerTerms - 최후의 수단에도 관련성 있는 영상이 나오도록
-const jokerTerms: string[] = ["technology", "business office", "corporate", "city skyline", "modern building"];
-const imageJokerTerms: string[] = ["news broadcast", "business meeting", "technology office", "corporate"];
+// 정치/뉴스 관련 용어를 우선 배치하여 뉴스 콘텐츠에 더 적합한 fallback 제공
+const jokerTerms: string[] = [
+  "politician speech",      // 정치인 연설 - 뉴스에 가장 적합
+  "press conference",       // 기자회견
+  "parliament",             // 국회/의회
+  "government building",    // 정부 청사
+  "business meeting",       // 비즈니스 미팅
+  "corporate office",       // 기업 사무실
+  "city skyline",           // 도시 스카이라인
+  "technology",             // 기술
+];
+const imageJokerTerms: string[] = [
+  "politician speech",      // 정치인 연설
+  "press conference",       // 기자회견
+  "government official",    // 정부 관료
+  "news broadcast",         // 뉴스 방송
+  "business meeting",       // 비즈니스 미팅
+  "parliament",             // 국회
+];
 const durationBufferSeconds = 3;
 const defaultTimeoutMs = 5000;
 const retryTimes = 3;
