@@ -228,29 +228,36 @@ export class BooksVideoService {
       }
 
       // ============================================
-      // Step 2: 이미지 → 비디오 변환
+      // Step 2: 이미지 → 비디오 변환 (개별 처리 후 concat)
+      // 🔥 FIX: 8개 이미지를 한번에 concat하면 FFmpeg 필터 복잡도 문제 발생
+      // 개별 scene 비디오 생성 → concat → 오디오+자막 합성
       // ============================================
-      logger.info({ imageCount: imagePaths.length }, '🖼️ 이미지 → 비디오 변환 중');
+      logger.info({ imageCount: imagePaths.length }, '🖼️ 이미지 → 비디오 변환 중 (개별 처리)');
 
       const orientation = inputConfig?.orientation || 'portrait';
       const dimensionStr = orientation === 'portrait'
         ? VIDEO_DIMENSIONS.PORTRAIT
         : VIDEO_DIMENSIONS.LANDSCAPE;
 
-      // 이미지 데이터 준비 (각 이미지의 duration)
-      const imageDataList = imagePaths.map((imagePath, i) => ({
-        imagePath,
-        duration: sceneDurations[i],
-      }));
+      // Step 2-1: 각 이미지를 개별 scene 비디오로 변환
+      const sceneVideoPaths: string[] = [];
+      for (let i = 0; i < imagePaths.length; i++) {
+        const sceneVideoPath = path.join(tempDir, `scene_${i}.mp4`);
+        await this.ffmpeg.createStaticVideoFromImage(
+          imagePaths[i],
+          sceneVideoPath,
+          sceneDurations[i],
+          dimensionStr
+        );
+        sceneVideoPaths.push(sceneVideoPath);
+        logger.debug({ sceneIndex: i, duration: sceneDurations[i] }, `✅ Scene ${i + 1} 비디오 생성`);
+      }
 
+      // Step 2-2: scene 비디오들을 concat (stream copy로 빠르게)
       const tempVideoPath = path.join(tempDir, `temp_video.mp4`);
-      await this.ffmpeg.createStaticVideoFromMultipleImages(
-        imageDataList,
-        tempVideoPath,
-        dimensionStr
-      );
+      await this.ffmpeg.concatVideos(sceneVideoPaths, tempVideoPath);
 
-      logger.info({ totalDuration: cumulativeTime }, '✅ 이미지 비디오 생성 완료');
+      logger.info({ totalDuration: cumulativeTime, sceneCount: sceneVideoPaths.length }, '✅ 이미지 비디오 생성 완료 (개별 처리 + concat)');
 
       // ============================================
       // Step 3: 오디오 연결
