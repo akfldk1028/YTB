@@ -155,11 +155,20 @@ async function main() {
     }
   }
 
-  // Initialize Image Generation service (includes NANO BANANA) if Gemini API key is available
+  // Initialize Image Generation service (includes NANO BANANA and GPT Image) if Gemini API key is available
   let imageGenerationService: ImageGenerationService | null = null;
   if (config.googleGeminiApiKey) {
     logger.debug("initializing image generation service with nano banana support");
-    imageGenerationService = new ImageGenerationService(config.googleGeminiApiKey, ImageModelType.NANO_BANANA, config.tempDirPath);
+    // 🔥 OpenAI API key for GPT-First mode (gpt-image-1.5)
+    imageGenerationService = new ImageGenerationService(
+      config.googleGeminiApiKey,
+      ImageModelType.NANO_BANANA,
+      config.tempDirPath,
+      config.openaiApiKey  // 🔥 GPT Image 1.5 지원
+    );
+    if (config.openaiApiKey) {
+      logger.info("GPT Image 1.5 support enabled (OpenAI API key found)");
+    }
   } else {
     logger.warn("Gemini API key not configured, image generation will not be available");
   }

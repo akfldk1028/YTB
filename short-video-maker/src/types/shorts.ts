@@ -141,6 +141,10 @@ export const renderConfig = z.object({
     .boolean()
     .optional()
     .describe("Skip TTS generation - use only BGM and sound effects without voice narration"),
+  useGPTFirst: z
+    .boolean()
+    .optional()
+    .describe("Use GPT-4o for first scene, then NanoBanana with GPT image as reference for consistency"),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 

@@ -126,6 +126,7 @@ export class NanoBananaService {
 
   /**
    * Build Nano Banana API request with multi-image support
+   * Reference 이미지가 있을 때 프롬프트에 명시적 일관성 지시 추가
    */
   private buildNanoBananaRequest(query: ImageGenerationQuery) {
     const config: any = {
@@ -138,17 +139,13 @@ export class NanoBananaService {
     // Note: candidateCount not supported by gemini-2.5-flash-image-preview
     // Each API call generates exactly 1 image
 
-    const parts: any[] = [
-      {
-        text: query.prompt
-      }
-    ];
+    const parts: any[] = [];
 
-    // Add reference images for multi-image context (up to 3 images supported)
+    // Reference 이미지가 있으면 먼저 추가 (이미지 -> 텍스트 순서)
     if (query.referenceImages && query.referenceImages.length > 0) {
       const maxReferenceImages = Math.min(query.referenceImages.length, 3);
-      logger.debug({ referenceImageCount: maxReferenceImages }, "Adding reference images to request");
-      
+      logger.debug({ referenceImageCount: maxReferenceImages }, "Adding reference images FIRST to request");
+
       for (let i = 0; i < maxReferenceImages; i++) {
         const refImage = query.referenceImages[i];
         parts.push({
@@ -158,6 +155,30 @@ export class NanoBananaService {
           }
         });
       }
+
+      // 🔥 FIX: 각 이미지의 역할을 명시적으로 설명 (공식 문서 권장 방식)
+      // "Image 1: ...", "Image 2: ..." 형식으로 AI가 각 입력을 명확히 이해하게 함
+      let imageDescriptions = '';
+      for (let imgIdx = 0; imgIdx < maxReferenceImages; imgIdx++) {
+        if (imgIdx === 0) {
+          imageDescriptions += `Image ${imgIdx + 1}: Main character reference sheet showing the character's appearance, face, hairstyle, and clothing.\n`;
+        } else {
+          imageDescriptions += `Image ${imgIdx + 1}: Additional character reference from different angle/pose.\n`;
+        }
+      }
+
+      const consistencyInstruction = `${imageDescriptions}
+Generate a new scene with this EXACT SAME character. The character's face, hairstyle, clothing, and all visual features must be IDENTICAL to the reference images above. This is the same person.
+
+New scene: `;
+      parts.push({
+        text: consistencyInstruction + query.prompt
+      });
+    } else {
+      // Reference 이미지 없으면 프롬프트만
+      parts.push({
+        text: query.prompt
+      });
     }
 
     return {

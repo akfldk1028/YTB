@@ -29,6 +29,17 @@ YouTube Shorts 자동 생성 시스템. 캐릭터 기반 일관성 있는 영상
 | `POST` | `/api/video/consistent-shorts` | 캐릭터 기반 영상 생성 |
 | `GET` | `/api/video/consistent-shorts/:videoId/status` | 생성 상태 확인 |
 
+### 이미지 생성 (GPT-to-NanoBanana)
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| `POST` | `/api/gpt-to-nanobanana/generate` | GPT 지브리 → NanoBanana 동일성 이미지 |
+| `GET` | `/api/gpt-to-nanobanana/:testId` | 생성된 이미지 결과 조회 |
+
+**워크플로우:**
+1. **Scene 1**: GPT-4o로 지브리 스타일 첫 이미지 생성 (~45초)
+2. **Scene 2~N**: NanoBanana로 GPT 이미지를 레퍼런스로 동일성 유지 이미지 생성 (~10초/장)
+
 ### 뉴스 비디오 생성 (NewsProject)
 
 | Method | Endpoint | 설명 |
@@ -151,6 +162,41 @@ target: "ajae" | "mz" | "senior"
 
 ---
 
+## GPT-to-NanoBanana 요청/응답 예시
+
+**요청:**
+```json
+{
+  "character": {
+    "description": "A cute orange tabby cat with green eyes, fluffy fur, anime style"
+  },
+  "scenes": [
+    { "text": "Cat sitting in a magical forest with glowing mushrooms" },
+    { "text": "Cat walking along a riverbank at sunset" }
+  ],
+  "config": {
+    "aspectRatio": "9:16"
+  }
+}
+```
+
+**응답:**
+```json
+{
+  "success": true,
+  "testId": "gpt2nano_1768972263931",
+  "outputDir": ".../.ai-agents-az-video-generator/temp/gpt-to-nanobanana/gpt2nano_xxx",
+  "images": [
+    { "scene": 0, "path": ".../scene_1_gpt.png", "method": "gpt", "timeMs": 47589, "success": true },
+    { "scene": 1, "path": ".../scene_2_nano.png", "method": "nanoBanana", "timeMs": 10377, "success": true }
+  ],
+  "summary": { "total": 2, "success": 2, "failed": 0 },
+  "totalTimeMs": 57971
+}
+```
+
+---
+
 ## 프로젝트 구조
 
 ```
@@ -225,6 +271,17 @@ curl -X POST ".../api/video/consistent-shorts" \
 # YouTube 채널 목록
 curl -s ".../api/youtube/channels"
 
+# GPT-to-NanoBanana 이미지 생성 (동일성 테스트)
+curl -X POST ".../api/gpt-to-nanobanana/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "character": {"description": "A cute orange cat, anime style"},
+    "scenes": [
+      {"text": "Cat in a forest"},
+      {"text": "Cat by a river"}
+    ]
+  }'
+
 # 뉴스 비디오 생성 (finalNode.json 사용)
 curl -X POST ".../api/news/create" \
   -H "Content-Type: application/json" \
@@ -235,4 +292,40 @@ curl -s ".../api/news/status/{videoId}"
 
 # 뉴스 비디오 다운로드
 curl -L -o output.mp4 ".../api/news/download/{videoId}"
+```
+
+---
+
+## 트러블슈팅
+
+### GPT Image 400 에러 (moderation_blocked)
+
+OpenAI 모더레이션이 **생존 아티스트 이름**을 차단함.
+
+| 차단됨 ❌ | 허용됨 ✅ |
+|----------|----------|
+| "Studio Ghibli" | "Ghibli-style" |
+| "Hayao Miyazaki" | "hand-painted aesthetic" |
+| "Makoto Shinkai" | "whimsical dreamlike" |
+
+**파일**: `src/image-generation/services/GPTImageService.ts`
+**참고**: https://docs.aihubmix.com/en/api/GPT-Image-1
+
+---
+
+## Books 프로젝트
+
+책/논문 → Neo4j GraphRAG → Ghibli Shorts 자동 생성
+
+**문서**: `src/YTB-books-project/README.md`
+**Neo4j**: `bolt://34.47.112.49:7687` (user: neo4j)
+
+```bash
+# 연결 테스트
+curl http://localhost:3124/api/books/connection
+
+# AI 분석
+curl -X POST http://localhost:3124/api/books/AR_TALK.pdf/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"episodeCount": 1}'
 ```

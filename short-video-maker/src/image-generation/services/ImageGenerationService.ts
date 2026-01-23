@@ -1,5 +1,6 @@
 import { ImagenService } from "./ImagenService";
 import { NanoBananaService } from "./NanoBananaService";
+import { GPTImageService } from "./GPTImageService";
 import { ImageModelType, getModelConfig } from "../models/imageModels";
 import { ImageGenerationQuery, ImageGenerationResult } from "../types/imagen";
 import { logger } from "../../config";
@@ -11,18 +12,30 @@ import { logger } from "../../config";
 export class ImageGenerationService {
   private imagenService?: ImagenService;
   private nanoBananaService?: NanoBananaService;
+  private gptImageService?: GPTImageService;
   private currentModel: ImageModelType;
 
-  constructor(apiKey: string, defaultModel: ImageModelType = ImageModelType.IMAGEN_4, tempDirPath?: string) {
+  constructor(
+    apiKey: string,
+    defaultModel: ImageModelType = ImageModelType.IMAGEN_4,
+    tempDirPath?: string,
+    openAiApiKey?: string  // 🔥 OpenAI API 키 (GPT용)
+  ) {
     if (!apiKey) {
       throw new Error("API key is required for Image Generation Service");
     }
 
     this.currentModel = defaultModel;
-    
+
     // Initialize available services
     this.imagenService = new ImagenService(apiKey);
     this.nanoBananaService = new NanoBananaService(apiKey, tempDirPath);
+
+    // 🔥 GPT Image Service 초기화 (OpenAI API 키가 있으면)
+    if (openAiApiKey) {
+      this.gptImageService = new GPTImageService(openAiApiKey, tempDirPath);
+      logger.info({ model: 'GPT_IMAGE_1' }, 'GPT Image Service initialized');
+    }
   }
 
   /**
@@ -60,6 +73,13 @@ export class ImageGenerationService {
             throw new Error("Nano Banana service not initialized");
           }
           return await this.nanoBananaService.generateImages(query, videoId, sceneIndex);
+
+        // 🔥 GPT Image 지원 추가
+        case ImageModelType.GPT_IMAGE_1:
+          if (!this.gptImageService) {
+            throw new Error("GPT Image service not initialized. Provide OpenAI API key.");
+          }
+          return await this.gptImageService.generateImages(query, videoId, sceneIndex);
 
         default:
           throw new Error(`Unsupported model type: ${this.currentModel}`);
@@ -127,6 +147,13 @@ export class ImageGenerationService {
           }
           return await this.nanoBananaService.testConnection();
 
+        // 🔥 GPT 연결 테스트 추가
+        case ImageModelType.GPT_IMAGE_1:
+          if (!this.gptImageService) {
+            return { success: false, error: "GPT Image service not initialized" };
+          }
+          return await this.gptImageService.testConnection();
+
         default:
           return { success: false, error: `Unsupported model: ${this.currentModel}` };
       }
@@ -149,6 +176,10 @@ export class ImageGenerationService {
 
       case ImageModelType.NANO_BANANA:
         return NanoBananaService.validatePrompt(prompt);
+
+      // 🔥 GPT 프롬프트 검증 추가
+      case ImageModelType.GPT_IMAGE_1:
+        return GPTImageService.validatePrompt(prompt);
 
       default:
         return { valid: false, error: `Unknown model: ${this.currentModel}` };
@@ -183,5 +214,12 @@ export class ImageGenerationService {
    */
   getImagenService(): ImagenService | undefined {
     return this.imagenService;
+  }
+
+  /**
+   * 🔥 Get direct access to GPTImageService for Ghibli-style generation
+   */
+  getGPTImageService(): GPTImageService | undefined {
+    return this.gptImageService;
   }
 }

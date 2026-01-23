@@ -22,6 +22,14 @@ export interface Caption {
 }
 
 /**
+ * 씬별 자막 수집 결과
+ */
+export interface CollectCaptionsResult {
+  koreanCaptions: Caption[];
+  englishCaptions: Caption[];
+}
+
+/**
  * CaptionService 클래스
  * 자막 생성 및 처리 담당
  */
@@ -148,6 +156,71 @@ export class CaptionService {
     }, "🔥 Generated synced English captions (TTS mode)");
 
     return englishCaptions;
+  }
+
+  /**
+   * 🔥 씬별 자막 수집 (한국어 + 영어)
+   * ConsistentShortsWorkflow의 4곳 중복 코드 통합
+   *
+   * @param sceneData - 씬 데이터 (captions 포함)
+   * @param textEnglish - 영어 텍스트 (선택)
+   * @param sceneDuration - 씬 길이 (초)
+   * @param cumulativeDuration - 누적 시간 오프셋 (초)
+   * @param skipTTS - TTS 스킵 여부 (catproject)
+   * @param sceneIndex - 씬 인덱스 (로깅용)
+   * @returns 오프셋 적용된 한국어/영어 자막
+   */
+  collectSceneCaptions(
+    sceneData: { captions?: any[] },
+    textEnglish: string | undefined,
+    sceneDuration: number,
+    cumulativeDuration: number,
+    skipTTS: boolean,
+    sceneIndex: number
+  ): CollectCaptionsResult {
+    const result: CollectCaptionsResult = {
+      koreanCaptions: [],
+      englishCaptions: []
+    };
+
+    if (!sceneData?.captions || sceneData.captions.length === 0) {
+      return result;
+    }
+
+    // 1. 한국어 자막 오프셋 적용
+    result.koreanCaptions = sceneData.captions.map((caption: any) => ({
+      ...caption,
+      startMs: caption.startMs + (cumulativeDuration * 1000),
+      endMs: caption.endMs + (cumulativeDuration * 1000),
+    }));
+
+    // 2. 영어 자막 생성 + 오프셋 적용
+    // 🔥 FIX: 원본 한국어 자막(오프셋 미적용)을 전달해야 함
+    // result.koreanCaptions는 이미 오프셋 적용됨 → 이중 오프셋 버그 발생
+    if (textEnglish) {
+      const englishCaptions = this.generateSyncedEnglishCaptions(
+        textEnglish,
+        sceneData.captions,  // 원본 전달 (오프셋 미적용)
+        sceneDuration,
+        skipTTS
+      );
+      result.englishCaptions = englishCaptions.map((caption: any) => ({
+        ...caption,
+        startMs: caption.startMs + (cumulativeDuration * 1000),
+        endMs: caption.endMs + (cumulativeDuration * 1000),
+        start: caption.start + cumulativeDuration,
+        end: caption.end + cumulativeDuration
+      }));
+    }
+
+    logger.debug({
+      sceneIndex: sceneIndex + 1,
+      koreanCaptionCount: result.koreanCaptions.length,
+      englishCaptionCount: result.englishCaptions.length,
+      cumulativeDuration
+    }, "📝 Collected scene captions");
+
+    return result;
   }
 }
 

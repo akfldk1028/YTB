@@ -5,11 +5,15 @@ import * as path from 'path';
 import axios from 'axios';
 
 /**
- * OpenAI GPT Image Generator (gpt-image-1)
- * OpenAI의 GPT-4o 기반 이미지 생성 모델
+ * OpenAI GPT Image Generator (gpt-image-1.5)
+ * 🔥 2026-01: gpt-image-1 → gpt-image-1.5 업그레이드
+ * - 4x 빠른 생성 속도
+ * - 20% 저렴한 가격
+ * - facial likeness consistent across edits (얼굴 일관성 유지 개선)
+ * - 더 정확한 instruction following
  */
 export class GPTImageGenerator implements IImageGenerator {
-  readonly modelName = 'GPT-Image-1';
+  readonly modelName = 'GPT-Image-1.5';
   private apiKey: string;
   private tempDir: string;
   private baseURL = 'https://api.openai.com/v1/images/generations';
@@ -56,11 +60,12 @@ export class GPTImageGenerator implements IImageGenerator {
         quality: options.quality || 'high'
       }, 'Starting GPT image generation');
 
-      // OpenAI API 요청
+      // OpenAI API 요청 (gpt-image-1.5)
+      // 🔥 GPT Image 모델은 b64_json으로 응답 (기본값)
       const response = await axios.post(
         this.baseURL,
         {
-          model: 'gpt-image-1',
+          model: 'gpt-image-1.5',
           prompt: this.buildPrompt(options),
           size: options.size || '1024x1024',
           quality: options.quality || 'high',
@@ -71,15 +76,15 @@ export class GPTImageGenerator implements IImageGenerator {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: 120000 // 120초 타임아웃 (gpt-image-1은 이미지 생성에 시간이 오래 걸림)
+          timeout: 60000 // 60초 타임아웃 (gpt-image-1.5는 4x 빠름)
         }
       );
 
-      // gpt-image-1 returns base64-encoded image, not URL
+      // gpt-image-1.5 returns base64-encoded image, not URL
       const base64Data = response.data.data[0].b64_json;
 
       if (!base64Data) {
-        throw new Error('No b64_json in response from gpt-image-1 API');
+        throw new Error('No b64_json in response from gpt-image-1.5 API');
       }
 
       // Convert base64 to Buffer

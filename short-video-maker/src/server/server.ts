@@ -14,6 +14,7 @@ import { NanoBananaAPIRouter } from "./api/nano-banana";
 import { VEO3APIRouter } from "./api/veo3";
 import { ConsistentShortsAPIRouter } from "./api/consistent-shorts";
 import { CharacterAPIRouter } from "./api/characters";
+import { GPTToNanoBananaRouter } from "./api/gpt-to-nanobanana";
 import { YouTubeRoutes } from "../youtube-upload/routes/youtubeRoutes";
 import { YouTubeUploader } from "../youtube-upload/services/YouTubeUploader";
 import { YouTubeAnalyticsService } from "../youtube-analytics/services/YouTubeAnalyticsService";
@@ -21,6 +22,7 @@ import { createAnalyticsRoutes } from "../youtube-analytics/routes/analyticsRout
 import { GoogleSheetsService, createSheetRoutes } from "../YTB-sheet";
 import { politicsRouter } from "../politics-project";
 import { newsRouter } from "../YTB-news-project";
+import { createBooksRouter } from "../YTB-books-project/src/api/BooksRouter";
 import { logger } from "../logger";
 import { Config } from "../config";
 
@@ -66,6 +68,11 @@ export class Server {
     this.app.use("/api/characters", characterAPIRouter.router);
     logger.info("Character Storage API mounted at /api/characters");
 
+    // Mount GPT-to-NanoBanana API (GPT 지브리 → NanoBanana 동일성 유지)
+    const gptToNanoBananaRouter = new GPTToNanoBananaRouter(config);
+    this.app.use("/api/gpt-to-nanobanana", gptToNanoBananaRouter.router);
+    logger.info("GPT-to-NanoBanana API mounted at /api/gpt-to-nanobanana");
+
     // Mount Politics Project API (YouTube to Shorts converter)
     this.app.use("/api/politics", politicsRouter);
     logger.info("Politics Project API mounted at /api/politics");
@@ -73,6 +80,10 @@ export class Server {
     // Mount News Project API (n8n News Shorts generator)
     this.app.use("/api/news", newsRouter);
     logger.info("News Project API mounted at /api/news");
+
+    // Mount Books Project API (Neo4j → Shorts generator)
+    this.app.use("/api/books", createBooksRouter());
+    logger.info("Books Project API mounted at /api/books");
 
     // Mount YouTube upload routes if uploader is available
     if (youtubeUploader) {

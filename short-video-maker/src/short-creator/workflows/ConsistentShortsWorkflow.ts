@@ -11,12 +11,13 @@ import { ImageGenerationService } from "../../image-generation/services/ImageGen
 import { ImageModelType } from "../../image-generation/models/imageModels";
 import { CharacterStorageService } from "../../character-store/CharacterStorageService";
 // CharacterProfile, Character types moved to CharacterHelper.ts
-import type { Scene, SceneInput, AudioConfig, SoundEffectConfig, SceneCharacterImages, TitleTextConfig } from "../../types/shorts";
-// Phase 3 Migration: YTB-tts 모듈로 전환
-import { FreesoundSoundEffects, FREESOUND_PRESETS as FreesoundPresets, LoudlyBGM } from "../../YTB-tts";
-// 🔥 2026-01-19: 분리된 서비스 import
+import type { Scene, SceneInput, AudioConfig, SceneCharacterImages, TitleTextConfig } from "../../types/shorts";
+// 🔥 2026-01-19: 분리된 서비스 import (YTB-tts -> AudioService로 이동)
 import { captionService } from "../services/CaptionService";
 import { characterHelper } from "../services/CharacterHelper";
+import { audioService } from "../services/AudioService";
+import { videoFinalizerService } from "../services/VideoFinalizerService";
+import { veo3ProcessorService } from "../services/VEO3ProcessorService";
 
 /**
  * Minimum scene duration in seconds.
@@ -52,383 +53,6 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
     private characterStorage?: CharacterStorageService
   ) {
     super();
-  }
-
-  /**
-   * 🔥 Generate sound effects using Freesound API (무료)
-   * Returns array of audio file paths with timing info
-   */
-  private async generateSoundEffects(
-    audioConfig: AudioConfig | undefined,
-    tempDirPath: string,
-    sceneDurations: number[],
-    apiKey: string
-  ): Promise<Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }>> {
-    if (!audioConfig || (!audioConfig.soundEffects?.length && !audioConfig.transitionSound)) {
-      return [];
-    }
-
-    const soundEffects = new FreesoundSoundEffects({ apiKey });
-    const overlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }> = [];
-
-    // Calculate cumulative scene start times
-    const sceneStartTimes: number[] = [];
-    let cumulativeTime = 0;
-    for (const duration of sceneDurations) {
-      sceneStartTimes.push(cumulativeTime);
-      cumulativeTime += duration;
-    }
-
-    try {
-      // 1. Generate transition sounds (between scenes)
-      if (audioConfig.transitionSound && sceneDurations.length > 1) {
-        const transitionType = audioConfig.transitionSound.type;
-        const transitionVolume = audioConfig.transitionSound.volume ?? 0.5;
-
-        logger.info({ transitionType, sceneCount: sceneDurations.length }, "🎵 Generating transition sounds from Freesound");
-
-        const transitionResult = await soundEffects.generateTransition(transitionType);
-
-        // Save transition audio once (will be reused)
-        const transitionPath = path.join(tempDirPath, `transition-${cuid()}.mp3`);
-        await fs.writeFile(transitionPath, Buffer.from(transitionResult.audio));
-
-        // Add transition between each scene
-        for (let i = 1; i < sceneDurations.length; i++) {
-          // Place transition sound at scene boundary (slightly before)
-          const transitionTime = sceneStartTimes[i] - 0.3;
-          overlays.push({
-            path: transitionPath,
-            startTime: Math.max(0, transitionTime),
-            volume: transitionVolume
-          });
-        }
-      }
-
-      // 2. Generate custom sound effects
-      if (audioConfig.soundEffects && audioConfig.soundEffects.length > 0) {
-        logger.info({ count: audioConfig.soundEffects.length }, "🎵 Generating custom sound effects from Freesound");
-
-        for (const sfxConfig of audioConfig.soundEffects) {
-          let audioResult;
-
-          if (sfxConfig.type === 'preset') {
-            // Use preset from FreesoundPresets
-            const presetValue = sfxConfig.value ?? '';
-            const presetKey = presetValue as keyof typeof FreesoundPresets;
-            if (presetValue && FreesoundPresets[presetKey]) {
-              audioResult = await soundEffects.generate({
-                text: FreesoundPresets[presetKey],
-                duration_seconds: sfxConfig.duration ?? null
-              });
-            } else {
-              logger.warn({ preset: sfxConfig.value }, "Unknown sound effect preset, using as custom search query");
-              audioResult = await soundEffects.generate({
-                text: presetValue || 'ambient sound',
-                duration_seconds: sfxConfig.duration ?? null
-              });
-            }
-          } else if (sfxConfig.type === 'freesound') {
-            // 🔥 Freesound custom search query using 'prompt' field
-            const searchQuery = sfxConfig.prompt ?? sfxConfig.value ?? 'ambient sound';
-            logger.info({ searchQuery, type: 'freesound' }, "🎵 Freesound custom search");
-            audioResult = await soundEffects.generate({
-              text: searchQuery,
-              duration_seconds: sfxConfig.duration ?? null
-            });
-          } else {
-            // Custom description (used as search query) - legacy support
-            audioResult = await soundEffects.generate({
-              text: sfxConfig.prompt ?? sfxConfig.value ?? 'ambient sound',
-              duration_seconds: sfxConfig.duration ?? null
-            });
-          }
-
-          if (audioResult) {
-            const sfxPath = path.join(tempDirPath, `sfx-${cuid()}.mp3`);
-            await fs.writeFile(sfxPath, Buffer.from(audioResult.audio));
-
-            // 🔥 Calculate start time based on sceneIndex or absolute startTime
-            let calculatedStartTime: number;
-            if (sfxConfig.sceneIndex !== undefined && sfxConfig.sceneIndex < sceneStartTimes.length) {
-              // Scene-based timing (recommended): sceneStartTime + offset
-              calculatedStartTime = sceneStartTimes[sfxConfig.sceneIndex] + (sfxConfig.offset ?? 0);
-              logger.info({
-                sceneIndex: sfxConfig.sceneIndex,
-                sceneStartTime: sceneStartTimes[sfxConfig.sceneIndex],
-                offset: sfxConfig.offset ?? 0,
-                calculatedStartTime
-              }, "🎯 Sound effect synced to scene");
-            } else {
-              // Absolute timing (legacy)
-              calculatedStartTime = sfxConfig.startTime ?? 0;
-            }
-
-            overlays.push({
-              path: sfxPath,
-              startTime: Math.max(0, calculatedStartTime),
-              volume: sfxConfig.volume ?? 0.5
-            });
-
-            logger.info({
-              preset: sfxConfig.value,
-              soundName: audioResult.soundName,
-              soundId: audioResult.soundId,
-              startTime: calculatedStartTime
-            }, "✅ Sound effect from Freesound");
-          }
-        }
-      }
-
-      logger.info({ overlayCount: overlays.length }, "✅ Sound effects generated from Freesound");
-      return overlays;
-
-    } catch (error) {
-      logger.error({
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      }, "❌ Failed to generate sound effects, continuing without them");
-      return [];
-    }
-  }
-
-  /**
-   * 🎵 Generate background music using Loudly API (or local fallback)
-   * Returns audio overlay info for mixing with other audio
-   */
-  private async generateBackgroundMusic(
-    audioConfig: AudioConfig | undefined,
-    tempDirPath: string,
-    totalDuration: number,
-    videoId: string
-  ): Promise<{ path: string; startTime: number; volume: number; loop: boolean; seekStart?: number } | null> {
-    if (!audioConfig?.backgroundMusic) {
-      return null;
-    }
-
-    const bgmConfig = audioConfig.backgroundMusic;
-
-    logger.info({
-      source: bgmConfig.source,
-      volume: bgmConfig.volume,
-      loop: bgmConfig.loop,
-      totalDuration
-    }, "🎵 Generating background music");
-
-    try {
-      const loudlyBGM = new LoudlyBGM();
-
-      // Generate BGM based on source type
-      let bgmResult;
-
-      if (typeof bgmConfig.source === 'string') {
-        // Check if it's a URL, preset, or mood
-        if (bgmConfig.source.startsWith('http://') || bgmConfig.source.startsWith('https://')) {
-          // Direct URL: download and use as BGM
-          logger.info({ url: bgmConfig.source }, '📥 Downloading BGM from URL...');
-          const response = await fetch(bgmConfig.source);
-          if (!response.ok) {
-            throw new Error(`Failed to download BGM: ${response.status} ${response.statusText}`);
-          }
-          const audioBuffer = await response.arrayBuffer();
-          bgmResult = {
-            audio: new Uint8Array(audioBuffer),
-            trackTitle: 'Custom URL BGM',
-            source: 'url',
-            license: 'user-provided',
-            duration: totalDuration
-          };
-        } else if (bgmConfig.source.startsWith('preset:')) {
-          // Use preset: "preset:CAT_CUTE"
-          const presetName = bgmConfig.source.replace('preset:', '');
-          bgmResult = await loudlyBGM.generateFromPreset(presetName as any, totalDuration);
-        } else {
-          // Use as mood or text prompt
-          bgmResult = await loudlyBGM.generateForMood(bgmConfig.source, totalDuration);
-        }
-      } else {
-        // MusicMoodEnum
-        bgmResult = await loudlyBGM.generateForMood(bgmConfig.source, totalDuration);
-      }
-
-      // Save BGM to file
-      const bgmPath = path.join(tempDirPath, `bgm_${videoId}.mp3`);
-      // Handle both Uint8Array and ArrayBuffer types
-      const audioBuffer = bgmResult.audio instanceof Uint8Array
-        ? Buffer.from(bgmResult.audio.buffer, bgmResult.audio.byteOffset, bgmResult.audio.byteLength)
-        : Buffer.from(bgmResult.audio);
-      await fs.writeFile(bgmPath, audioBuffer);
-
-      logger.info({
-        bgmPath,
-        trackTitle: bgmResult.trackTitle,
-        source: bgmResult.source,
-        license: bgmResult.license,
-        duration: bgmResult.duration
-      }, "✅ Background music generated");
-
-      return {
-        path: bgmPath,
-        startTime: 0,  // BGM starts at beginning
-        volume: bgmConfig.volume ?? 0.3,  // Default lower volume for BGM
-        loop: bgmConfig.loop ?? true,  // Default to loop
-        seekStart: bgmConfig.seekStart ?? 0  // 🔥 Skip first N seconds (for BGM intro skip)
-      };
-
-    } catch (error) {
-      logger.error({
-        error: error instanceof Error ? error.message : String(error),
-        source: bgmConfig.source
-      }, "❌ Failed to generate background music, continuing without it");
-      return null;
-    }
-  }
-
-  /**
-   * 🔥 Mix audio files with sound effects and BGM (modularized for reuse)
-   *
-   * This method handles:
-   * 1. Concatenating TTS audio files
-   * 2. Generating sound effects (transitions + custom)
-   * 3. Generating background music (Loudly API or local)
-   * 4. Mixing everything together with FFmpeg
-   *
-   * @returns Path to mixed audio file, or undefined if no audio processing needed
-   */
-  private async mixAudioWithSoundEffects(params: {
-    audioFiles: string[];
-    sceneDurations: number[];
-    audioConfig: AudioConfig | undefined;
-    apiKey: string | undefined;
-    tempDirPath: string;
-    videoId: string;
-    skipTTS?: boolean;  // 🔥 skipTTS mode support
-  }): Promise<string | undefined> {
-    const { audioFiles, sceneDurations, audioConfig, apiKey, tempDirPath, videoId, skipTTS } = params;
-    const totalDuration = sceneDurations.reduce((sum, d) => sum + d, 0);
-
-    // Check if we have any audio processing to do
-    const hasTTSAudio = audioFiles.length > 0;
-    const hasSoundEffects = audioConfig && (audioConfig.soundEffects?.length || audioConfig.transitionSound);
-    const hasBGM = audioConfig?.backgroundMusic;
-
-    // Skip if no audio config and not in skipTTS mode
-    if (!audioConfig && !skipTTS) {
-      logger.warn({
-        hasAudioConfig: !!audioConfig,
-        skipTTS
-      }, "⚠️ No audio configuration, skipping audio processing");
-      return undefined;
-    }
-
-    // Skip if no audio files AND not in skipTTS mode AND no BGM
-    if (!hasTTSAudio && !skipTTS && !hasBGM) {
-      logger.warn("No audio files to mix");
-      return undefined;
-    }
-
-    logger.info({
-      hasTTSAudio,
-      hasSoundEffects,
-      hasBGM,
-      skipTTS,
-      totalDuration
-    }, "🎵 Audio configuration detected, processing...");
-
-    try {
-      // 1. Generate sound effects (if API key available)
-      let soundEffectOverlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }> = [];
-      if (hasSoundEffects && apiKey) {
-        soundEffectOverlays = await this.generateSoundEffects(
-          audioConfig,
-          tempDirPath,
-          sceneDurations,
-          apiKey
-        );
-      }
-
-      // 2. Generate background music
-      const bgmOverlay = await this.generateBackgroundMusic(
-        audioConfig,
-        tempDirPath,
-        totalDuration,
-        videoId
-      );
-
-      // Combine all overlays (BGM first, then sound effects)
-      const allOverlays: Array<{ path: string; startTime: number; volume: number; loop?: boolean; seekStart?: number }> = [];
-      if (bgmOverlay) {
-        allOverlays.push(bgmOverlay);
-      }
-      allOverlays.push(...soundEffectOverlays);
-
-      logger.info({
-        bgmIncluded: !!bgmOverlay,
-        sfxCount: soundEffectOverlays.length,
-        totalOverlays: allOverlays.length
-      }, "🎵 Audio overlays prepared");
-
-      // 3. Handle differently based on TTS mode
-      if (hasTTSAudio) {
-        // 3A. TTS mode: Concatenate TTS audio files, then mix with overlays
-        let baseAudioPath = path.join(tempDirPath, `concat_audio_${videoId}.mp3`);
-        if (audioFiles.length === 1) {
-          await fs.copyFile(audioFiles[0], baseAudioPath);
-        } else if (audioFiles.length > 1) {
-          await this.videoProcessor.getFFmpeg().concatAudios(audioFiles, baseAudioPath);
-        }
-
-        if (allOverlays.length > 0) {
-          const mixedAudioPath = path.join(tempDirPath, `mixed_audio_${videoId}.mp3`);
-          await this.videoProcessor.getFFmpeg().mixAudioTracks(
-            baseAudioPath,
-            allOverlays,
-            mixedAudioPath,
-            totalDuration
-          );
-          logger.info({
-            overlayCount: allOverlays.length,
-            hasBGM: !!bgmOverlay,
-            outputPath: mixedAudioPath
-          }, "✅ Audio mixed (TTS + SFX + BGM)");
-          return mixedAudioPath;
-        } else {
-          return baseAudioPath;
-        }
-      } else {
-        // 3B. 🔥 skipTTS mode: Create audio from overlays only
-        if (allOverlays.length > 0) {
-          const overlayAudioPath = path.join(tempDirPath, `overlay_audio_${videoId}.mp3`);
-
-          // Use createAudioFromSoundEffects which handles multiple overlays on silent base
-          await this.videoProcessor.getFFmpeg().createAudioFromSoundEffects(
-            allOverlays,
-            overlayAudioPath,
-            totalDuration
-          );
-
-          logger.info({
-            overlayCount: allOverlays.length,
-            hasBGM: !!bgmOverlay,
-            outputPath: overlayAudioPath,
-            skipTTS: true
-          }, "✅ Audio created from overlays (skipTTS mode)");
-
-          return overlayAudioPath;
-        } else {
-          // No overlays, generate silent audio
-          const silentPath = path.join(tempDirPath, `silent_audio_${videoId}.mp3`);
-          await this.videoProcessor.getFFmpeg().generateSilentAudio(silentPath, totalDuration);
-          return silentPath;
-        }
-      }
-    } catch (error) {
-      logger.error({
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      }, "❌ Failed to mix audio, continuing without effects");
-      return undefined;
-    }
   }
 
   /**
@@ -821,78 +445,137 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             }, "✅ Multi-character combined image generated and saved");
 
           } else {
-            // Original flow: Generate with NANO BANANA (no useStoredImageForVeo or no characters)
-            // Set NANO BANANA model (best for character consistency)
-            this.imageGenerationService.setModel(ImageModelType.NANO_BANANA);
+            // Original flow: Generate images (no useStoredImageForVeo or no characters)
+            // 🔥 GPT-First Mode: First scene with GPT-4o, rest with NanoBanana using GPT image as reference
+            const useGPTFirst = context.config.useGPTFirst === true;
 
             // Enhanced prompt with character consistency
             const enhancedPrompt = `${scene.imageData.prompt || scene.text}. Style: ${scene.imageData.style || "cinematic"}. Mood: ${scene.imageData.mood || "dynamic"}. Maintain consistent character appearance.`;
             const aspectRatio = context.orientation === "portrait" ? "9:16" : "16:9";
 
-            // ⭐ KEY FEATURE: Use previous images as references (max 3)
-            // This is like Chat Mode in ipynb - maintains character consistency!
-            // 🔥 FIX: Always include stored character images to prevent drift
-            // Stored images have sceneIndex < 0, generated images have sceneIndex >= 0
-            const storedImages = previousImages.filter(img => img.sceneIndex < 0);
-            const generatedImages = previousImages.filter(img => img.sceneIndex >= 0);
-            // Always include ALL stored character images + only most recent generated images
-            // Total max 3 to not overwhelm NANO BANANA
-            const maxGenerated = Math.max(0, 3 - storedImages.length);
-            const recentGenerated = generatedImages.slice(-maxGenerated);
-            const combinedRefs = [...storedImages, ...recentGenerated];
-            const referenceImages = combinedRefs.length > 0
-              ? combinedRefs.map(img => ({
-                  data: img.data,
-                  mimeType: img.mimeType
-                }))
-              : undefined;
+            if (useGPTFirst && i === 0) {
+              // 🎨 GPT-First Mode: Scene 0 - Generate with GPT-4o (no reference)
+              logger.info({
+                sceneIndex: i + 1,
+                prompt: enhancedPrompt.substring(0, 100),
+                mode: 'GPT-First'
+              }, "🎨 GPT-First Mode: Generating FIRST scene with GPT-4o (this becomes the reference)");
 
-            logger.info({
-              sceneIndex: i,
-              storedImageCount: storedImages.length,
-              generatedImageCount: generatedImages.length,
-              usedGeneratedCount: recentGenerated.length,
-              totalReferenceCount: combinedRefs.length,
-              prompt: enhancedPrompt.substring(0, 80)
-            }, "🔗 Reference images (stored chars ALWAYS included to prevent drift)");
+              // Set GPT_IMAGE_1 model
+              this.imageGenerationService.setModel(ImageModelType.GPT_IMAGE_1);
 
-            // Generate image with references
-            const result = await this.imageGenerationService.generateImages({
-              prompt: enhancedPrompt,
-              numberOfImages: 1,
-              aspectRatio: aspectRatio as "9:16" | "16:9",
-              referenceImages: referenceImages // ⭐ Chat Mode magic!
-            }, context.videoId, i);
+              // Generate WITHOUT reference (this is the character reference image)
+              const result = await this.imageGenerationService.generateImages({
+                prompt: enhancedPrompt,
+                numberOfImages: 1,
+                aspectRatio: aspectRatio as "9:16" | "16:9"
+                // NO referenceImages - GPT generates the base character
+              }, context.videoId, i);
 
-            if (!result.success || !result.images || result.images.length === 0) {
-              throw new Error(`Failed to generate consistent image for scene ${i + 1}`);
+              if (!result.success || !result.images || result.images.length === 0) {
+                throw new Error(`GPT-First: Failed to generate first scene image with GPT-4o`);
+              }
+
+              const generatedImage = result.images[0];
+
+              finalImage = {
+                data: generatedImage.data,
+                mimeType: generatedImage.mimeType || "image/png"
+              };
+
+              // Save GPT image
+              const simpleFilename = `gpt_first_scene_${i + 1}_${context.videoId}.png`;
+              savedImagePath = path.join(videoTempDir, simpleFilename);
+
+              await fs.writeFile(savedImagePath, generatedImage.data);
+
+              logger.info({
+                sceneIndex: i + 1,
+                imagePath: savedImagePath,
+                fileSize: generatedImage.data.length,
+                mode: 'GPT-First'
+              }, "✅ GPT-First: First scene generated with GPT-4o - this is now the character reference!");
+
+            } else {
+              // 🔗 NanoBanana Mode: Scene 1~N (or all scenes if useGPTFirst is false)
+              // Set NANO BANANA model (best for character consistency)
+              this.imageGenerationService.setModel(ImageModelType.NANO_BANANA);
+
+              // ⭐ KEY FEATURE: Use previous images as references (max 3)
+              // GPT-First: previousImages[0] is the GPT-generated character reference
+              // This is like Chat Mode in ipynb - maintains character consistency!
+              // 🔥 FIX: Always include stored character images to prevent drift
+              // Stored images have sceneIndex < 0, generated images have sceneIndex >= 0
+              const storedImages = previousImages.filter(img => img.sceneIndex < 0);
+              const generatedImages = previousImages.filter(img => img.sceneIndex >= 0);
+              // Always include ALL stored character images + only most recent generated images
+              // Total max 3 to not overwhelm NANO BANANA
+              const maxGenerated = Math.max(0, 3 - storedImages.length);
+              const recentGenerated = generatedImages.slice(-maxGenerated);
+              const combinedRefs = [...storedImages, ...recentGenerated];
+              const referenceImages = combinedRefs.length > 0
+                ? combinedRefs.map(img => ({
+                    data: img.data,
+                    mimeType: img.mimeType
+                  }))
+                : undefined;
+
+              logger.info({
+                sceneIndex: i,
+                storedImageCount: storedImages.length,
+                generatedImageCount: generatedImages.length,
+                usedGeneratedCount: recentGenerated.length,
+                totalReferenceCount: combinedRefs.length,
+                useGPTFirst,
+                hasGPTReference: useGPTFirst && generatedImages.length > 0,
+                prompt: enhancedPrompt.substring(0, 80)
+              }, useGPTFirst
+                ? "🔗 GPT-First Mode: Using GPT image as reference for NanoBanana"
+                : "🔗 Reference images (stored chars ALWAYS included to prevent drift)");
+
+              // Generate image with references
+              const result = await this.imageGenerationService.generateImages({
+                prompt: enhancedPrompt,
+                numberOfImages: 1,
+                aspectRatio: aspectRatio as "9:16" | "16:9",
+                referenceImages: referenceImages // ⭐ GPT-First: GPT image is in here!
+              }, context.videoId, i);
+
+              if (!result.success || !result.images || result.images.length === 0) {
+                throw new Error(`Failed to generate consistent image for scene ${i + 1}`);
+              }
+
+              const generatedImage = result.images[0];
+
+              finalImage = {
+                data: generatedImage.data,
+                mimeType: generatedImage.mimeType || "image/png"
+              };
+
+              // Save image
+              const simpleFilename = useGPTFirst
+                ? `gpt_ref_scene_${i + 1}_${context.videoId}.png`
+                : `consistent_scene_${i + 1}_${context.videoId}.png`;
+              savedImagePath = path.join(videoTempDir, simpleFilename);
+
+              await fs.writeFile(savedImagePath, generatedImage.data);
+
+              // Verify save
+              const fileExists = await fs.pathExists(savedImagePath);
+              const fileStats = fileExists ? await fs.stat(savedImagePath) : null;
+
+              logger.info({
+                sceneIndex: i + 1,
+                imagePath: savedImagePath,
+                filename: simpleFilename,
+                fileExists,
+                fileSize: fileStats?.size,
+                usedReferences: referenceImages?.length || 0,
+                useGPTFirst
+              }, useGPTFirst
+                ? "✅ GPT-First: Scene generated with NanoBanana using GPT reference"
+                : "✅ Consistent character image generated and saved");
             }
-
-            const generatedImage = result.images[0];
-
-            finalImage = {
-              data: generatedImage.data,
-              mimeType: generatedImage.mimeType || "image/png"
-            };
-
-            // Save image
-            const simpleFilename = `consistent_scene_${i + 1}_${context.videoId}.png`;
-            savedImagePath = path.join(videoTempDir, simpleFilename);
-
-            await fs.writeFile(savedImagePath, generatedImage.data);
-
-            // Verify save
-            const fileExists = await fs.pathExists(savedImagePath);
-            const fileStats = fileExists ? await fs.stat(savedImagePath) : null;
-
-            logger.info({
-              sceneIndex: i + 1,
-              imagePath: savedImagePath,
-              filename: simpleFilename,
-              fileExists,
-              fileSize: fileStats?.size,
-              usedReferences: referenceImages?.length || 0
-            }, "✅ Consistent character image generated and saved");
           }
 
           // ⭐ Add to previous images for next scene reference
@@ -1110,41 +793,19 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
               await this.videoProcessor.trimVideo(result.path, trimmedPath, sceneDuration);
               trimmedVideoPaths.push(trimmedPath);
 
-              // 🔥 Collect captions with time offset for subtitles
+              // 🔥 Collect captions with time offset for subtitles (refactored)
               const sceneData = scenes[i];
-              const inputScene = inputScenes[i];  // Get original input for textEnglish
-              if (sceneData?.captions && sceneData.captions.length > 0) {
-                const adjustedCaptions = sceneData.captions.map((caption: any) => ({
-                  ...caption,
-                  startMs: caption.startMs + (cumulativeDuration * 1000),
-                  endMs: caption.endMs + (cumulativeDuration * 1000),
-                }));
-                allCaptions.push(...adjustedCaptions);
-
-                // 🔥 이중 자막: 영어 캡션 수집
-                // catproject (skipTTS): 문장 통으로 / TTS mode: 단어별 쪼개기
-                const textEnglish = (inputScene as any)?.textEnglish;
-                if (textEnglish) {
-                  const englishCaptions = captionService.generateSyncedEnglishCaptions(
-                    textEnglish,
-                    adjustedCaptions,
-                    sceneDuration,
-                    context.config?.skipTTS === true  // 🔥 catproject: 문장 통으로
-                  );
-                  allEnglishCaptions.push(...englishCaptions);
-                  logger.debug({
-                    sceneIndex: i + 1,
-                    englishCaptionCount: englishCaptions.length,
-                    skipTTS: context.config?.skipTTS === true
-                  }, "📝 Collected English captions for dual subtitles");
-                }
-
-                logger.debug({
-                  sceneIndex: i + 1,
-                  captionCount: adjustedCaptions.length,
-                  timeOffset: cumulativeDuration
-                }, "📝 Collected scene captions with time offset");
-              }
+              const inputScene = inputScenes[i];
+              const captionResult = captionService.collectSceneCaptions(
+                sceneData,
+                (inputScene as any)?.textEnglish,
+                sceneDuration,
+                cumulativeDuration,
+                context.config?.skipTTS === true,
+                i
+              );
+              allCaptions.push(...captionResult.koreanCaptions);
+              allEnglishCaptions.push(...captionResult.englishCaptions);
               cumulativeDuration += sceneDuration;
             }
 
@@ -1153,110 +814,18 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             const sceneTransitionType = (context.metadata?.sceneTransitionType as string) || 'fade';
             const sceneTransitionDuration = (context.metadata?.sceneTransitionDuration as number) || 0.5;
 
-            // 🔥 FIX: Adjust caption timing for xfade overlap
-            // xfade causes scenes to overlap, shortening total video duration
-            // Scene N starts earlier by (N-1) * transitionDuration
+            // 🔥 Refactored: xfade 캡션 타이밍 조정 (VEO3ProcessorService)
             if (useSceneTransitions && trimmedVideoPaths.length > 1) {
-              const transitionCount = trimmedVideoPaths.length - 1;
-              const totalOverlap = transitionCount * sceneTransitionDuration;
-
-              // Recalculate caption timings to account for xfade overlap
-              let adjustedTime = 0;
-              let captionIndex = 0;
-              for (let i = 0; i < scenes.length; i++) {
-                const sceneData = scenes[i];
-                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
-                const overlapAdjustment = i > 0 ? sceneTransitionDuration : 0;
-
-                // Adjust all captions for this scene
-                while (captionIndex < allCaptions.length) {
-                  const caption = allCaptions[captionIndex];
-                  const originalSceneOffset = i === 0 ? 0 :
-                    scenes.slice(0, i).reduce((sum, s) => sum + Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION), 0);
-
-                  // Check if this caption belongs to current scene
-                  if (caption.startMs >= originalSceneOffset * 1000 &&
-                      caption.startMs < (originalSceneOffset + sceneDuration) * 1000) {
-                    // Adjust for xfade overlap (earlier scenes)
-                    const xfadeOffset = i * sceneTransitionDuration * 1000;
-                    caption.startMs -= xfadeOffset;
-                    caption.endMs -= xfadeOffset;
-                    captionIndex++;
-                  } else {
-                    break;
-                  }
-                }
-              }
-
-              // 🔥 FIX: Prevent subtitle overlap during xfade transitions
-              // Each scene's last caption should end before the transition starts
-              // This prevents both scenes' subtitles from showing simultaneously
-              const transitionGapMs = sceneTransitionDuration * 1000;
-              let currentSceneEndMs = 0;
-
-              for (let i = 0; i < scenes.length; i++) {
-                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
-                const xfadeOffset = i * sceneTransitionDuration;
-                currentSceneEndMs = (currentSceneEndMs + sceneDuration - (i > 0 ? sceneTransitionDuration : 0)) * 1000;
-
-                // Find and adjust last caption of this scene (except for last scene)
-                if (i < scenes.length - 1) {
-                  const nextSceneStartMs = currentSceneEndMs;
-
-                  // Adjust any caption that extends into the transition zone
-                  for (const caption of allCaptions) {
-                    // If caption ends during or after the transition zone, cut it short
-                    if (caption.endMs > nextSceneStartMs - transitionGapMs &&
-                        caption.endMs <= nextSceneStartMs + transitionGapMs &&
-                        caption.startMs < nextSceneStartMs) {
-                      const originalEnd = caption.endMs;
-                      caption.endMs = Math.max(caption.startMs + 100, nextSceneStartMs - transitionGapMs);
-                      logger.debug({
-                        sceneIndex: i + 1,
-                        originalEnd,
-                        newEnd: caption.endMs,
-                        transitionGapMs
-                      }, "🔧 Adjusted caption end to prevent xfade overlap");
-                    }
-                  }
-                }
-              }
-
-              // 🔥 FIX: Also adjust English captions for xfade overlap
-              // This was missing, causing English subtitles to extend beyond video duration!
-              let englishCaptionIndex = 0;
-              for (let i = 0; i < scenes.length; i++) {
-                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
-                const originalSceneOffset = i === 0 ? 0 :
-                  scenes.slice(0, i).reduce((sum, s) => sum + Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION), 0);
-
-                // Adjust all English captions for this scene
-                while (englishCaptionIndex < allEnglishCaptions.length) {
-                  const caption = allEnglishCaptions[englishCaptionIndex];
-
-                  // Check if this caption belongs to current scene
-                  if (caption.startMs >= originalSceneOffset * 1000 &&
-                      caption.startMs < (originalSceneOffset + sceneDuration) * 1000) {
-                    // Adjust for xfade overlap (earlier scenes)
-                    const xfadeOffset = i * sceneTransitionDuration * 1000;
-                    caption.startMs -= xfadeOffset;
-                    caption.endMs -= xfadeOffset;
-                    if (caption.start !== undefined) caption.start -= xfadeOffset / 1000;
-                    if (caption.end !== undefined) caption.end -= xfadeOffset / 1000;
-                    englishCaptionIndex++;
-                  } else {
-                    break;
-                  }
-                }
-              }
-
-              logger.info({
-                transitionCount,
-                totalOverlap,
-                transitionGapMs,
-                adjustedCaptionCount: allCaptions.length,
-                adjustedEnglishCaptionCount: allEnglishCaptions.length
-              }, "🎬 Adjusted caption timing for xfade overlap (with gap)");
+              const xfadeSceneDurations = scenes.map(s =>
+                Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION)
+              );
+              veo3ProcessorService.adjustCaptionsForXfade({
+                koreanCaptions: allCaptions,
+                englishCaptions: allEnglishCaptions,
+                sceneDurations: xfadeSceneDurations,
+                transitionDuration: sceneTransitionDuration,
+                minSceneDuration: MIN_SCENE_DURATION
+              });
             }
 
             logger.info({
@@ -1296,39 +865,22 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
               dimensions
             );
 
-            // 🔥 Collect captions with time offset for subtitles (static mode)
+            // 🔥 Collect captions with time offset for subtitles (static mode, refactored)
             for (let i = 0; i < scenes.length; i++) {
               const sceneData = scenes[i];
-              const inputScene = inputScenes[i];  // Get original input for textEnglish
+              const inputScene = inputScenes[i];
               const sceneDuration = imageDataList[i]?.duration || Math.max(sceneData?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
 
-              if (sceneData?.captions && sceneData.captions.length > 0) {
-                const adjustedCaptions = sceneData.captions.map((caption: any) => ({
-                  ...caption,
-                  startMs: caption.startMs + (cumulativeDuration * 1000),
-                  endMs: caption.endMs + (cumulativeDuration * 1000),
-                }));
-                allCaptions.push(...adjustedCaptions);
-
-                // 🔥 이중 자막: 영어 캡션 수집 (static mode)
-                // catproject (skipTTS): 문장 통으로 / TTS mode: 단어별 쪼개기
-                const textEnglish = (inputScene as any)?.textEnglish;
-                if (textEnglish) {
-                  const englishCaptions = captionService.generateSyncedEnglishCaptions(
-                    textEnglish,
-                    adjustedCaptions,
-                    sceneDuration,
-                    context.config?.skipTTS === true  // 🔥 catproject: 문장 통으로
-                  );
-                  allEnglishCaptions.push(...englishCaptions);
-                }
-
-                logger.debug({
-                  sceneIndex: i + 1,
-                  captionCount: adjustedCaptions.length,
-                  timeOffset: cumulativeDuration
-                }, "📝 Collected scene captions with time offset (static mode)");
-              }
+              const captionResult = captionService.collectSceneCaptions(
+                sceneData,
+                (inputScene as any)?.textEnglish,
+                sceneDuration,
+                cumulativeDuration,
+                context.config?.skipTTS === true,
+                i
+              );
+              allCaptions.push(...captionResult.koreanCaptions);
+              allEnglishCaptions.push(...captionResult.englishCaptions);
               cumulativeDuration += sceneDuration;
             }
 
@@ -1369,36 +921,19 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
                 processedClips.push(imageVideoPath);
               }
 
-              // 🔥 Collect captions with time offset for subtitles (mixed mode)
+              // 🔥 Collect captions with time offset for subtitles (mixed mode, refactored)
               const sceneData = scenes[i];
-              const inputScene = inputScenes[i];  // Get original input for textEnglish
-              if (sceneData?.captions && sceneData.captions.length > 0) {
-                const adjustedCaptions = sceneData.captions.map((caption: any) => ({
-                  ...caption,
-                  startMs: caption.startMs + (cumulativeDuration * 1000),
-                  endMs: caption.endMs + (cumulativeDuration * 1000),
-                }));
-                allCaptions.push(...adjustedCaptions);
-
-                // 🔥 이중 자막: 영어 캡션 수집 (mixed mode)
-                // catproject (skipTTS): 문장 통으로 / TTS mode: 단어별 쪼개기
-                const textEnglish = (inputScene as any)?.textEnglish;
-                if (textEnglish) {
-                  const englishCaptions = captionService.generateSyncedEnglishCaptions(
-                    textEnglish,
-                    adjustedCaptions,
-                    sceneDuration,
-                    context.config?.skipTTS === true  // 🔥 catproject: 문장 통으로
-                  );
-                  allEnglishCaptions.push(...englishCaptions);
-                }
-
-                logger.debug({
-                  sceneIndex: i + 1,
-                  captionCount: adjustedCaptions.length,
-                  timeOffset: cumulativeDuration
-                }, "📝 Collected scene captions with time offset (mixed mode)");
-              }
+              const inputScene = inputScenes[i];
+              const captionResult = captionService.collectSceneCaptions(
+                sceneData,
+                (inputScene as any)?.textEnglish,
+                sceneDuration,
+                cumulativeDuration,
+                context.config?.skipTTS === true,
+                i
+              );
+              allCaptions.push(...captionResult.koreanCaptions);
+              allEnglishCaptions.push(...captionResult.englishCaptions);
               cumulativeDuration += sceneDuration;
             }
 
@@ -1407,77 +942,18 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             const sceneTransitionTypeMixed = (context.metadata?.sceneTransitionType as string) || 'fade';
             const sceneTransitionDurationMixed = (context.metadata?.sceneTransitionDuration as number) || 0.5;
 
-            // 🔥 FIX: Adjust caption timing for xfade overlap (mixed mode)
+            // 🔥 Refactored: xfade 캡션 타이밍 조정 (VEO3ProcessorService) - mixed mode
             if (useSceneTransitionsMixed && processedClips.length > 1) {
-              let captionIndex = 0;
-              for (let i = 0; i < scenes.length; i++) {
-                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
-                const originalSceneOffset = i === 0 ? 0 :
-                  scenes.slice(0, i).reduce((sum, s) => sum + Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION), 0);
-
-                while (captionIndex < allCaptions.length) {
-                  const caption = allCaptions[captionIndex];
-                  if (caption.startMs >= originalSceneOffset * 1000 &&
-                      caption.startMs < (originalSceneOffset + sceneDuration) * 1000) {
-                    const xfadeOffset = i * sceneTransitionDurationMixed * 1000;
-                    caption.startMs -= xfadeOffset;
-                    caption.endMs -= xfadeOffset;
-                    captionIndex++;
-                  } else {
-                    break;
-                  }
-                }
-              }
-
-              // 🔥 FIX: Prevent subtitle overlap during xfade transitions (mixed mode)
-              const transitionGapMsMixed = sceneTransitionDurationMixed * 1000;
-              let currentSceneEndMsMixed = 0;
-
-              for (let i = 0; i < scenes.length; i++) {
-                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
-                currentSceneEndMsMixed = (currentSceneEndMsMixed + sceneDuration - (i > 0 ? sceneTransitionDurationMixed : 0)) * 1000;
-
-                if (i < scenes.length - 1) {
-                  const nextSceneStartMs = currentSceneEndMsMixed;
-                  for (const caption of allCaptions) {
-                    if (caption.endMs > nextSceneStartMs - transitionGapMsMixed &&
-                        caption.endMs <= nextSceneStartMs + transitionGapMsMixed &&
-                        caption.startMs < nextSceneStartMs) {
-                      caption.endMs = Math.max(caption.startMs + 100, nextSceneStartMs - transitionGapMsMixed);
-                    }
-                  }
-                }
-              }
-
-              // 🔥 FIX: Also adjust English captions for xfade overlap (mixed mode)
-              let englishCaptionIndexMixed = 0;
-              for (let i = 0; i < scenes.length; i++) {
-                const sceneDuration = Math.max(scenes[i]?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
-                const originalSceneOffset = i === 0 ? 0 :
-                  scenes.slice(0, i).reduce((sum, s) => sum + Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION), 0);
-
-                while (englishCaptionIndexMixed < allEnglishCaptions.length) {
-                  const caption = allEnglishCaptions[englishCaptionIndexMixed];
-                  if (caption.startMs >= originalSceneOffset * 1000 &&
-                      caption.startMs < (originalSceneOffset + sceneDuration) * 1000) {
-                    const xfadeOffset = i * sceneTransitionDurationMixed * 1000;
-                    caption.startMs -= xfadeOffset;
-                    caption.endMs -= xfadeOffset;
-                    if (caption.start !== undefined) caption.start -= xfadeOffset / 1000;
-                    if (caption.end !== undefined) caption.end -= xfadeOffset / 1000;
-                    englishCaptionIndexMixed++;
-                  } else {
-                    break;
-                  }
-                }
-              }
-
-              logger.info({
-                transitionCount: processedClips.length - 1,
-                transitionGapMs: transitionGapMsMixed,
-                adjustedCaptionCount: allCaptions.length,
-                adjustedEnglishCaptionCount: allEnglishCaptions.length
-              }, "🎬 Adjusted caption timing for xfade overlap (mixed mode, with gap)");
+              const xfadeSceneDurationsMixed = scenes.map(s =>
+                Math.max(s?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION)
+              );
+              veo3ProcessorService.adjustCaptionsForXfade({
+                koreanCaptions: allCaptions,
+                englishCaptions: allEnglishCaptions,
+                sceneDurations: xfadeSceneDurationsMixed,
+                transitionDuration: sceneTransitionDurationMixed,
+                minSceneDuration: MIN_SCENE_DURATION
+              });
             }
 
             tempVideoPath = path.join(videoTempDir, `mixed_combined_${context.videoId}.mp4`);
@@ -1533,40 +1009,31 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             skipTTSMode
           }, "📊 Scene audio data collected");
 
-          // 🔥 Sound Effects Integration (using modularized method)
+          // 🔥 Sound Effects Integration (using AudioService)
           const audioConfig = context.metadata?.audioConfig as AudioConfig | undefined;
-          const finalAudioPath = await this.mixAudioWithSoundEffects({
+          const finalAudioPath = await audioService.mixAudioWithSoundEffects({
             audioFiles,
             sceneDurations,
             audioConfig,
             apiKey: context.systemConfig.freesoundApiKey,
             tempDirPath: videoTempDir,
             videoId: context.videoId,
-            skipTTS: skipTTSMode
+            skipTTS: skipTTSMode,
+            ffmpeg: this.videoProcessor.getFFmpeg()
           });
 
           const tempFinalPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
 
-          if (finalAudioPath) {
-            // Use mixed audio with sound effects
-            await this.videoProcessor.getFFmpeg().replaceVideoAudio(
-              tempVideoPath,
-              finalAudioPath,
-              tempFinalPath,
-              0
-            );
-          } else if (audioFiles.length > 0) {
-            // Original flow: combine video with audio files
-            await this.videoProcessor.combineVideoWithAudio(
-              tempVideoPath,
-              audioFiles,
-              tempFinalPath
-            );
-          } else {
-            // 🔥 skipTTS mode with no audio: just copy video
-            logger.info({ videoId: context.videoId }, "🔇 No audio files (skipTTS mode), copying video as-is");
-            await fs.promises.copyFile(tempVideoPath, tempFinalPath);
-          }
+          // 🔥 Refactored: 오디오 적용 로직 통합 (VideoFinalizerService)
+          await videoFinalizerService.applyAudioToVideo({
+            videoPath: tempVideoPath,
+            outputPath: tempFinalPath,
+            finalAudioPath,
+            audioFiles,
+            videoId: context.videoId,
+            ffmpeg: this.videoProcessor.getFFmpeg(),
+            videoProcessorCombine: this.videoProcessor.combineVideoWithAudio.bind(this.videoProcessor)
+          });
 
           // 🔥 Apply synchronized subtitles to final video
           const standardVideoPath = path.join(
@@ -1579,65 +1046,24 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             allCaptionsLength: allCaptions.length,
             allCaptionsFirst: allCaptions[0] ? JSON.stringify(allCaptions[0]) : null,
             hasTitleText: !!titleText,
-            scenesCount: scenes.length,
-            sceneCaptions: scenes.map((s, i) => ({
-              sceneIndex: i,
-              hasCaptions: !!s.captions,
-              captionCount: s.captions?.length || 0
-            }))
+            scenesCount: scenes.length
           }, "🔍 DEBUG: Pre-subtitle check state");
 
-          // 🔥 제목(titleText) + 자막 적용
-          // Get language from metadata (default: korean for backward compatibility)
+          // 🔥 Refactored: 자막 적용 로직 통합 (VideoFinalizerService)
           const titleLanguage = (context.metadata?.language as 'english' | 'korean') || 'korean';
-
-          // 🌍 언어별 자막 선택 - english면 영어만, korean이면 한국어만
-          const primaryCaptions = titleLanguage === 'english' ? allEnglishCaptions : allCaptions;
-          const secondaryCaptions = null; // 단일 언어 모드 - 이중 자막 비활성화
-
-          if (primaryCaptions.length > 0 || titleText) {
-            logger.info({
-              hasTitleText: !!titleText,
-              titleTextKo: titleText?.ko,
-              titleTextEn: titleText?.en,
-              titleLanguage,
-              primaryCaptionCount: primaryCaptions.length,
-              secondaryCaptionCount: 0,
-              captionLanguage: titleLanguage === 'english' ? 'English only' : 'Korean only',
-              videoDuration: cumulativeDuration,
-              videoId: context.videoId
-            }, "🎬 Applying title and subtitles to video (single language mode)");
-
-            // 🔥 2026-01-19: catproject (skipTTS) 자막 위치 하단 (h*0.70)
-            const subtitleConfig = skipTTSMode
-              ? { yPosition: 'h*0.70' }  // catproject: 자막 하단
-              : undefined;               // 기본값 (중앙)
-
-            await this.videoProcessor.addTitleAndSubtitlesToVideo(
-              tempFinalPath,
-              standardVideoPath,
-              titleText || null,    // 상단 제목 (선택)
-              primaryCaptions,      // 🌍 선택된 언어의 자막만
-              secondaryCaptions,    // null - 이중 자막 비활성화
-              context.orientation,
-              cumulativeDuration,   // 영상 총 길이 (제목 duration 계산용)
-              titleLanguage,        // 🔥 타이틀 언어 (english: en 사용, korean: ko 사용)
-              subtitleConfig        // 🔥 catproject: 자막 위치 하단
-            );
-
-            logger.info({
-              outputPath: standardVideoPath,
-              hasTitleText: !!titleText,
-              hasDualSubtitles: allEnglishCaptions.length > 0
-            }, "✅ Final video with title and subtitles created");
-          } else {
-            // No subtitles or title, copy final video as-is
-            await fs.promises.copyFile(tempFinalPath, standardVideoPath);
-            logger.info({
-              from: tempFinalPath,
-              to: standardVideoPath
-            }, "✅ Final video copied to standard location for GCS upload (no overlay)");
-          }
+          await videoFinalizerService.applySubtitlesToVideo({
+            inputPath: tempFinalPath,
+            outputPath: standardVideoPath,
+            titleText: titleText || null,
+            allKoreanCaptions: allCaptions,
+            allEnglishCaptions,
+            language: titleLanguage,
+            orientation: context.orientation,
+            totalDuration: cumulativeDuration,
+            skipTTS: skipTTSMode,
+            videoId: context.videoId,
+            addSubtitlesFunction: this.videoProcessor.addTitleAndSubtitlesToVideo.bind(this.videoProcessor)
+          });
 
           // Calculate total duration
           const totalDuration = this.calculateTotalDuration(scenes);
@@ -1665,39 +1091,22 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
 
           logger.info("✅ Static video created from consistent character images");
 
-          // 🔥 Collect captions with time offset for subtitles (no VEO3 static mode)
+          // 🔥 Collect captions with time offset for subtitles (no VEO3 static mode, refactored)
           for (let i = 0; i < scenes.length; i++) {
             const sceneData = scenes[i];
-            const inputScene = inputScenes[i];  // Get original input for textEnglish
+            const inputScene = inputScenes[i];
             const sceneDuration = imageDataList[i]?.duration || Math.max(sceneData?.audio?.duration || MIN_SCENE_DURATION, MIN_SCENE_DURATION);
 
-            if (sceneData?.captions && sceneData.captions.length > 0) {
-              const adjustedCaptions = sceneData.captions.map((caption: any) => ({
-                ...caption,
-                startMs: caption.startMs + (cumulativeDuration * 1000),
-                endMs: caption.endMs + (cumulativeDuration * 1000),
-              }));
-              allCaptions.push(...adjustedCaptions);
-
-              // 🔥 이중 자막: 영어 캡션 수집 (no VEO3 static mode)
-              // catproject (skipTTS): 문장 통으로 / TTS mode: 단어별 쪼개기
-              const textEnglish = (inputScene as any)?.textEnglish;
-              if (textEnglish) {
-                const englishCaptions = captionService.generateSyncedEnglishCaptions(
-                  textEnglish,
-                  adjustedCaptions,
-                  sceneDuration,
-                  context.config?.skipTTS === true  // 🔥 catproject: 문장 통으로
-                );
-                allEnglishCaptions.push(...englishCaptions);
-              }
-
-              logger.debug({
-                sceneIndex: i + 1,
-                captionCount: adjustedCaptions.length,
-                timeOffset: cumulativeDuration
-              }, "📝 Collected scene captions with time offset (no VEO3 static mode)");
-            }
+            const captionResult = captionService.collectSceneCaptions(
+              sceneData,
+              (inputScene as any)?.textEnglish,
+              sceneDuration,
+              cumulativeDuration,
+              context.config?.skipTTS === true,
+              i
+            );
+            allCaptions.push(...captionResult.koreanCaptions);
+            allEnglishCaptions.push(...captionResult.englishCaptions);
             cumulativeDuration += sceneDuration;
           }
 
@@ -1733,40 +1142,31 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             skipTTSMode
           }, "📊 Scene audio data collected (non-VEO path)");
 
-          // 🔥 Sound Effects Integration (using modularized method)
+          // 🔥 Sound Effects Integration (using AudioService)
           const audioConfig = context.metadata?.audioConfig as AudioConfig | undefined;
-          const finalAudioPath = await this.mixAudioWithSoundEffects({
+          const finalAudioPath = await audioService.mixAudioWithSoundEffects({
             audioFiles,
             sceneDurations,
             audioConfig,
             apiKey: context.systemConfig.freesoundApiKey,
             tempDirPath: videoTempDir,
             videoId: context.videoId,
-            skipTTS: skipTTSMode
+            skipTTS: skipTTSMode,
+            ffmpeg: this.videoProcessor.getFFmpeg()
           });
 
           const tempFinalPath = path.join(videoTempDir, `final_${context.videoId}.mp4`);
 
-          if (finalAudioPath) {
-            // Use mixed audio with sound effects
-            await this.videoProcessor.getFFmpeg().replaceVideoAudio(
-              tempVideoPath,
-              finalAudioPath,
-              tempFinalPath,
-              0
-            );
-          } else if (audioFiles.length > 0) {
-            // Original flow: combine video with audio files
-            await this.videoProcessor.combineVideoWithAudio(
-              tempVideoPath,
-              audioFiles,
-              tempFinalPath
-            );
-          } else {
-            // 🔥 skipTTS mode with no audio: just copy video
-            logger.info({ videoId: context.videoId }, "🔇 No audio files (skipTTS mode), copying video as-is");
-            await fs.promises.copyFile(tempVideoPath, tempFinalPath);
-          }
+          // 🔥 Refactored: 오디오 적용 로직 통합 (VideoFinalizerService)
+          await videoFinalizerService.applyAudioToVideo({
+            videoPath: tempVideoPath,
+            outputPath: tempFinalPath,
+            finalAudioPath,
+            audioFiles,
+            videoId: context.videoId,
+            ffmpeg: this.videoProcessor.getFFmpeg(),
+            videoProcessorCombine: this.videoProcessor.combineVideoWithAudio.bind(this.videoProcessor)
+          });
 
           // 🔥 Apply synchronized subtitles to final video
           const standardVideoPath = path.join(
@@ -1774,57 +1174,21 @@ export class ConsistentShortsWorkflow extends BaseWorkflow {
             `${context.videoId}.mp4`
           );
 
-          // 🔥 Apply title text and/or subtitles (no VEO3 static mode)
-          // Get language from metadata (default: korean for backward compatibility)
+          // 🔥 Refactored: 자막 적용 로직 통합 (VideoFinalizerService)
           const titleLanguageNoVeo = (context.metadata?.language as 'english' | 'korean') || 'korean';
-
-          // 🌍 언어별 자막 선택 - english면 영어만, korean이면 한국어만
-          const primaryCaptionsNoVeo = titleLanguageNoVeo === 'english' ? allEnglishCaptions : allCaptions;
-          const secondaryCaptionsNoVeo = null; // 단일 언어 모드 - 이중 자막 비활성화
-
-          if (primaryCaptionsNoVeo.length > 0 || titleText) {
-            logger.info({
-              hasTitleText: !!titleText,
-              titleTextKo: titleText?.ko,
-              titleTextEn: titleText?.en,
-              titleLanguage: titleLanguageNoVeo,
-              primaryCaptionCount: primaryCaptionsNoVeo.length,
-              secondaryCaptionCount: 0,
-              captionLanguage: titleLanguageNoVeo === 'english' ? 'English only' : 'Korean only',
-              videoDuration: cumulativeDuration,
-              videoId: context.videoId
-            }, "📝 Applying title text and subtitles (no VEO3 static mode, single language)");
-
-            // 🔥 2026-01-19: catproject (skipTTS) 자막 위치 하단 (h*0.70)
-            const subtitleConfigNoVeo = skipTTSMode
-              ? { yPosition: 'h*0.70' }  // catproject: 자막 하단
-              : undefined;               // 기본값 (중앙)
-
-            await this.videoProcessor.addTitleAndSubtitlesToVideo(
-              tempFinalPath,
-              standardVideoPath,
-              titleText || null,
-              primaryCaptionsNoVeo,      // 🌍 선택된 언어의 자막만
-              secondaryCaptionsNoVeo,    // null - 이중 자막 비활성화
-              context.orientation,
-              cumulativeDuration,
-              titleLanguageNoVeo,        // 🔥 타이틀 언어
-              subtitleConfigNoVeo        // 🔥 catproject: 자막 위치 하단
-            );
-
-            logger.info({
-              outputPath: standardVideoPath,
-              hasTitleText: !!titleText,
-              hasDualSubtitles: allEnglishCaptions.length > 0
-            }, "✅ Final video with title and subtitles created (no VEO3 static mode)");
-          } else {
-            // No subtitles or title, copy final video as-is
-            await fs.promises.copyFile(tempFinalPath, standardVideoPath);
-            logger.info({
-              from: tempFinalPath,
-              to: standardVideoPath
-            }, "✅ Final video copied to standard location for GCS upload (no subtitles/title)");
-          }
+          await videoFinalizerService.applySubtitlesToVideo({
+            inputPath: tempFinalPath,
+            outputPath: standardVideoPath,
+            titleText: titleText || null,
+            allKoreanCaptions: allCaptions,
+            allEnglishCaptions,
+            language: titleLanguageNoVeo,
+            orientation: context.orientation,
+            totalDuration: cumulativeDuration,
+            skipTTS: skipTTSMode,
+            videoId: context.videoId,
+            addSubtitlesFunction: this.videoProcessor.addTitleAndSubtitlesToVideo.bind(this.videoProcessor)
+          });
 
           // Calculate total duration
           const totalDuration = this.calculateTotalDuration(scenes);
