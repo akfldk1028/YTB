@@ -36,6 +36,7 @@ export interface NewsVideo {
   theme?: string;
   scenes: NewsScene[];
   hashtags?: string[];  // 🔥 n8n payload: video.hashtags
+  firstComment?: string;  // 🔥 업로드 후 첫 댓글 (출처 고지 등)
   source_news?: Array<{ title: string; link: string; rank: number }>;
   youtube?: {
     finalTitle: string;

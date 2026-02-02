@@ -198,8 +198,12 @@ export class SubtitleFilter {
       // 🔥 2026-01-17: 자막 2줄 지원 - 긴 자막 처리
       const maxCharsPerLine = orientation === OrientationEnum.portrait ? 12 : 16;  // 자막 최대 글자수
       const lineHeight = fontSize * 1.3;  // 줄 간격
-      const twoLineY1 = orientation === OrientationEnum.portrait ? 'h*0.47' : 'h*0.52';  // 2줄일 때 첫째 줄
-      const twoLineY2 = `(${twoLineY1})+${lineHeight}`;  // 2줄일 때 둘째 줄
+      const twoLineY1 = config?.yPosition
+        ? `(${config.yPosition})-${Math.round(lineHeight / 2)}`
+        : (orientation === OrientationEnum.portrait ? 'h*0.47' : 'h*0.52');
+      const twoLineY2 = config?.yPosition
+        ? `(${config.yPosition})+${Math.round(lineHeight / 2)}`
+        : `(${twoLineY1})+${lineHeight}`;
       // 🔥 자막은 Gmarket Sans Bold 사용
       const fontPath = findSubtitleFontPath();
       const textFilePaths: string[] = [];
@@ -458,16 +462,26 @@ export class SubtitleFilter {
       // 🔥 NewsProject 스타일 - 90px 큰 폰트 + 2줄/3줄 지원
       const fontSize = config?.fontSize || (orientation === OrientationEnum.portrait ? 90 : 72);
       // 🔥 2줄/3줄 자막을 위한 y 위치
-      // 2026-01-16: 자막 위치 아래로 조정 (h*0.48 → h*0.55)
-      // 2026-01-18: 3줄 자막 지원 추가
+      // config.yPosition이 있으면 그걸 기준으로 계산 (Books 프로젝트: h*0.88)
+      // 없으면 기존 하드코딩 값 사용 (News/Cat 프로젝트 영향 없음)
       const lineHeight = fontSize * 1.15;  // 줄 간격
-      const baseY = orientation === OrientationEnum.portrait ? 'h*0.55' : 'h*0.55';  // 1줄일 때 위치
-      const twoLineY1 = orientation === OrientationEnum.portrait ? 'h*0.52' : 'h*0.52';  // 2줄일 때 첫째 줄
-      const twoLineY2 = `(${twoLineY1})+${lineHeight}`;  // 2줄일 때 둘째 줄
-      // 🔥 3줄용 Y 위치 (조금 더 위에서 시작)
-      const threeLineY1 = orientation === OrientationEnum.portrait ? 'h*0.47' : 'h*0.47';  // 3줄일 때 첫째 줄
-      const threeLineY2 = `(${threeLineY1})+${lineHeight}`;  // 3줄일 때 둘째 줄
-      const threeLineY3 = `(${threeLineY1})+${lineHeight}*2`;  // 3줄일 때 셋째 줄
+      const baseY = config?.yPosition || (orientation === OrientationEnum.portrait ? 'h*0.55' : 'h*0.55');
+      const twoLineY1 = config?.yPosition
+        ? `(${config.yPosition})-${Math.round(lineHeight / 2)}`
+        : (orientation === OrientationEnum.portrait ? 'h*0.52' : 'h*0.52');
+      const twoLineY2 = config?.yPosition
+        ? `(${config.yPosition})+${Math.round(lineHeight / 2)}`
+        : `(${twoLineY1})+${lineHeight}`;
+      // 🔥 3줄용 Y 위치
+      const threeLineY1 = config?.yPosition
+        ? `(${config.yPosition})-${Math.round(lineHeight)}`
+        : (orientation === OrientationEnum.portrait ? 'h*0.47' : 'h*0.47');
+      const threeLineY2 = config?.yPosition
+        ? `${config.yPosition}`
+        : `(${threeLineY1})+${lineHeight}`;
+      const threeLineY3 = config?.yPosition
+        ? `(${config.yPosition})+${Math.round(lineHeight)}`
+        : `(${threeLineY1})+${lineHeight}*2`;
 
       // 🔥 자막은 Gmarket Sans Bold 사용
       const fontPath = findSubtitleFontPath();

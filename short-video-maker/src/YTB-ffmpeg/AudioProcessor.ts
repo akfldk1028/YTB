@@ -181,8 +181,17 @@ export class AudioProcessor {
    * Gemini TTS returns L16 PCM (24kHz, mono, 16-bit signed little-endian)
    */
   async savePcmToMp3(audio: ArrayBuffer, filePath: string): Promise<string> {
+    // v3.2.5: PCM 레벨에서 0.5초 무음 패딩 추가 후 단일 MP3 인코딩
+    // MP3 concat 방식은 인코딩 경계마다 LAME 패딩(576 samples=24ms) 손실 발생
+    // PCM에 직접 무음 바이트를 붙여서 한 번만 인코딩하면 끊김 없음
+    const pcmBuffer = Buffer.from(audio);
+    const paddingSeconds = 0.5;
+    const silenceBytes = Math.ceil(24000 * 2 * paddingSeconds); // 24kHz * 16bit * 0.5s = 24000 bytes
+    const silenceBuffer = Buffer.alloc(silenceBytes, 0);
+    const paddedBuffer = Buffer.concat([pcmBuffer, silenceBuffer]);
+
     const inputStream = new Readable();
-    inputStream.push(Buffer.from(audio));
+    inputStream.push(paddedBuffer);
     inputStream.push(null);
     return new Promise((resolve, reject) => {
       ffmpeg()
@@ -198,13 +207,37 @@ export class AudioProcessor {
         .toFormat("mp3")
         .save(filePath)
         .on("end", () => {
-          logger.debug("PCM to MP3 conversion complete");
+          logger.debug("PCM to MP3 conversion complete (with 0.5s PCM tail padding)");
           resolve(filePath);
         })
         .on("error", (err) => {
           logger.error({ error: err.message }, "PCM to MP3 conversion failed");
           reject(err);
         });
+    });
+  }
+
+  /**
+   * v3.2.5: ffprobe로 오디오 파일의 실제 길이(초) 측정
+   */
+  async getAudioDuration(filePath: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      ffmpeg(filePath).ffprobe((err, data) => {
+        if (err) {
+          logger.error({ error: err.message, filePath }, 'ffprobe failed');
+          reject(err);
+          return;
+        }
+        const duration = data?.format?.duration;
+        if (typeof duration === 'number') {
+          resolve(duration);
+        } else if (typeof duration === 'string') {
+          resolve(parseFloat(duration));
+        } else {
+          logger.warn({ filePath }, 'ffprobe: no duration found, fallback 5s');
+          resolve(5);
+        }
+      });
     });
   }
 
@@ -233,6 +266,22 @@ export class AudioProcessor {
           logger.error({ error: error.message }, "Failed to generate silent audio");
           reject(error);
         })
+        .save(outputPath);
+    });
+  }
+
+  /**
+   * Trim audio to specified duration
+   */
+  async trimAudio(inputPath: string, outputPath: string, duration: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(inputPath)
+        .duration(duration)
+        .audioCodec('libmp3lame')
+        .audioBitrate('128k')
+        .on('end', () => resolve(outputPath))
+        .on('error', (error) => reject(error))
         .save(outputPath);
     });
   }

@@ -18,12 +18,16 @@ import { logger } from '../../../logger';
 // ==================== Voice 정의 ====================
 
 export type GeminiVoiceGender = 'female' | 'male' | 'random';
+export type GeminiLanguage = 'ko' | 'en';
 
 /**
  * 🔥 Gemini TTS Voice 목록 (공식 API 지원 Voice)
  * - 참고: https://ai.google.dev/gemini-api/docs/speech-generation
- * - 총 30개 Voice 지원, 24개 언어 (한국어 포함)
+ * - 총 30개 Voice 지원, 24개 언어 (한국어/영어 포함)
+ * - 같은 Voice가 여러 언어 지원 (multi-lingual)
  */
+
+/** 한국어 최적화 Voice */
 export const GEMINI_KOREAN_VOICES = {
   female: [
     { name: 'Kore', style: 'clear', description: '또렷하고 명확한 목소리 (뉴스/안내)' },
@@ -37,6 +41,34 @@ export const GEMINI_KOREAN_VOICES = {
     { name: 'Fenrir', style: 'deep', description: '깊고 중후한 목소리' },
     { name: 'Enceladus', style: 'calm', description: '차분하고 안정적인 목소리' },
   ],
+} as const;
+
+/** 영어 최적화 Voice */
+export const GEMINI_ENGLISH_VOICES = {
+  female: [
+    { name: 'Aoede', style: 'bright', description: 'Bright and lively voice' },
+    { name: 'Leda', style: 'warm', description: 'Warm and friendly voice' },
+    { name: 'Zephyr', style: 'gentle', description: 'Soft and soothing voice' },
+    { name: 'Achernar', style: 'smooth', description: 'Smooth and elegant voice' },
+  ],
+  male: [
+    { name: 'Puck', style: 'upbeat', description: 'Upbeat and energetic voice' },
+    { name: 'Charon', style: 'firm', description: 'Strong and authoritative voice' },
+    { name: 'Algenib', style: 'confident', description: 'Confident and clear voice' },
+    { name: 'Alnilam', style: 'deep', description: 'Deep and resonant voice' },
+  ],
+} as const;
+
+/** 언어별 Voice 매핑 */
+export const GEMINI_VOICES_BY_LANGUAGE = {
+  ko: GEMINI_KOREAN_VOICES,
+  en: GEMINI_ENGLISH_VOICES,
+} as const;
+
+/** 언어별 기본 Voice (가장 자연스러운 목소리) */
+export const DEFAULT_VOICE_BY_LANGUAGE = {
+  ko: { female: 'Kore', male: 'Charon' },
+  en: { female: 'Aoede', male: 'Puck' },
 } as const;
 
 /**
@@ -152,47 +184,112 @@ export class GeminiTTS {
   }
 
   /**
+   * 언어별 기본 Voice 선택
+   */
+  getDefaultVoice(language: GeminiLanguage = 'ko', gender?: GeminiVoiceGender): { name: string; gender: 'female' | 'male' } {
+    const targetGender = gender === 'random' || !gender
+      ? (Math.random() > 0.5 ? 'female' : 'male')
+      : gender;
+
+    const defaultVoice = DEFAULT_VOICE_BY_LANGUAGE[language][targetGender];
+
+    logger.debug({
+      language,
+      selectedVoice: defaultVoice,
+      gender: targetGender,
+    }, '[GeminiTTS] 언어별 기본 Voice 선택');
+
+    return {
+      name: defaultVoice,
+      gender: targetGender,
+    };
+  }
+
+  /**
+   * 언어별 랜덤 Voice 선택
+   */
+  getRandomVoiceByLanguage(language: GeminiLanguage = 'ko', gender?: GeminiVoiceGender): { name: string; gender: 'female' | 'male' } {
+    const targetGender = gender === 'random' || !gender
+      ? (Math.random() > 0.5 ? 'female' : 'male')
+      : gender;
+
+    const voices = GEMINI_VOICES_BY_LANGUAGE[language][targetGender];
+    const randomIndex = Math.floor(Math.random() * voices.length);
+    const selectedVoice = voices[randomIndex];
+
+    logger.debug({
+      language,
+      selectedVoice: selectedVoice.name,
+      gender: targetGender,
+      style: selectedVoice.style
+    }, '[GeminiTTS] 언어별 랜덤 Voice 선택');
+
+    return {
+      name: selectedVoice.name,
+      gender: targetGender,
+    };
+  }
+
+  /**
    * 텍스트를 음성으로 변환 (Gemini API)
+   *
+   * @param text - 변환할 텍스트
+   * @param voice - Voice 이름 (선택)
+   * @param options - 추가 옵션
+   * @param options.language - 언어 ('ko' | 'en'), 기본값 'ko'
+   * @param options.gender - 성별 ('female' | 'male' | 'random')
+   * @param options.useNewsVoice - 뉴스용 추천 Voice 사용
+   * @param options.stylePrompt - 스타일 프롬프트
    */
   async generate(
     text: string,
     voice?: string,
     options?: {
+      language?: GeminiLanguage;
       gender?: GeminiVoiceGender;
       useNewsVoice?: boolean;
       stylePrompt?: string;
     }
   ): Promise<GeminiTTSResult> {
+    const language = options?.language || 'ko';
+
     // Voice 결정
     let selectedVoice: { name: string; gender: 'female' | 'male' };
 
     if (voice) {
-      // 🔥 voice가 유효한 Gemini voice인지 확인
-      const isFemale = GEMINI_KOREAN_VOICES.female.some(v => v.name === voice);
-      const isMale = GEMINI_KOREAN_VOICES.male.some(v => v.name === voice);
+      // 🔥 voice가 유효한 Gemini voice인지 확인 (모든 언어에서)
+      const allVoices = [
+        ...GEMINI_KOREAN_VOICES.female,
+        ...GEMINI_KOREAN_VOICES.male,
+        ...GEMINI_ENGLISH_VOICES.female,
+        ...GEMINI_ENGLISH_VOICES.male,
+      ];
+      const foundVoice = allVoices.find(v => v.name === voice);
 
-      if (isFemale || isMale) {
+      if (foundVoice) {
         // 유효한 Gemini voice
+        const isFemale = [...GEMINI_KOREAN_VOICES.female, ...GEMINI_ENGLISH_VOICES.female].some(v => v.name === voice);
         selectedVoice = {
           name: voice,
           gender: isFemale ? 'female' : 'male',
         };
       } else {
-        // 🔥 유효하지 않은 voice (예: ElevenLabs ID) → 랜덤 voice 사용
+        // 🔥 유효하지 않은 voice → 언어별 기본 voice 사용
         logger.warn({
           invalidVoice: voice,
-          fallbackTo: 'random'
-        }, '[GeminiTTS] 유효하지 않은 voice ID, 랜덤 voice로 대체');
+          fallbackTo: 'default',
+          language,
+        }, '[GeminiTTS] 유효하지 않은 voice ID, 언어별 기본 voice로 대체');
         selectedVoice = options?.useNewsVoice
           ? this.getNewsVoice(options?.gender)
-          : this.getRandomVoice(options?.gender);
+          : this.getDefaultVoice(language, options?.gender);
       }
     } else if (options?.useNewsVoice) {
-      // 뉴스용 추천 Voice
+      // 뉴스용 추천 Voice (한국어 전용)
       selectedVoice = this.getNewsVoice(options?.gender);
     } else {
-      // 랜덤 Voice
-      selectedVoice = this.getRandomVoice(options?.gender);
+      // 언어별 기본 Voice
+      selectedVoice = this.getDefaultVoice(language, options?.gender);
     }
 
     logger.info({
@@ -208,10 +305,19 @@ export class GeminiTTS {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
 
       // 🔥 공식 문서 기준 Request Body 구조
+      // TTS 전용 프롬프트: 텍스트가 명령으로 오해되지 않도록 명시적 지시
+      // v3.2.1: 영어 단어가 섞여있으면 영어도 자연스럽게 읽도록 지시
+      const hasEnglish = /[a-zA-Z]{2,}/.test(text);
+      const defaultPrompt = hasEnglish
+        ? `다음 대사를 자연스럽게 읽어주세요. 영어 단어는 영어 발음 그대로 읽어주세요: ${text}`
+        : `다음 대사를 자연스럽게 읽어주세요: ${text}`;
+      const ttsPrompt = options?.stylePrompt
+        ? `${options.stylePrompt}: ${text}`
+        : defaultPrompt;
       const requestBody = {
         contents: [{
           parts: [{
-            text: options?.stylePrompt ? `${options.stylePrompt}: ${text}` : text
+            text: ttsPrompt
           }]
         }],
         generationConfig: {

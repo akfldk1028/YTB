@@ -15,7 +15,7 @@ import path from "path";
 import fs from "fs-extra";
 import { logger } from "../logger";
 import { OrientationEnum, RenderConfig, TitleTextConfig, SubtitleConfig } from "../types/shorts";
-import { ffmpeg } from "./utils";
+import { ffmpeg, findSubtitleFontPath } from "./utils";
 import { SubtitleFilter, ProjectFontConfig } from "./SubtitleFilter";
 
 export class VideoEditor {
@@ -82,12 +82,28 @@ export class VideoEditor {
       // 필터 적용
       if (filters.length > 0) {
         const combinedFilter = filters.join(',');
-        ffmpegCommand.complexFilter(`[0:v]${combinedFilter}[v]`);
-        ffmpegCommand.outputOptions([
-          '-map', '[v]',
-          '-map', '1:a:0',
-          `-t ${durationSeconds}`
-        ]);
+        const fullFilter = `[0:v]${combinedFilter}[v]`;
+
+        // Windows ENAMETOOLONG 방지: 필터가 8KB 이상이면 파일로 저장
+        if (fullFilter.length > 8000 && tempDir) {
+          const filterScriptPath = path.join(tempDir, `filter_complex_${Date.now()}.txt`);
+          fs.writeFileSync(filterScriptPath, fullFilter, 'utf-8');
+          allTextFilePaths.push(filterScriptPath);
+          ffmpegCommand.outputOptions([
+            '-filter_complex_script', filterScriptPath,
+            '-map', '[v]',
+            '-map', '1:a:0',
+            `-t`, `${durationSeconds}`
+          ]);
+          logger.info({ filterLength: fullFilter.length, scriptPath: filterScriptPath }, 'Using filter_complex_script (filter too long for command line)');
+        } else {
+          ffmpegCommand.complexFilter(fullFilter);
+          ffmpegCommand.outputOptions([
+            '-map', '[v]',
+            '-map', '1:a:0',
+            `-t ${durationSeconds}`
+          ]);
+        }
       } else {
         ffmpegCommand.outputOptions([
           '-map', '0:v:0',
@@ -548,6 +564,255 @@ export class VideoEditor {
         })
         .on('error', (error: any) => {
           logger.error(error, "Error creating static video from image");
+          reject(error);
+        })
+        .save(outputPath);
+    });
+  }
+
+  /**
+   * v3.1.3: Create static video from image with formula text overlay (drawtext)
+   * Uses FFmpeg drawtext filter instead of PNG image overlay
+   * - No CodeCogs watermark
+   * - Semi-transparent background box for readability
+   * - Same font system as SubtitleFilter
+   */
+  /**
+   * v3.2.0: Create static video with formula overlay
+   * pngPath가 있으면 PNG overlay, 없으면 drawtext fallback
+   */
+  async createStaticVideoWithFormulaOverlay(
+    imagePath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: string,
+    formulaTexts: Array<{
+      text: string;
+      position?: 'center' | 'top' | 'bottom';
+      pngPath?: string;
+      pngWidth?: number;
+      pngHeight?: number;
+    }>
+  ): Promise<void> {
+    if (formulaTexts.length === 0) {
+      return this.createStaticVideoFromImage(imagePath, outputPath, duration, dimensions);
+    }
+
+    const singleFormula = formulaTexts[0];
+
+    // v3.2.0: PNG overlay가 있으면 새 메서드 사용
+    if (singleFormula.pngPath && fs.existsSync(singleFormula.pngPath)) {
+      return this.createVideoWithFormulaOverlayPng(
+        imagePath, outputPath, duration, dimensions,
+        singleFormula.pngPath,
+        singleFormula.pngWidth || 0,
+        singleFormula.pngHeight || 0,
+        singleFormula.position || 'top'
+      );
+    }
+
+    // drawtext fallback (pngPath 없을 때)
+    if (!singleFormula.text) {
+      return this.createStaticVideoFromImage(imagePath, outputPath, duration, dimensions);
+    }
+
+    logger.info({
+      imagePath,
+      outputPath,
+      duration,
+      dimensions,
+      formulaCount: formulaTexts.length,
+      formulaText: singleFormula.text.substring(0, 50),
+    }, "📐 Creating static video with formula drawtext overlay (fallback)");
+
+    const tempDir = path.dirname(outputPath);
+
+    return new Promise((resolve, reject) => {
+      // v3.2.4: Position calculation — top을 1%로 이동 (최최상단)
+      let posY: string;
+      switch (singleFormula.position) {
+        case 'top':
+          posY = `h*0.01`;
+          break;
+        case 'bottom':
+          posY = `h*0.65`;
+          break;
+        default:
+          posY = `(h-text_h)/2`;
+      }
+
+      // v3.1.4: 텍스트 최대 25자 제한 (화면 밖 잘림 방지)
+      let displayText = singleFormula.text;
+      if (displayText.length > 25) {
+        displayText = displayText.substring(0, 25);
+        logger.warn({ original: singleFormula.text.length, trimmed: 25 }, "Formula text trimmed to 25 chars");
+      }
+
+      // Write formula text to file for UTF-8 support
+      const textFilePath = path.join(tempDir, `formula_text_${Date.now()}.txt`);
+      fs.writeFileSync(textFilePath, displayText.normalize('NFC'), 'utf-8');
+
+      // Get font path (same as SubtitleFilter)
+      const fontPath = findSubtitleFontPath();
+
+      // Build FFmpeg-safe paths
+      const isWindows = process.platform === 'win32';
+      const safeFontPath = isWindows
+        ? `'${fontPath.replace(/\\/g, '/').replace(/:/g, '\\:')}'`
+        : fontPath.replace(/\\/g, '/');
+      const safeTextPath = isWindows
+        ? `'${textFilePath.replace(/\\/g, '/').replace(/:/g, '\\:')}'`
+        : textFilePath.replace(/\\/g, '/');
+
+      // Adaptive font size based on text length
+      const textLength = displayText.length;
+      let fontSize: number;
+      if (textLength <= 10) {
+        fontSize = 52;
+      } else if (textLength <= 18) {
+        fontSize = 44;
+      } else {
+        fontSize = 36;
+      }
+
+      // drawtext filter with semi-transparent background box
+      const drawtextFilter = [
+        `drawtext=fontfile=${safeFontPath}`,
+        `textfile=${safeTextPath}`,
+        `fontcolor=white`,
+        `fontsize=${fontSize}`,
+        `x=(w-text_w)/2`,
+        `y=${posY}`,
+        `box=1`,
+        `boxcolor=black@0.6`,
+        `boxborderw=12`,
+        `borderw=2`,
+        `bordercolor=black`,
+      ].join(':');
+
+      logger.debug({ drawtextFilter, fontSize, textLength }, "📐 Formula drawtext filter (fallback)");
+
+      ffmpeg()
+        .input(imagePath)
+        .inputOption('-loop 1')
+        .inputOption(`-t ${duration}`)
+        .videoCodec('libx264')
+        .size(dimensions)
+        .fps(30)
+        .videoFilters(drawtextFilter)
+        .outputOption('-pix_fmt yuv420p')
+        .on('start', (commandLine) => {
+          logger.debug('FFmpeg createStaticVideoWithFormulaOverlay command: ' + commandLine);
+        })
+        .on('end', () => {
+          // Clean up text file
+          try {
+            if (fs.existsSync(textFilePath)) {
+              fs.unlinkSync(textFilePath);
+            }
+          } catch (e) {
+            logger.warn({ textFilePath }, "Failed to clean up formula text file");
+          }
+          logger.info({ outputPath }, "📐 Video with formula drawtext complete (fallback)");
+          resolve();
+        })
+        .on('error', (error: any) => {
+          try {
+            if (fs.existsSync(textFilePath)) {
+              fs.unlinkSync(textFilePath);
+            }
+          } catch (e) { /* ignore */ }
+          logger.error({ error, formulaText: singleFormula.text }, "Error creating video with formula drawtext");
+          reject(error);
+        })
+        .save(outputPath);
+    });
+  }
+
+  /**
+   * v3.2.0: MathJax PNG overlay로 수식 비디오 생성
+   * FFmpeg [0:v][1:v]overlay 필터 사용
+   */
+  private createVideoWithFormulaOverlayPng(
+    imagePath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: string,
+    pngPath: string,
+    pngWidth: number,
+    pngHeight: number,
+    position: 'center' | 'top' | 'bottom'
+  ): Promise<void> {
+    const [width, height] = dimensions.split('x').map(Number);
+
+    // v3.2.4: Y 위치 계산 — top을 1%로 이동 (최최상단)
+    let overlayY: string;
+    switch (position) {
+      case 'top':
+        overlayY = `${Math.round(height * 0.01)}`;
+        break;
+      case 'bottom':
+        overlayY = `${Math.round(height * 0.65)}`;
+        break;
+      default:
+        overlayY = `(H-h)/2`;
+    }
+
+    // v3.2.4: 적응형 수식 스케일링 — 짧은 수식은 작게, 긴 수식만 크게
+    // pngWidth 기준: 원본보다 작으면 upscale 금지, 원본 대비 적절한 비율 유지
+    let targetWidth: number;
+    const screenWidth = width;
+    if (pngWidth < screenWidth * 0.2) {
+      // 아주 짧은 수식 (β, α 등): 최대 25%
+      targetWidth = Math.min(Math.round(screenWidth * 0.25), pngWidth * 3);
+    } else if (pngWidth < screenWidth * 0.4) {
+      // 짧은 수식 (E=mc²): 최대 40%
+      targetWidth = Math.min(Math.round(screenWidth * 0.40), pngWidth * 2);
+    } else if (pngWidth < screenWidth * 0.6) {
+      // 중간 수식: 최대 60%
+      targetWidth = Math.round(screenWidth * 0.60);
+    } else {
+      // 긴 수식: 최대 85%
+      targetWidth = Math.round(screenWidth * 0.85);
+    }
+
+    logger.info({
+      imagePath,
+      pngPath,
+      outputPath,
+      duration,
+      dimensions,
+      position,
+      overlayY,
+      pngSize: `${pngWidth}x${pngHeight}`,
+      scaledWidth: targetWidth,
+    }, "📐 Creating static video with MathJax PNG overlay (v3.2.4)");
+
+    return new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(imagePath)
+        .inputOption('-loop 1')
+        .inputOption(`-t ${duration}`)
+        .input(pngPath)
+        .complexFilter([
+          `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:-1:-1:color=black[bg]`,
+          `[1:v]scale=${targetWidth}:-1[formula]`,
+          `[bg][formula]overlay=(W-w)/2:${overlayY}[v]`
+        ])
+        .outputOption('-map [v]')
+        .videoCodec('libx264')
+        .fps(30)
+        .outputOption('-pix_fmt yuv420p')
+        .outputOption('-shortest')
+        .on('start', (commandLine) => {
+          logger.debug('FFmpeg createVideoWithFormulaOverlayPng command: ' + commandLine);
+        })
+        .on('end', () => {
+          logger.info({ outputPath }, "📐 Video with MathJax PNG overlay complete (v3.2.0)");
+          resolve();
+        })
+        .on('error', (error: any) => {
+          logger.error({ error, pngPath }, "Error creating video with MathJax PNG overlay");
           reject(error);
         })
         .save(outputPath);

@@ -1,7 +1,9 @@
 # API - REST 엔드포인트
 
-> Last Updated: 2026-01-23
-> Status: **v2.1 Episode/Scene API 완료**
+> Last Updated: 2026-01-31
+> Status: **v3.1.1 수식 중심 + filter_complex_script + generateSceneImages 헬퍼** ✅
+>
+> **v3.1.1 변경**: `generateSceneImages()` 헬퍼에서 이미지 재사용(streak=1) + fallback 로직, `enhanceExplanationPrompt()`로 explanation 씬 인포그래픽 스타일 보정
 
 ---
 
@@ -35,9 +37,11 @@ Base URL: `http://localhost:3124/api/books`
 ### AI 분석 및 Shorts 생성
 | Method | Endpoint | 설명 | 상태 |
 |--------|----------|------|:----:|
+| `POST` | `/:bookId/curriculum` | **🆕 순차적 커리큘럼 (권장)** | ✅ v2.5.0 |
+| `POST` | `/:bookId/entities` | 엔티티 기반 (독립적) | ✅ |
 | `POST` | `/:bookId/analyze` | AI 분석 → ShortsPlan | ✅ |
-| `POST` | `/:bookId/generate-video` | 비디오 생성 | 🔄 |
-| `GET` | `/download/:videoId` | 비디오 다운로드 | 🔄 |
+| `POST` | `/:bookId/generate-video` | 비디오 생성 | ✅ |
+| `GET` | `/download/:videoId` | 비디오 다운로드 | ✅ |
 
 ### Episode/Scene (v2.1 ✅)
 | Method | Endpoint | 설명 | 상태 |
@@ -136,21 +140,97 @@ curl -X POST http://localhost:3124/api/books/episodes/{episodeId}/generate-image
 
 ---
 
+## v3.0.0 변경사항
+
+### Neo4j contentType 아키텍처
+`/curriculum` API 호출 시 문서 분야를 자동 판별하여 Neo4j에 캐싱:
+
+```
+/curriculum 호출 → Neo4j 캐시 확인 → (없으면) AI 판별 → Neo4j 저장 → ContentPlanner에 전달
+```
+
+- 응답에 `contentType` 필드 추가 (`'math_science' | 'humanities' | 'social_science'`)
+- `ContentType` import from ContentPlannerService
+- `getContentPlannerService({ contentType })` 옵션 추가
+
+### BOOKS_PROJECT_CONFIG 도입
+BooksRouter에서 `BOOKS_PROJECT_CONFIG`를 import하여 비디오 생성 시 프로젝트별 설정(orientation, language, subtitleYPosition, enableMathFormulas, reuseImageForSameType)을 일괄 적용.
+
+### generateSceneImages() 헬퍼 메서드
+기존 3곳에 중복되던 이미지 생성 루프를 `generateSceneImages()` 헬퍼로 추출:
+
+```typescript
+// BooksRouter.ts 내부 헬퍼
+async function generateSceneImages(scenes, ghibliService, config) {
+  // streak-limited reuse: 연속 동일 sceneType은 이미지 재사용 (streak=1 제한)
+  // streak > 1이면 새 이미지 생성
+}
+```
+
+- **streak-limited reuse**: 연속 동일 `sceneType`인 씬은 이전 이미지를 재사용하되, streak=1까지만 허용
+- 코드 중복 제거 (3곳 -> 1곳)
+
+---
+
 ## 파이프라인 플로우
 
 ```
 Episode → Scenes
     │
-    ├── GhibliImageService
-    │   └── Scene 0: GPT-4o → 마스터 이미지
-    │   └── Scene 1+: NanoBanana + 레퍼런스 → 일관성 유지
+    ├── generateSceneImages() (v2.9.1 헬퍼)
+    │   ├── GhibliImageService
+    │   │   └── Scene 0: GPT-4o → 마스터 이미지
+    │   │   └── Scene 1+: NanoBanana + 레퍼런스 → 일관성 유지
+    │   └── streak-limited reuse (동일 sceneType → 이미지 재사용, streak=1)
     │
-    ├── BooksVideoService
+    ├── BooksVideoService (BOOKS_PROJECT_CONFIG 적용)
     │   └── GeminiTTS → 나레이션 오디오 (Kore voice)
-    │   └── FFmpeg → 이미지 + 오디오 + 자막 합성
+    │   └── FFmpeg → 이미지 + 오디오 + 자막 합성 (subtitleY: h*0.88)
     │
     └── Neo4j 상태 업데이트
         └── approved → producing → completed
+```
+
+---
+
+## 테스트 결과 (2026-01-24)
+
+### AR_TALK.pdf 비디오 생성 성공
+| 항목 | 결과 |
+|------|------|
+| 테스트 문서 | AR_TALK.pdf |
+| 총 에피소드 | 19개 생성, 9개 완료 |
+| 총 용량 | 74MB (9개 영상) |
+| 해상도 | 1080x1920 (Portrait) |
+| TTS | Gemini Kore (한국어) |
+| 이미지 | GPT(1장) + NanoBanana(7장/에피소드) |
+
+### v2.9.1 변경사항
+| 변경 | 설명 |
+|------|------|
+| BOOKS_PROJECT_CONFIG import | 프로젝트별 중앙 설정 적용 |
+| generateSceneImages() 헬퍼 | 3곳 중복 루프 → 1개 헬퍼 추출 |
+| streak-limited reuse | 연속 동일 sceneType 이미지 재사용 (streak=1) |
+
+### v2.5.0 수정사항
+| 문제 | 해결 |
+|------|------|
+| Episode 생성 후 "not found" | `createEpisodeWithScenes()` 단일 트랜잭션 |
+| TTS 400 에러 (명령 오해) | 프롬프트 프리픽스 추가 |
+
+### 테스트 커맨드
+```bash
+# 이미지 생성
+curl -X POST "http://localhost:3124/api/books/episodes/ep_short_0_zoh96/generate-images" \
+  -H "Content-Type: application/json" \
+  -d '{"config":{"orientation":"portrait"}}'
+# 결과: 8/8 이미지 생성 성공
+
+# 비디오 생성 (기존 이미지 사용)
+curl -X POST "http://localhost:3124/api/books/AR_TALK.pdf/generate-video" \
+  -H "Content-Type: application/json" \
+  -d '{"imagePaths":["...8개_이미지_경로..."],"shortPlan":{...}}'
+# 결과: 54초 비디오 생성 성공
 ```
 
 ---

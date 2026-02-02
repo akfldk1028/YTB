@@ -19,6 +19,8 @@ export interface BookChunk {
   summary?: string;
   entities?: string[];
   embedding?: number[];
+  latexFormulas?: string[];      // v3.1.0: Neo4j에서 가져온 LaTeX 수식 목록
+  sectionTitle?: string;         // v3.1.0: 청크의 섹션 제목
 }
 
 /**

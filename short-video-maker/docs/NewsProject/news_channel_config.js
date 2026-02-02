@@ -366,12 +366,12 @@ const NEWS_CHANNEL_SETTINGS = {
   },
 
   // ============================================
-  // 🔵 파랑나라 진보왕자 (전용 채널)
+  // 🔵 파랑나라 진보왕자 (삭제됨 - blue_news_2로 이전)
   // ============================================
   "blue_news": {
     name: "blue_news",
-    displayName: "파랑나라 진보왕자",
-    description: "진보 관점 뉴스 숏폼 (전용 채널)",
+    displayName: "파랑나라 진보왕자 (삭제됨)",
+    description: "진보 관점 뉴스 숏폼 (채널 삭제됨 → blue_news_2로 이전)",
     language: "korean",
 
     profileId: null,
@@ -416,6 +416,73 @@ const NEWS_CHANNEL_SETTINGS = {
       defaultPrivacy: "unlisted",
       defaultTags: ["뉴스", "정치", "진보", "시사", "shorts"],
       hashtagTemplate: "#shorts #진보 #뉴스 #파랑나라"
+    },
+
+    news: {
+      rssFeeds: [
+        { name: "한겨레 정치", url: "https://www.hani.co.kr/rss/politics/" },
+        { name: "경향신문 정치", url: "https://www.khan.co.kr/rss/rssdata/politic_news.xml" },
+        { name: "오마이뉴스", url: "http://rss.ohmynews.com/rss/ohmynews.xml" }
+      ],
+      curation: { maxNews: 4, jaccardThreshold: 0.4, timeWindowHours: 24 },
+      defaultTone: "progressive_fun",  // 진보 + 재밌게
+      defaultTarget: "mz",
+      imageGeneration: "hybrid",
+      nanoBanana: { defaultStyle: "news_infographic", defaultAspectRatio: "9:16" }
+    }
+  },
+
+  // ============================================
+  // 🔵 진보나라파랑왕자 (blue_news 후속 채널)
+  // ============================================
+  "blue_news_2": {
+    name: "blue_news_2",
+    displayName: "진보나라파랑왕자",
+    description: "진보 관점 뉴스 숏폼 (전용 채널, blue_news 후속)",
+    language: "korean",
+
+    profileId: null,
+    characterIds: [],
+    characterDescriptions: {},
+
+    style: "news",
+    veo3Priority: false,
+
+    audio: {
+      skipTTS: false,
+      voice: "Kore",
+      tts_provider: "gemini",
+      bgm: { source: null, volume: 0.12, loop: true, seekStart: 0 },
+      sfxPresets: [],
+      sfxVolume: 0
+    },
+
+    video: {
+      orientation: "portrait",
+      generateVideos: true,
+      useFrameInterpolation: true,
+      useSceneTransitions: true,
+      sceneTransitionType: "fade",
+      sceneTransitionDuration: 0.3,
+      useStoredImageForVeo: false
+    },
+
+    titleText: {
+      style: "news_lower_third",
+      position: "bottom",
+      duration: "full",
+      font: "Pretendard",
+      fontSize: 48,
+      backgroundColor: "rgba(0, 51, 153, 0.9)"  // 파랑
+    },
+
+    youtube: {
+      enabled: true,
+      channelName: "blue_news_2",  // 🔥 새 전용 채널
+      channelId: "UCI8D5MdaoNzhSXWUaFAZb8g",
+      defaultPrivacy: "unlisted",
+      defaultTags: ["뉴스", "정치", "진보", "시사", "shorts"],
+      hashtagTemplate: "#shorts #진보 #뉴스 #진보나라"
     },
 
     news: {

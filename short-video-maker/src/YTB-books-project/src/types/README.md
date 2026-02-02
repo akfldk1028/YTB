@@ -1,7 +1,7 @@
 # Types - 타입 정의
 
-> Last Updated: 2026-01-23
-> Status: **v2.0 완료** (Episode/Scene 타입 추가)
+> Last Updated: 2026-01-31
+> Status: **v3.1.0** (BookChunk latexFormulas/sectionTitle + FormulaWithContext + Episode/Scene)
 
 ---
 
@@ -23,6 +23,11 @@
 | `ShortsStatus` | Shorts 생성 상태 |
 | `ShortsGenerationConfig` | 생성 설정 |
 | `GhibliScene` | 지브리 스타일 씬 |
+
+### ContentType (v3.0.0 신규)
+| 타입 | 설명 |
+|------|------|
+| `ContentType` | `'math_science' \| 'humanities' \| 'social_science' \| 'auto'` - 문서 분야 분류 |
 
 ### Episode/Scene 타입 (v2.0 신규)
 | 타입 | 설명 |

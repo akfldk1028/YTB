@@ -189,3 +189,9 @@ short-video-maker/docs/templates/environment-variables.md
 tmpclaude-*
 nul
 .playwright-mcp
+docs
+NEB
+tmp_episodes.json
+tmp_ep26.json
+Data00_PersonalYTBNEBneb_api.json
+temp-yt/*.json

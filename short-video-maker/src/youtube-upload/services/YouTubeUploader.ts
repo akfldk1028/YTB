@@ -456,6 +456,46 @@ export class YouTubeUploader {
   }
 
   /**
+   * Post a comment on a YouTube video
+   * Used for first-comment (e.g. source attribution) after upload
+   * Does NOT throw on failure - returns null instead
+   */
+  public async postComment(
+    youtubeVideoId: string,
+    channelName: string,
+    commentText: string
+  ): Promise<string | null> {
+    try {
+      const oauth2Client = this.createOAuth2Client(channelName);
+      const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+      const response = await youtube.commentThreads.insert({
+        part: ['snippet'],
+        requestBody: {
+          snippet: {
+            videoId: youtubeVideoId,
+            topLevelComment: {
+              snippet: {
+                textOriginal: commentText,
+              },
+            },
+          },
+        },
+      });
+
+      const commentId = response.data.id || null;
+      logger.info({ youtubeVideoId, channelName, commentId }, 'YouTube comment posted successfully');
+      return commentId;
+    } catch (error) {
+      logger.warn(
+        { error, youtubeVideoId, channelName },
+        'Failed to post YouTube comment - non-critical, continuing'
+      );
+      return null;
+    }
+  }
+
+  /**
    * Refresh access token for a specific channel
    */
   public async refreshAccessToken(channelName: string): Promise<void> {

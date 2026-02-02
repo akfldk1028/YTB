@@ -75,8 +75,16 @@ export class FFMpeg {
     return this.audioProcessor.savePcmToMp3(audio, filePath);
   }
 
+  async getAudioDuration(filePath: string): Promise<number> {
+    return this.audioProcessor.getAudioDuration(filePath);
+  }
+
   async generateSilentAudio(outputPath: string, duration: number): Promise<string> {
     return this.audioProcessor.generateSilentAudio(outputPath, duration);
+  }
+
+  async trimAudio(inputPath: string, outputPath: string, duration: number): Promise<string> {
+    return this.audioProcessor.trimAudio(inputPath, outputPath, duration);
   }
 
   async createAudioFromSoundEffects(
@@ -260,6 +268,25 @@ export class FFMpeg {
     dimensions: string
   ): Promise<void> {
     return this.videoEditor.createStaticVideoFromMultipleImages(imageDataList, outputPath, dimensions);
+  }
+
+  /**
+   * v3.2.0: Create static video with formula overlay (PNG or drawtext fallback)
+   */
+  async createStaticVideoWithFormulaOverlay(
+    imagePath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: string,
+    formulaTexts: Array<{
+      text: string;
+      position?: 'center' | 'top' | 'bottom';
+      pngPath?: string;
+      pngWidth?: number;
+      pngHeight?: number;
+    }>
+  ): Promise<void> {
+    return this.videoEditor.createStaticVideoWithFormulaOverlay(imagePath, outputPath, duration, dimensions, formulaTexts);
   }
 
   async extractAudioFromVideo(videoPath: string, outputAudioPath: string): Promise<void> {

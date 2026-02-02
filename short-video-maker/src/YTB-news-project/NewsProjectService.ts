@@ -278,21 +278,16 @@ export class NewsProjectService {
         // - 정보 중복 제거: 제목은 눈으로, 본문은 귀로
         const baseText = scene.narration;
 
-        // 🔥 Gemini Director's Notes - 일관된 톤 유지를 위한 스타일 가이드
-        // 공식 문서: https://ai.google.dev/gemini-api/docs/speech-generation
-        const defaultTtsStyle = '발랄하고 에너지 넘치는 뉴스 앵커. 밝고 활기찬 톤으로 모든 문장을 흥미진진하게 전달해줘. 제목과 본문 모두 같은 에너지로!';
+        // 🔥 Gemini TTS 스타일 가이드 (stylePrompt 옵션으로 분리 전달)
+        // FIX: Director's Notes를 text에 합치면 TTS가 그대로 읽어버림
+        // → GeminiTTS의 stylePrompt 옵션으로 분리하여 프롬프트 프리픽스로만 사용
+        const defaultTtsStyle = '발랄하고 에너지 넘치는 뉴스 앵커처럼 다음 대사를 읽어주세요';
         const ttsStyle = config.audio.tts_style || defaultTtsStyle;
 
-        // 🔥 Gemini TTS용 텍스트 (Director's Notes 포함)
-        const geminiTtsText = `### DIRECTOR'S NOTES
-Style: ${ttsStyle}
-
-${baseText}`;
-
-        // 🔥 기타 TTS용 텍스트 (Director's Notes 없음)
+        // 🔥 TTS 텍스트: narration 본문만 (Director's Notes는 stylePrompt로 분리)
         const ttsText = baseText;
 
-        logger.debug({ hasTitle: !!scene.news_title, ttsTextLength: ttsText.length, hasDirectorsNote: true }, '[NewsProject] TTS 텍스트 결합 (Director\'s Notes 적용)');
+        logger.debug({ hasTitle: !!scene.news_title, ttsTextLength: ttsText.length, ttsStyle }, '[NewsProject] TTS 텍스트 준비 (stylePrompt 분리)');
 
         // 🔥 TTS 생성 우선순위: Gemini(기본) → ElevenLabs → Google (fallback)
         let usedProvider: string = ttsProvider;
@@ -303,11 +298,11 @@ ${baseText}`;
         if ((ttsProvider === 'gemini' || !ttsProvider) && this.geminiTTS && selectedVoiceForVideo) {
           try {
             const ttsResult = await this.geminiTTS.generate(
-              geminiTtsText,  // 🔥 Director's Notes + narration (본문만, 일관된 톤)
+              ttsText,  // 🔥 narration 본문만 (Director's Notes 제거)
               selectedVoiceForVideo.name,  // 🔥 영상 전체 동일 voice 사용
-              { useNewsVoice: false }  // 이미 선택된 voice 사용
+              { useNewsVoice: false, stylePrompt: ttsStyle }  // 🔥 스타일은 프롬프트 프리픽스로 분리
             );
-            logger.info({ ttsStyle, hasDirectorsNote: true }, '[NewsProject] 🎙️ Gemini TTS with Director\'s Notes');
+            logger.info({ ttsStyle }, '[NewsProject] 🎙️ Gemini TTS with stylePrompt');
 
             // 🔥 Gemini TTS는 RAW PCM (L16, 24kHz, mono) → MP3로 변환 필요
             await this.ffmpeg.savePcmToMp3(ttsResult.audio, audioPath);
@@ -797,6 +792,17 @@ ${baseText}`;
 
             youtubeUrl = `https://youtube.com/shorts/${youtubeVideoId}`;
             logger.info({ videoId, youtubeVideoId, youtubeUrl }, '[NewsProject] ✅ YouTube 업로드 완료');
+
+            // 🔥 첫 댓글 등록 (출처 고지 등)
+            const firstComment = video.firstComment;
+            if (firstComment && youtubeVideoId) {
+              try {
+                await this.youtubeUploader!.postComment(youtubeVideoId, channelName, firstComment);
+                logger.info({ videoId, youtubeVideoId }, '[NewsProject] ✅ 첫 댓글 등록 완료');
+              } catch (commentError) {
+                logger.warn({ videoId, error: commentError }, '[NewsProject] 첫 댓글 등록 실패 - 계속 진행');
+              }
+            }
           }
         } catch (ytError) {
           logger.error({ videoId, error: ytError }, '[NewsProject] YouTube 업로드 실패 - 계속 진행');

@@ -2,6 +2,8 @@
 
 FFmpeg 비디오/오디오 처리를 위한 모듈화된 라이브러리.
 
+> Last Updated: 2026-02-01 | v3.1.2 adaptive formula sizing + drop shadow
+
 ## Architecture
 
 ```
@@ -33,7 +35,9 @@ FFmpeg drawtext 필터 생성.
 
 | Method | Description |
 |--------|-------------|
-| `createSubtitleFilter()` | 단일 자막 필터 생성 |
+| `createSubtitleFilter()` | 단일 자막 필터 (30+개 시 simplified 자동 전환) |
+| `createSimplifiedSubtitleFilter()` | 90px 2/3줄 자막 (Books/News용) |
+| `createSceneOverlayFilter()` | 씬별 제목 오버레이 (상단) |
 | `createDualLanguageSubtitleFilter()` | 이중 언어 자막 필터 |
 | `createTitleTextFilter()` | 타이틀 텍스트 필터 |
 
@@ -56,11 +60,12 @@ FFmpeg drawtext 필터 생성.
 
 | Method | Description |
 |--------|-------------|
-| `combineVideoWithAudioAndCaptions()` | 비디오 + 오디오 + 자막 합성 |
+| `combineVideoWithAudioAndCaptions()` | 비디오 + 오디오 + 자막 합성 (filter_complex_script 지원) |
 | `trimVideo()` | 비디오 트림 |
 | `trimAndResizeVideo()` | 트림 + 리사이즈 (오디오 제거) |
 | `addSubtitlesToVideo()` | 자막 추가 |
 | `createStaticVideoFromImage()` | 이미지로 정적 비디오 생성 |
+| `createStaticVideoWithFormulaOverlay()` | 이미지 + LaTeX 수식 오버레이 비디오 |
 | `extractAudioFromVideo()` | 비디오에서 오디오 추출 |
 | `replaceVideoAudio()` | 비디오 오디오 교체 |
 
@@ -181,6 +186,25 @@ circleopen, circleclose, radial, pixelize, fadeblack, fadewhite, ...
 Stream Copy → Ultrafast Encoding → Error
 Audio+Video → Video-only → Error
 ```
+
+### Adaptive Formula Sizing (v3.1.2)
+`createStaticVideoWithFormulaOverlay()`에서 LaTeX 길이 기반 동적 크기 조절:
+- 짧은 수식 (≤20자, 예: `L_cb`): 화면 40% (432px)
+- 중간 수식 (≤50자): 화면 55% (594px)
+- 긴 수식 (50자+): 화면 70% (756px)
+
+투명 배경 수식 가독성을 위해 드롭쉐도우 효과 자동 적용 (boxblur + alpha).
+
+### ENAMETOOLONG 방지 (v3.1.1)
+`combineVideoWithAudioAndCaptions()`에서 자막 필터가 8KB 이상이면 파일로 저장:
+```typescript
+// Windows 32KB 명령줄 제한 초과 방지
+if (fullFilter.length > 8000 && tempDir) {
+  fs.writeFileSync(filterScriptPath, fullFilter);
+  ffmpegCommand.outputOptions(['-filter_complex_script', filterScriptPath, ...]);
+}
+```
+**적용 조건**: 캡션 50개+ (84캡션 × 3줄 = 230 drawtext 필터 → ~30KB)
 
 ## Performance Tips
 

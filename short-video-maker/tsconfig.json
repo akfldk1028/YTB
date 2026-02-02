@@ -17,6 +17,13 @@
     "node_modules",
     "dist",
     "vitest.config.ts",
-    "src/ui"
+    "src/ui",
+    "scripts",
+    "temp",
+    "vite.config.ts",
+    "approve-episode.ts",
+    "check-scene-chunks.ts",
+    "find-latex-episode.ts",
+    "**/*.test.ts"
   ]
 }

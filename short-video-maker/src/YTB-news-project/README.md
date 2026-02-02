@@ -885,7 +885,8 @@ command.setDuration(duration);
 | channelName | YouTube 채널명 | Channel ID | 성향 |
 |-------------|---------------|------------|------|
 | `red_news` | 빨강나라 보수공주 | UC8wQlyHC7iYjzZYBoOAYaKw | 🔴 보수 |
-| `blue_news` | 파랑나라 진보왕자 | UC7Pj-MJOYkYgONLsk3uejSA | 🔵 진보 |
+| `blue_news` | ~~파랑나라 진보왕자~~ (삭제됨) | UC7Pj-MJOYkYgONLsk3uejSA | 🔵 진보 |
+| `blue_news_2` | 진보나라파랑왕자 | UCI8D5MdaoNzhSXWUaFAZb8g | 🔵 진보 |
 
 **계정**: clickaround8@gmail.com (전체 동일)
 
@@ -897,7 +898,7 @@ command.setDuration(duration);
 
 ```javascript
 // n8n Set Channel Type 노드에서 설정
-channel_type: "red_news" | "blue_news" | "news_politics" | "news_economy" | "news_social"
+channel_type: "red_news" | "blue_news_2" | "news_politics" | "news_economy" | "news_social"
 tone: "conservative_fun" | "progressive_fun" | "neutral_fun" | ...
 target: "ajae" | "mz" | "senior"
 ```

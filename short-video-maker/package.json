@@ -75,6 +75,7 @@
     "fs-extra": "^11.3.0",
     "google-auth-library": "^10.3.0",
     "googleapis": "^164.1.0",
+    "mathjax-full": "^3.2.2",
     "neo4j-driver": "^6.0.1",
     "nock": "^14.0.3",
     "openai": "^6.16.0",
@@ -83,6 +84,7 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.5.3",
     "remotion": "^4.0.286",
+    "sharp": "^0.34.5",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.24.5"
   },
@@ -95,6 +97,7 @@
     "@types/nock": "^11.1.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.1.0",
+    "@types/sharp": "^0.32.0",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.16",
     "eslint": "^9.24.0",
@@ -109,5 +112,8 @@
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.55.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["sharp"]
   }
 }
