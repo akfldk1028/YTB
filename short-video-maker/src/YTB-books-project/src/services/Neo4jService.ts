@@ -645,6 +645,70 @@ export class Neo4jService {
   }
 
   /**
+   * v3.4.0: Document별 비디오 설정 저장
+   * Document 노드에 videoConfig JSON 속성으로 저장
+   */
+  async saveDocumentVideoConfig(
+    documentId: string,
+    config: import('../types').DocumentVideoConfig
+  ): Promise<boolean> {
+    const session = this.driver.session({ database: this.database });
+
+    try {
+      const result = await session.run(`
+        MATCH (d:Document {fileName: $documentId})
+        SET d.videoConfig = $configJson, d.videoConfig_updated_at = datetime()
+        RETURN d.fileName as id
+      `, {
+        documentId,
+        configJson: JSON.stringify(config)
+      });
+
+      if (result.records.length === 0) {
+        logger.warn({ documentId }, 'Document not found for config save');
+        return false;
+      }
+
+      logger.info({ documentId, contentType: config.contentType }, 'Document video config saved');
+      return true;
+    } catch (error) {
+      logger.error({ error, documentId }, 'Failed to save document video config');
+      throw error;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * v3.4.0: Document별 비디오 설정 조회
+   * 없으면 null 반환 (호출측에서 기본 프리셋 사용)
+   */
+  async getDocumentVideoConfig(
+    documentId: string
+  ): Promise<import('../types').DocumentVideoConfig | null> {
+    const session = this.driver.session({ database: this.database });
+
+    try {
+      const result = await session.run(`
+        MATCH (d:Document {fileName: $documentId})
+        RETURN d.videoConfig as configJson
+      `, { documentId });
+
+      if (result.records.length === 0 || !result.records[0].get('configJson')) {
+        return null;
+      }
+
+      const configJson = result.records[0].get('configJson');
+      return JSON.parse(configJson);
+    } catch (error) {
+      logger.warn({ error, documentId }, 'Failed to load document video config');
+      return null;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
    * Shorts 계획을 Neo4j에 저장
    */
   async savePlan(fileName: string, plan: object): Promise<string> {
@@ -812,7 +876,10 @@ export class Neo4jService {
           camera: $camera,
           transition: $transition,
           sourceChunkIds: $sourceChunkIds,
-          mentionedEntities: $mentionedEntities
+          mentionedEntities: $mentionedEntities,
+          assignedFormula: $assignedFormula,
+          formulaName: $formulaName,
+          formulaMetaphor: $formulaMetaphor
         })
         CREATE (e)-[:HAS_SCENE {order: $sceneNumber}]->(s)
         SET e.sceneCount = COALESCE(e.sceneCount, 0) + 1,
@@ -838,7 +905,10 @@ export class Neo4jService {
         camera: input.camera || 'static',
         transition: input.transition || 'cut',
         sourceChunkIds: input.sourceChunkIds || [],
-        mentionedEntities: input.mentionedEntities || []
+        mentionedEntities: input.mentionedEntities || [],
+        assignedFormula: input.assignedFormula || '',
+        formulaName: input.formulaName || '',
+        formulaMetaphor: input.formulaMetaphor || ''
       });
 
       if (result.records.length === 0) {
@@ -948,7 +1018,10 @@ export class Neo4jService {
               camera: $camera,
               transition: $transition,
               sourceChunkIds: $sourceChunkIds,
-              mentionedEntities: $mentionedEntities
+              mentionedEntities: $mentionedEntities,
+              assignedFormula: $assignedFormula,
+              formulaName: $formulaName,
+              formulaMetaphor: $formulaMetaphor
             })
             CREATE (e)-[:HAS_SCENE {order: $sceneNumber}]->(s)
             RETURN s
@@ -965,7 +1038,10 @@ export class Neo4jService {
             camera: sceneInput.camera || 'static',
             transition: sceneInput.transition || 'cut',
             sourceChunkIds: sceneInput.sourceChunkIds || [],
-            mentionedEntities: sceneInput.mentionedEntities || []
+            mentionedEntities: sceneInput.mentionedEntities || [],
+            assignedFormula: (sceneInput as any).assignedFormula || '',
+            formulaName: (sceneInput as any).formulaName || '',
+            formulaMetaphor: (sceneInput as any).formulaMetaphor || ''
           });
 
           if (scResult.records.length > 0) {
@@ -1481,7 +1557,10 @@ export class Neo4jService {
       mentionedEntities: props.mentionedEntities || [],
       imagePath: props.imagePath || undefined,
       audioPath: props.audioPath || undefined,
-      clipPath: props.clipPath || undefined
+      clipPath: props.clipPath || undefined,
+      assignedFormula: props.assignedFormula || undefined,
+      formulaName: props.formulaName || undefined,
+      formulaMetaphor: props.formulaMetaphor || undefined,
     };
   }
 }

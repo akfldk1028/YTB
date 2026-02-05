@@ -67,6 +67,11 @@ export interface ImageGenerationQuery {
     data: Buffer;
     mimeType: string;
   }[];
+  /** v3.5.0: Reference image interpretation mode
+   * - 'character': treat reference as character sheet (exact same character)
+   * - 'style': treat reference as visual style guide (same colors/composition/art style, different content)
+   */
+  referenceMode?: 'character' | 'style';
 }
 
 export const IMAGEN_MODELS = {

@@ -1,9 +1,9 @@
 # API - REST 엔드포인트
 
-> Last Updated: 2026-01-31
-> Status: **v3.1.1 수식 중심 + filter_complex_script + generateSceneImages 헬퍼** ✅
+> Last Updated: 2026-02-03
+> Status: **v3.4.1 MathJax SVG fill + 씬간 텀 축소 + FFmpeg 인코딩 최적화** ✅
 >
-> **v3.1.1 변경**: `generateSceneImages()` 헬퍼에서 이미지 재사용(streak=1) + fallback 로직, `enhanceExplanationPrompt()`로 explanation 씬 인포그래픽 스타일 보정
+> **v3.4.1 변경**: FFmpeg 인코딩 옵션 추가 (`-preset ultrafast -crf 23` → 500MB+ → ~10MB), MathJax `fill="currentColor"` → `fill="white"` 대체, 씬간 텀 0.15초 → 0.05초
 
 ---
 
@@ -137,6 +137,26 @@ curl -X POST http://localhost:3124/api/books/episodes/{episodeId}/generate-image
     }
   }'
 ```
+
+---
+
+## v3.4.1 변경사항 (2026-02-03)
+
+### 1. FFmpeg 인코딩 최적화 ⭐ 핵심
+- **문제**: VideoEditor의 여러 함수에서 `-preset`, `-crf` 옵션 누락 → 60초 영상이 500MB+ 출력
+- **해결**: 모든 비디오 생성 함수에 `-preset ultrafast -crf 23 -pix_fmt yuv420p` 추가
+- **적용 함수**: `combineVideoWithAudioAndCaptions`, `createStaticVideoFromImage`, `createStaticVideoWithFormulaOverlay`, `createVideoWithFormulaOverlayPng`
+- **효과**: 500MB+ → ~10MB, 인코딩 30분+ → 2-3분
+
+### 2. MathJax SVG fill 수정 (MathFormulaService.ts)
+- **문제**: MathJax가 `fill="currentColor"` 속성을 이미 포함 → 기존 `<g fill="white">` 추가 방식은 XML 에러
+- **해결**: `fill="currentColor"` → `fill="white"` 대체
+- **효과**: β, ψ, θ 등 그리스 문자가 PNG로 정상 렌더링
+
+### 3. 씬간 텀 축소 (AudioProcessor.ts, BooksVideoService.ts)
+- PCM 무음 패딩: 0.15초 → 0.05초
+- 크로스페이드: 0.15초 → 0.05초
+- **효과**: 자연스러운 씬 전환
 
 ---
 

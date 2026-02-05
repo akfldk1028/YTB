@@ -70,10 +70,27 @@ export class BooksRouter {
   }
 
   /**
+   * v3.5.0: 씬 타입별 이미지 전략 판별
+   * - narrative: hook, intro, conclusion, cta → 캐릭터 등장, NanoBanana character reference
+   * - educational: explanation, example, data, comparison, deep_dive → 캐릭터 없음, 교육 시각화
+   * - formula: assignedFormula가 있는 씬 → 수식 비유 이미지, 캐릭터 없음
+   */
+  private getSceneImageStrategy(scene: { type?: string; hasFormula?: boolean; assignedFormula?: string }): 'narrative' | 'educational' | 'formula' {
+    if (scene.assignedFormula || scene.hasFormula) return 'formula';
+    const sceneType = scene.type || 'explanation';
+    if (['explanation', 'example', 'data', 'comparison', 'deep_dive', 'problem', 'solution'].includes(sceneType)) {
+      return 'educational';
+    }
+    return 'narrative';
+  }
+
+  /**
    * Books 프로젝트 전용: 씬별 이미지 생성
-   * - 동일 sceneType 연속 시 이미지 재사용 (수식 설명 구간 일관성)
-   * - 실패 시 이전 이미지로 fallback
-   * @returns { imagePaths, failedScene } failedScene가 있으면 호출측에서 에러 처리
+   * v3.5.0: 씬 타입별 이미지 전략 분기
+   * - narrative (hook/intro/conclusion): 캐릭터 이미지, NanoBanana character reference
+   * - educational (explanation/example/data): 교육 시각화, 캐릭터 없음
+   * - formula (수식 씬): 수식 비유 이미지, 캐릭터 없음
+   * - 주제 변경 시 GPT-4o 새 이미지, 동일 주제는 NanoBanana 스타일 참조
    */
   /**
    * 설명 씬 프롬프트 보정: 캐릭터 위주 → 교육 인포그래픽/다이어그램 스타일
@@ -82,8 +99,6 @@ export class BooksRouter {
    */
   private enhanceExplanationPrompt(prompt: string, sceneType: string, narration: string): string {
     // v3.2.4: 원래 프롬프트 다양성을 최대한 유지 — 획일적 변환 제거
-    // 모든 씬을 동일한 "infographic on cream background"로 바꾸면 이미지가 다 비슷해짐
-    // 대신 원래 visualDesc를 살리고, 교육적 힌트만 간단히 추가
     const explanationTypes = ['explanation', 'example', 'data', 'comparison'];
     if (!explanationTypes.includes(sceneType)) return prompt;
 
@@ -101,7 +116,7 @@ export class BooksRouter {
   }
 
   private async generateSceneImages(
-    scenes: Array<{ id: string; type?: string; visualDesc?: string; narration?: string; hasFormula?: boolean }>,
+    scenes: Array<{ id: string; type?: string; visualDesc?: string; narration?: string; hasFormula?: boolean; assignedFormula?: string }>,
     ghibliService: GhibliImageService,
     neo4j: Neo4jService,
     tempDir: string,
@@ -111,35 +126,96 @@ export class BooksRouter {
     const fs = await import('fs-extra');
     const path = await import('path');
     const imagePaths: string[] = [];
-    let prevType: string | undefined;
     let prevImagePath: string | undefined;
+
+    // v3.5.0: 교육 씬용 참조 이미지 관리 (주제 변경 감지)
+    let lastEducationalTopic = '';
+    let educationalRef: { data: Buffer; mimeType: string } | undefined;
 
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       const sceneType = scene.type || 'explanation';
+      const strategy = this.getSceneImageStrategy(scene);
 
-      // v3.2.3: 모든 씬(수식/비수식) 동일하게 개별 이미지 생성 — 복사 재사용 제거
-      const rawPrompt = scene.visualDesc || scene.narration || `Scene ${i + 1}`;
+      let rawPrompt = scene.visualDesc || scene.narration || `Scene ${i + 1}`;
+      // v3.3.0: 수식 씬이면 FORMULA_CONCEPT_PREFIX 키워드 주입
+      if (scene.hasFormula && !/educational concept illustration/i.test(rawPrompt)) {
+        rawPrompt = `Educational concept illustration, visual metaphor for mathematical concept. ${rawPrompt}`;
+      }
       // 설명 씬은 인포그래픽 스타일로 보정
       const visualPrompt = this.enhanceExplanationPrompt(rawPrompt, sceneType, scene.narration || '');
+
+      // v3.5.0: 주제 변경 감지 (교육/수식 씬)
+      const currentTopic = scene.assignedFormula || sceneType;
+      const topicChanged = (strategy !== 'narrative') && (currentTopic !== lastEducationalTopic || !educationalRef);
 
       logger.info({
         sceneIndex: i,
         sceneId: scene.id,
+        strategy,
+        topicChanged,
+        currentTopic,
         visualPrompt: visualPrompt.substring(0, 50)
-      }, `Scene ${i + 1}/${scenes.length} 이미지 생성 중`);
+      }, `Scene ${i + 1}/${scenes.length} 이미지 생성 중 (${strategy})`);
 
-      const imageResult = await ghibliService.generateSceneImage(
-        visualPrompt,
-        i,
-        (config.orientation === 'landscape' ? '16:9' : '9:16'),
-        {
-          mood: config.mood || 'whimsical',
-          timeOfDay: config.timeOfDay || 'day',
-          characterDescription: config.characterDescription
-        },
-        episodeId
-      );
+      let imageResult;
+
+      if (strategy === 'narrative') {
+        // ── 서사 씬: 캐릭터 등장, 기존 로직 ──
+        imageResult = await ghibliService.generateSceneImage(
+          visualPrompt,
+          i,
+          (config.orientation === 'landscape' ? '16:9' : '9:16'),
+          {
+            mood: config.mood || 'whimsical',
+            timeOfDay: config.timeOfDay || 'day',
+            characterDescription: config.characterDescription,
+            imageMode: 'narrative'
+          },
+          episodeId
+        );
+      } else {
+        // ── 교육/수식 씬: 캐릭터 없음 ──
+        const imageMode = strategy === 'formula' ? 'formula' : 'educational';
+
+        if (topicChanged) {
+          // 주제 변경 → GPT-4o로 새 이미지 생성
+          imageResult = await ghibliService.generateSceneImage(
+            visualPrompt,
+            i,
+            (config.orientation === 'landscape' ? '16:9' : '9:16'),
+            {
+              imageMode,
+              forceGpt: true
+              // characterDescription 의도적으로 제거!
+            },
+            episodeId
+          );
+
+          // 성공 시 교육 reference 갱신
+          if (imageResult.success && imageResult.imageBuffer) {
+            educationalRef = {
+              data: imageResult.imageBuffer,
+              mimeType: imageResult.mimeType || 'image/png'
+            };
+            lastEducationalTopic = currentTopic;
+          }
+        } else {
+          // 동일 주제 → NanoBanana + 교육 reference (스타일 참조)
+          imageResult = await ghibliService.generateSceneImage(
+            visualPrompt,
+            i,
+            (config.orientation === 'landscape' ? '16:9' : '9:16'),
+            {
+              imageMode,
+              forceGpt: false,
+              educationalReference: educationalRef
+              // characterDescription 의도적으로 제거!
+            },
+            episodeId
+          );
+        }
+      }
 
       if (imageResult.success && imageResult.imageBuffer) {
         const imagePath = path.default.join(tempDir, `scene_${i}.png`);
@@ -152,7 +228,8 @@ export class BooksRouter {
         logger.info({
           sceneIndex: i,
           generator: imageResult.generator,
-          imageSize: imageResult.imageBuffer.length
+          imageSize: imageResult.imageBuffer.length,
+          strategy
         }, `Scene ${i + 1} 이미지 생성 완료`);
       } else if (prevImagePath) {
         // 실패 시 이전 이미지로 fallback
@@ -164,11 +241,259 @@ export class BooksRouter {
         // 첫 씬부터 실패
         return { imagePaths, failedScene: i };
       }
-
-      prevType = sceneType;
     }
 
     return { imagePaths };
+  }
+
+  /**
+   * v3.4.0: 에피소드 비디오 생성 공통 파이프라인
+   * generate-video와 generate-next-episode에서 공유
+   * 이미지 생성 → 수식 배분 → 비디오 생성 → GCS 업로드 → 상태 업데이트
+   */
+  private async generateEpisodeVideoPipeline(
+    episode: import('../types').EpisodeWithScenes,
+    config: any,
+    neo4j: Neo4jService
+  ): Promise<{
+    success: boolean;
+    videoResult?: any;
+    gcsUrl?: string;
+    publicUrl?: string;
+    error?: string;
+  }> {
+    const appConfig = new Config();
+    const ghibliService = new GhibliImageService(
+      appConfig.googleGeminiApiKey || '',
+      appConfig.openaiApiKey || '',
+      appConfig.tempDirPath
+    );
+
+    const fs = await import('fs-extra');
+    const path = await import('path');
+    const tempDir = path.default.join(appConfig.tempDirPath, `episode_${episode.id}`);
+    await fs.default.ensureDir(tempDir);
+
+    // 1. 청크 LaTeX 조회
+    const allChunkIds = episode.scenes
+      .flatMap(s => s.sourceChunkIds || [])
+      .filter((id, index, self) => id && self.indexOf(id) === index);
+
+    const chunkLatexMap = new Map<string, string[]>();
+    if (allChunkIds.length > 0) {
+      try {
+        const latexResult = await neo4j.runQuery(
+          `MATCH (c:Chunk) WHERE c.id IN $chunkIds AND c.latexFormulas IS NOT NULL
+           RETURN c.id as id, c.latexFormulas as latexFormulas`,
+          { chunkIds: allChunkIds }
+        );
+        for (const record of latexResult) {
+          const id = record.get('id');
+          const formulas = record.get('latexFormulas');
+          if (id && formulas && Array.isArray(formulas) && formulas.length > 0) {
+            chunkLatexMap.set(id, formulas);
+          }
+        }
+        if (chunkLatexMap.size > 0) {
+          logger.info({ chunksWithLatex: chunkLatexMap.size }, '📐 청크에서 LaTeX 수식 발견');
+        }
+      } catch (error) {
+        logger.warn({ error }, '⚠️ 청크 LaTeX 조회 실패 - 스킵');
+      }
+    }
+
+    // 2. Scene type 변환 함수
+    const mapSceneType = (type: string): 'hook' | 'intro' | 'problem' | 'solution' | 'explanation' | 'example' | 'data' | 'comparison' | 'conclusion' | 'cta' => {
+      const validTypes = ['hook', 'intro', 'problem', 'solution', 'explanation', 'example', 'data', 'comparison', 'conclusion', 'cta'] as const;
+      if (validTypes.includes(type as any)) {
+        return type as typeof validTypes[number];
+      }
+      if (type === 'climax') return 'conclusion';
+      return 'explanation';
+    };
+
+    // 3. 수식→씬 배분 (커리큘럼 할당 우선 → fallback 청크 수식)
+    const allUniqueFormulas: string[] = [];
+    const formulaSet = new Set<string>();
+    for (const s of episode.scenes) {
+      for (const chunkId of (s.sourceChunkIds || [])) {
+        const formulas = chunkLatexMap.get(chunkId);
+        if (formulas) {
+          for (const f of formulas) {
+            if (!formulaSet.has(f)) {
+              formulaSet.add(f);
+              allUniqueFormulas.push(f);
+            }
+          }
+        }
+      }
+    }
+
+    const sceneFormulaMap = new Map<number, string[]>();
+    let assignedCount = 0;
+    episode.scenes.forEach((s: any, i: number) => {
+      if (s.assignedFormula) {
+        sceneFormulaMap.set(i, [s.assignedFormula]);
+        assignedCount++;
+      }
+    });
+
+    if (assignedCount === 0) {
+      const formulaEligibleTypes = ['explanation', 'example', 'data', 'comparison'];
+      const eligibleIndices: number[] = [];
+      episode.scenes.forEach((s, i) => {
+        const st = mapSceneType(s.type);
+        if (formulaEligibleTypes.includes(st)) {
+          eligibleIndices.push(i);
+        }
+      });
+
+      const meaningfulFormulas = allUniqueFormulas.filter(f => f.trim().length > 2);
+      if (meaningfulFormulas.length > 0) {
+        for (let fi = 0; fi < eligibleIndices.length; fi++) {
+          const formulaIdx = fi % meaningfulFormulas.length;
+          sceneFormulaMap.set(eligibleIndices[fi], [meaningfulFormulas[formulaIdx]]);
+        }
+      }
+    }
+
+    logger.info({
+      totalFormulas: allUniqueFormulas.length,
+      assignedFromCurriculum: assignedCount,
+      fallbackAssigned: sceneFormulaMap.size - assignedCount,
+      assignedScenes: sceneFormulaMap.size
+    }, 'v3.4.0: 수식→씬 배분 완료 (공통 파이프라인)');
+
+    // 4. 이미지 생성
+    const scenesWithFormula = episode.scenes.map((s, i) => {
+      const hasFormula = sceneFormulaMap.has(i);
+      const assignedFormula = (s as any).assignedFormula || (sceneFormulaMap.get(i)?.[0]) || undefined;
+      return { ...s, hasFormula, assignedFormula };
+    });
+
+    logger.info({ sceneCount: episode.scenes.length }, 'Scene 이미지 생성 시작');
+
+    const { imagePaths, failedScene } = await this.generateSceneImages(
+      scenesWithFormula, ghibliService, neo4j, tempDir, config, episode.id
+    );
+
+    if (failedScene !== undefined) {
+      await neo4j.updateEpisodeStatus(episode.id, 'approved');
+      await fs.default.remove(tempDir);
+      return { success: false, error: `Failed to generate image for scene ${failedScene + 1}` };
+    }
+
+    // 첫 이미지를 masterImage로 저장
+    const masterImagePath = imagePaths[0];
+    await neo4j.updateEpisodeStatus(episode.id, 'producing', { masterImagePath });
+
+    // 5. 비디오 생성
+    logger.info({ imageCount: imagePaths.length }, '📹 비디오 생성 시작');
+
+    const videoService = getBooksVideoService();
+
+    const shortPlan = {
+      shortIndex: episode.episodeNumber - 1,
+      title: episode.title,
+      hook: episode.hook || '',
+      theme: 'book',
+      scenes: episode.scenes.map((s: any, i: number) => {
+        const assignedFormulas = sceneFormulaMap.get(i);
+        return {
+          sceneIndex: i,
+          sceneType: mapSceneType(s.type),
+          narrationText: s.narration || '',
+          visualPrompt: s.visualDesc || '',
+          durationHint: s.durationSec || 7,
+          sourceChunkIds: s.sourceChunkIds || [],
+          latexFormulas: assignedFormulas,
+          assignedFormula: s.assignedFormula || undefined,
+          formulaName: s.formulaName || undefined,
+          formulaMetaphor: s.formulaMetaphor || undefined,
+        };
+      }),
+      totalDuration: episode.scenes.reduce((sum: number, s: any) => sum + (s.durationSec || 7), 0),
+      tags: episode.hashtags || []
+    };
+
+    const videoResult = await videoService.createShortVideo({
+      bookId: episode.documentId,
+      shortPlan,
+      imagePaths,
+      config: {
+        ...BOOKS_PROJECT_CONFIG,
+        ...config.ttsVoice && { ttsVoice: config.ttsVoice },
+        ...config.ttsGender && { ttsGender: config.ttsGender },
+        ...config.orientation && { orientation: config.orientation },
+        ...config.subtitleYPosition && { subtitleYPosition: config.subtitleYPosition },
+      }
+    });
+
+    // 임시 이미지 폴더 정리
+    await fs.default.remove(tempDir);
+
+    if (!videoResult.success) {
+      await neo4j.updateEpisodeStatus(episode.id, 'approved');
+      return { success: false, error: `Video generation failed: ${videoResult.error}` };
+    }
+
+    if (!videoResult.videoId || !videoResult.videoPath) {
+      await neo4j.updateEpisodeStatus(episode.id, 'approved');
+      return { success: false, error: 'Video generation succeeded but videoId or videoPath is missing' };
+    }
+
+    // 6. GCS 업로드
+    let gcsUrl: string | undefined;
+    let publicUrl: string | undefined;
+
+    try {
+      const gcsService = new GoogleCloudStorageService(appConfig);
+      const uploadResult = await gcsService.uploadVideo(
+        videoResult.videoId,
+        videoResult.videoPath,
+        (progress) => {
+          logger.info({
+            videoId: videoResult.videoId,
+            percentComplete: progress.percentComplete
+          }, '📤 GCS 업로드 진행 중');
+        }
+      );
+
+      if (uploadResult.success) {
+        gcsUrl = uploadResult.gcsPath;
+        publicUrl = uploadResult.publicUrl;
+        logger.info({
+          videoId: videoResult.videoId,
+          gcsPath: gcsUrl,
+          publicUrl
+        }, '✅ GCS 업로드 완료');
+      }
+    } catch (gcsError) {
+      logger.warn({
+        error: gcsError,
+        videoId: videoResult.videoId
+      }, '⚠️ GCS 업로드 실패 (로컬 파일은 유지)');
+    }
+
+    // 7. Episode 상태 completed
+    await neo4j.updateEpisodeStatus(episode.id, 'completed', {
+      videoPath: videoResult.videoPath
+    });
+
+    logger.info({
+      episodeId: episode.id,
+      videoId: videoResult.videoId,
+      videoPath: videoResult.videoPath,
+      gcsUrl,
+      duration: videoResult.duration
+    }, '✅ Episode 비디오 생성 완료');
+
+    return {
+      success: true,
+      videoResult,
+      gcsUrl,
+      publicUrl,
+    };
   }
 
   private setupRoutes() {
@@ -369,285 +694,45 @@ export class BooksRouter {
     // ============================================
 
     // POST /api/books/episodes/:episodeId/generate-video - Episode 비디오 생성
+    // v3.4.0: generateEpisodeVideoPipeline() 공통 메서드 사용
     this.router.post('/episodes/:episodeId/generate-video', async (req: Request, res: Response) => {
       try {
         const { episodeId } = req.params;
-        const {
-          config = {}  // 설정 옵션 (orientation, ttsVoice, subtitleYPosition 등)
-        } = req.body;
+        const { config = {} } = req.body;
 
         const neo4j = await this.getNeo4jService();
 
-        // 1. Episode + Scenes 조회
         const episode = await neo4j.getEpisodeWithScenes(episodeId);
         if (!episode) {
-          return res.status(404).json({
-            success: false,
-            error: `Episode not found: ${episodeId}`
-          });
+          return res.status(404).json({ success: false, error: `Episode not found: ${episodeId}` });
         }
-
         if (!episode.scenes || episode.scenes.length === 0) {
-          return res.status(400).json({
-            success: false,
-            error: `Episode has no scenes: ${episodeId}`
-          });
+          return res.status(400).json({ success: false, error: `Episode has no scenes: ${episodeId}` });
         }
 
         logger.info({
-          episodeId,
-          title: episode.title,
-          sceneCount: episode.scenes.length,
-          status: episode.status
+          episodeId, title: episode.title, sceneCount: episode.scenes.length, status: episode.status
         }, '🎬 Episode 비디오 생성 시작');
 
-        // 2. Episode 상태를 'producing'으로 업데이트
         await neo4j.updateEpisodeStatus(episodeId, 'producing');
 
-        // 3. GhibliImageService로 Scene 이미지 생성
-        const appConfig = new Config();
-        const ghibliService = new GhibliImageService(
-          appConfig.googleGeminiApiKey || '',
-          appConfig.openaiApiKey || '',
-          appConfig.tempDirPath
-        );
+        const result = await this.generateEpisodeVideoPipeline(episode, config, neo4j);
 
-        const fs = await import('fs-extra');
-        const path = await import('path');
-        const tempDir = path.default.join(appConfig.tempDirPath, `episode_${episodeId}`);
-        await fs.default.ensureDir(tempDir);
-
-        // 🆕 v3.2.1: 청크 LaTeX 조회를 이미지 생성 전으로 이동 (수식 씬 배경 재사용용)
-        const allChunkIds = episode.scenes
-          .flatMap(s => s.sourceChunkIds || [])
-          .filter((id, index, self) => id && self.indexOf(id) === index);  // 중복 제거
-
-        const chunkLatexMap = new Map<string, string[]>();
-        if (allChunkIds.length > 0) {
-          try {
-            const latexResult = await neo4j.runQuery(
-              `MATCH (c:Chunk) WHERE c.id IN $chunkIds AND c.latexFormulas IS NOT NULL
-               RETURN c.id as id, c.latexFormulas as latexFormulas`,
-              { chunkIds: allChunkIds }
-            );
-            for (const record of latexResult) {
-              const id = record.get('id');
-              const formulas = record.get('latexFormulas');
-              if (id && formulas && Array.isArray(formulas) && formulas.length > 0) {
-                chunkLatexMap.set(id, formulas);
-              }
-            }
-            if (chunkLatexMap.size > 0) {
-              logger.info({ chunksWithLatex: chunkLatexMap.size }, '📐 청크에서 LaTeX 수식 발견');
-            }
-          } catch (error) {
-            logger.warn({ error }, '⚠️ 청크 LaTeX 조회 실패 - 스킵');
-          }
+        if (!result.success) {
+          return res.status(500).json({ success: false, error: result.error });
         }
 
-        // Scene type 변환 함수 (Episode Scene type → ShortPlan scene type)
-        const mapSceneType = (type: string): 'hook' | 'intro' | 'problem' | 'solution' | 'explanation' | 'example' | 'data' | 'comparison' | 'conclusion' | 'cta' => {
-          const validTypes = ['hook', 'intro', 'problem', 'solution', 'explanation', 'example', 'data', 'comparison', 'conclusion', 'cta'] as const;
-          if (validTypes.includes(type as any)) {
-            return type as typeof validTypes[number];
-          }
-          // 매핑: climax → conclusion, 기타 → explanation
-          if (type === 'climax') return 'conclusion';
-          return 'explanation';
-        };
-
-        // v3.2.2: 수식을 씬에 1:1 사전 배분 (같은 청크의 수식이 모든 씬에 중복 전달되는 문제 해결)
-        // 1. 에피소드의 모든 고유 수식 수집 (중복 제거)
-        const allUniqueFormulas: string[] = [];
-        const formulaSet = new Set<string>();
-        for (const s of episode.scenes) {
-          for (const chunkId of (s.sourceChunkIds || [])) {
-            const formulas = chunkLatexMap.get(chunkId);
-            if (formulas) {
-              for (const f of formulas) {
-                if (!formulaSet.has(f)) {
-                  formulaSet.add(f);
-                  allUniqueFormulas.push(f);
-                }
-              }
-            }
-          }
-        }
-
-        // 2. 수식 배분 대상 씬 선별 (설명 씬만 - hook/intro/summary/next 제외)
-        const formulaEligibleTypes = ['explanation', 'example', 'data', 'comparison'];
-        const eligibleIndices: number[] = [];
-        episode.scenes.forEach((s, i) => {
-          const st = mapSceneType(s.type);
-          if (formulaEligibleTypes.includes(st)) {
-            eligibleIndices.push(i);
-          }
+        return res.json({
+          success: true,
+          episodeId,
+          videoId: result.videoResult.videoId,
+          videoPath: result.videoResult.videoPath,
+          gcsUrl: result.gcsUrl,
+          publicUrl: result.publicUrl,
+          duration: result.videoResult.duration,
+          details: result.videoResult.details,
+          message: 'Episode video generated successfully'
         });
-
-        // 3. v3.2.3: 수식 필터 완화 + 라운드로빈 배분 (수식 부족해도 순환 재사용)
-        const sceneFormulaMap = new Map<number, string[]>();
-        const meaningfulFormulas = allUniqueFormulas.filter(f => f.trim().length > 2);
-        if (meaningfulFormulas.length > 0) {
-          for (let fi = 0; fi < eligibleIndices.length; fi++) {
-            const formulaIdx = fi % meaningfulFormulas.length;
-            sceneFormulaMap.set(eligibleIndices[fi], [meaningfulFormulas[formulaIdx]]);
-          }
-        }
-
-        logger.info({
-          totalFormulas: allUniqueFormulas.length,
-          meaningfulFormulas: meaningfulFormulas.length,
-          eligibleScenes: eligibleIndices.length,
-          assignedScenes: sceneFormulaMap.size
-        }, 'v3.2.2: 수식→씬 1:1 사전 배분 완료');
-
-        // v3.2.2: hasFormula는 사전 배분된 수식이 있는 씬만 true
-        const scenesWithFormula = episode.scenes.map((s, i) => {
-          const hasFormula = sceneFormulaMap.has(i);
-          return { ...s, hasFormula };
-        });
-
-        logger.info({ sceneCount: episode.scenes.length }, 'Scene 이미지 생성 시작');
-
-        const { imagePaths, failedScene } = await this.generateSceneImages(
-          scenesWithFormula, ghibliService, neo4j, tempDir, config, episodeId
-        );
-
-        if (failedScene !== undefined) {
-          await neo4j.updateEpisodeStatus(episodeId, 'approved');
-          await fs.default.remove(tempDir);
-          return res.status(500).json({
-            success: false,
-            error: `Failed to generate image for scene ${failedScene + 1}`
-          });
-        }
-
-        // 첫 이미지를 masterImage로 저장
-        const masterImagePath = imagePaths[0];
-        await neo4j.updateEpisodeStatus(episodeId, 'producing', { masterImagePath });
-
-        // 4. BooksVideoService로 비디오 생성
-        logger.info({ imageCount: imagePaths.length }, '📹 비디오 생성 시작');
-
-        const videoService = getBooksVideoService();
-
-        // Episode를 ShortPlan 형태로 변환
-        const shortPlan = {
-          shortIndex: episode.episodeNumber - 1,
-          title: episode.title,
-          hook: episode.hook || '',
-          theme: 'book',
-          scenes: episode.scenes.map((s, i) => {
-            // v3.2.2: 사전 배분된 수식만 해당 씬에 전달 (1개 또는 0개)
-            const assignedFormulas = sceneFormulaMap.get(i);
-
-            return {
-              sceneIndex: i,
-              sceneType: mapSceneType(s.type),
-              narrationText: s.narration || '',
-              visualPrompt: s.visualDesc || '',
-              durationHint: s.durationSec || 7,
-              sourceChunkIds: s.sourceChunkIds || [],
-              latexFormulas: assignedFormulas
-            };
-          }),
-          totalDuration: episode.scenes.reduce((sum, s) => sum + (s.durationSec || 7), 0),
-          tags: episode.hashtags || []
-        };
-
-        const videoResult = await videoService.createShortVideo({
-          bookId: episode.documentId,
-          shortPlan,
-          imagePaths,
-          config: {
-            ...BOOKS_PROJECT_CONFIG,
-            ...config.ttsVoice && { ttsVoice: config.ttsVoice },
-            ...config.ttsGender && { ttsGender: config.ttsGender },
-            ...config.orientation && { orientation: config.orientation },
-            ...config.subtitleYPosition && { subtitleYPosition: config.subtitleYPosition },
-          }
-        });
-
-        // 임시 이미지 폴더 정리
-        await fs.default.remove(tempDir);
-
-        if (videoResult.success && videoResult.videoId && videoResult.videoPath) {
-          // 5. GCS에 비디오 업로드 (Cloud Run 인스턴스 간 공유 위해)
-          let gcsUrl: string | undefined;
-          let publicUrl: string | undefined;
-          const finalVideoId = videoResult.videoId;
-          const finalVideoPath = videoResult.videoPath;
-
-          try {
-            const gcsService = new GoogleCloudStorageService(appConfig);
-            const uploadResult = await gcsService.uploadVideo(
-              finalVideoId,
-              finalVideoPath,
-              (progress) => {
-                logger.info({
-                  videoId: finalVideoId,
-                  percentComplete: progress.percentComplete
-                }, '📤 GCS 업로드 진행 중');
-              }
-            );
-
-            if (uploadResult.success) {
-              gcsUrl = uploadResult.gcsPath;
-              publicUrl = uploadResult.publicUrl;
-              logger.info({
-                videoId: finalVideoId,
-                gcsPath: gcsUrl,
-                publicUrl
-              }, '✅ GCS 업로드 완료');
-            }
-          } catch (gcsError) {
-            logger.warn({
-              error: gcsError,
-              videoId: finalVideoId
-            }, '⚠️ GCS 업로드 실패 (로컬 파일은 유지)');
-          }
-
-          // 6. Episode 상태를 'completed'로 업데이트
-          await neo4j.updateEpisodeStatus(episodeId, 'completed', {
-            videoPath: finalVideoPath
-          });
-
-          logger.info({
-            episodeId,
-            videoId: finalVideoId,
-            videoPath: finalVideoPath,
-            gcsUrl,
-            duration: videoResult.duration
-          }, '✅ Episode 비디오 생성 완료');
-
-          return res.json({
-            success: true,
-            episodeId,
-            videoId: finalVideoId,
-            videoPath: finalVideoPath,
-            gcsUrl,
-            publicUrl,
-            duration: videoResult.duration,
-            details: videoResult.details,
-            message: 'Episode video generated successfully'
-          });
-        } else if (!videoResult.success) {
-          // 비디오 생성 실패
-          await neo4j.updateEpisodeStatus(episodeId, 'approved');
-
-          return res.status(500).json({
-            success: false,
-            error: `Video generation failed: ${videoResult.error}`
-          });
-        } else {
-          // videoId 또는 videoPath 누락
-          await neo4j.updateEpisodeStatus(episodeId, 'approved');
-
-          return res.status(500).json({
-            success: false,
-            error: 'Video generation succeeded but videoId or videoPath is missing'
-          });
-        }
       } catch (error) {
         logger.error({ error }, '❌ Failed to generate episode video');
         res.status(500).json({
@@ -706,21 +791,50 @@ export class BooksRouter {
           error?: string;
         }> = [];
 
+        // v3.5.0: 교육 씬용 참조 이미지 관리
+        let lastEduTopic = '';
+        let eduRef: { data: Buffer; mimeType: string } | undefined;
+
         for (let i = 0; i < episode.scenes.length; i++) {
           const scene = episode.scenes[i];
           const visualPrompt = scene.visualDesc || scene.narration || `Scene ${i + 1}`;
+          const strategy = this.getSceneImageStrategy(scene as any);
+          const currentTopic = (scene as any).assignedFormula || scene.type || 'explanation';
+          const topicChanged = strategy !== 'narrative' && (currentTopic !== lastEduTopic || !eduRef);
 
-          const imageResult = await ghibliService.generateSceneImage(
-            visualPrompt,
-            i,
-            (config.orientation === 'landscape' ? '16:9' : '9:16'),
-            {
-              mood: config.mood || 'whimsical',
-              timeOfDay: config.timeOfDay || 'day',
-              characterDescription: config.characterDescription
-            },
-            episodeId
-          );
+          let imageResult;
+
+          if (strategy === 'narrative') {
+            imageResult = await ghibliService.generateSceneImage(
+              visualPrompt,
+              i,
+              (config.orientation === 'landscape' ? '16:9' : '9:16'),
+              {
+                mood: config.mood || 'whimsical',
+                timeOfDay: config.timeOfDay || 'day',
+                characterDescription: config.characterDescription,
+                imageMode: 'narrative'
+              },
+              episodeId
+            );
+          } else {
+            const imageMode = strategy === 'formula' ? 'formula' : 'educational';
+            imageResult = await ghibliService.generateSceneImage(
+              visualPrompt,
+              i,
+              (config.orientation === 'landscape' ? '16:9' : '9:16'),
+              {
+                imageMode,
+                forceGpt: topicChanged,
+                educationalReference: eduRef
+              },
+              episodeId
+            );
+            if (topicChanged && imageResult.success && imageResult.imageBuffer) {
+              eduRef = { data: imageResult.imageBuffer, mimeType: imageResult.mimeType || 'image/png' };
+              lastEduTopic = currentTopic;
+            }
+          }
 
           if (imageResult.success && imageResult.imageBuffer) {
             const imagePath = path.default.join(outputDir, `scene_${i}.png`);
@@ -782,16 +896,11 @@ export class BooksRouter {
 
     // ============================================
     // POST /api/books/generate-next-episode - 다음 대기 Episode 자동 생성
-    // 핵심: PDF 처리 시 어디까지 진행했는지 기억하고, 다음 에피소드 하나만 생성
-    // 유튜브 점진적 업로드 용 (한 번에 다 생성하지 않음)
-    // URL: /episodes/:episodeId와 충돌 방지를 위해 /generate-next-episode 사용
+    // v3.4.0: generateEpisodeVideoPipeline() 공통 메서드 사용
     // ============================================
     this.router.post('/generate-next-episode', async (req: Request, res: Response) => {
       try {
-        const {
-          documentId,  // 선택: 특정 문서의 에피소드만 처리
-          config = {}  // 설정 옵션 (orientation, ttsVoice, subtitleYPosition 등)
-        } = req.body;
+        const { documentId, config = {} } = req.body;
 
         const neo4j = await this.getNeo4jService();
 
@@ -809,299 +918,62 @@ export class BooksRouter {
           });
         }
 
-        // Episode ID로 Scenes 포함하여 다시 조회
         const episodeWithScenes = await neo4j.getEpisodeWithScenes(episode.id);
         if (!episodeWithScenes) {
-          return res.status(404).json({
-            success: false,
-            error: `Episode not found: ${episode.id}`
-          });
+          return res.status(404).json({ success: false, error: `Episode not found: ${episode.id}` });
         }
-
         if (!episodeWithScenes.scenes || episodeWithScenes.scenes.length === 0) {
-          return res.status(400).json({
-            success: false,
-            error: `Episode has no scenes: ${episode.id}`
-          });
+          return res.status(400).json({ success: false, error: `Episode has no scenes: ${episode.id}` });
         }
 
         logger.info({
+          episodeId: episode.id, episodeNumber: episode.episodeNumber,
+          documentId: episode.documentId, title: episode.title,
+          sceneCount: episodeWithScenes.scenes.length, status: episode.status
+        }, '🎬 다음 대기 Episode 비디오 생성 시작 (incremental mode)');
+
+        await neo4j.updateEpisodeStatus(episode.id, 'producing');
+
+        const result = await this.generateEpisodeVideoPipeline(episodeWithScenes, config, neo4j);
+
+        if (!result.success) {
+          return res.status(500).json({ success: false, error: result.error });
+        }
+
+        // 진행 상황 조회
+        const nextPending = await neo4j.getNextPendingEpisode(documentId as string | undefined);
+        const stats = await neo4j.getEpisodeStats();
+        const completedCount = stats.byStatus['completed'] || 0;
+        const pendingCount = stats.byStatus['draft'] || 0;
+        const approvedCount = stats.byStatus['approved'] || 0;
+
+        return res.json({
+          success: true,
+          completed: !nextPending,
           episodeId: episode.id,
           episodeNumber: episode.episodeNumber,
           documentId: episode.documentId,
           title: episode.title,
-          sceneCount: episodeWithScenes.scenes.length,
-          status: episode.status
-        }, '🎬 다음 대기 Episode 비디오 생성 시작 (incremental mode)');
-
-        // 2. Episode 상태를 'producing'으로 업데이트
-        await neo4j.updateEpisodeStatus(episode.id, 'producing');
-
-        // 3. GhibliImageService로 Scene 이미지 생성
-        const appConfig = new Config();
-        const ghibliService = new GhibliImageService(
-          appConfig.googleGeminiApiKey || '',
-          appConfig.openaiApiKey || '',
-          appConfig.tempDirPath
-        );
-
-        const fs = await import('fs-extra');
-        const path = await import('path');
-        const tempDir = path.default.join(appConfig.tempDirPath, `episode_${episode.id}`);
-        await fs.default.ensureDir(tempDir);
-
-        // 🆕 v3.2.1: 청크 LaTeX 조회를 이미지 생성 전으로 이동 (수식 씬 배경 재사용용)
-        const allChunkIds2 = episodeWithScenes.scenes
-          .flatMap(s => s.sourceChunkIds || [])
-          .filter((id, index, self) => id && self.indexOf(id) === index);  // 중복 제거
-
-        const chunkLatexMap2 = new Map<string, string[]>();
-        if (allChunkIds2.length > 0) {
-          try {
-            const latexResult = await neo4j.runQuery(
-              `MATCH (c:Chunk) WHERE c.id IN $chunkIds AND c.latexFormulas IS NOT NULL
-               RETURN c.id as id, c.latexFormulas as latexFormulas`,
-              { chunkIds: allChunkIds2 }
-            );
-            for (const record of latexResult) {
-              const id = record.get('id');
-              const formulas = record.get('latexFormulas');
-              if (id && formulas && Array.isArray(formulas) && formulas.length > 0) {
-                chunkLatexMap2.set(id, formulas);
-              }
-            }
-            if (chunkLatexMap2.size > 0) {
-              logger.info({ chunksWithLatex: chunkLatexMap2.size }, '📐 청크에서 LaTeX 수식 발견 (incremental)');
-            }
-          } catch (error) {
-            logger.warn({ error }, '⚠️ 청크 LaTeX 조회 실패 - 스킵');
-          }
-        }
-
-        // v3.2.2: 수식을 씬에 1:1 사전 배분 (incremental mode)
-        const allUniqueFormulas2: string[] = [];
-        const formulaSet2 = new Set<string>();
-        for (const s of episodeWithScenes.scenes) {
-          for (const chunkId of (s.sourceChunkIds || [])) {
-            const formulas = chunkLatexMap2.get(chunkId);
-            if (formulas) {
-              for (const f of formulas) {
-                if (!formulaSet2.has(f)) {
-                  formulaSet2.add(f);
-                  allUniqueFormulas2.push(f);
-                }
-              }
-            }
-          }
-        }
-
-        // Scene type 변환 함수
-        const mapSceneType = (type: string): 'hook' | 'intro' | 'problem' | 'solution' | 'explanation' | 'example' | 'data' | 'comparison' | 'conclusion' | 'cta' => {
-          const validTypes = ['hook', 'intro', 'problem', 'solution', 'explanation', 'example', 'data', 'comparison', 'conclusion', 'cta'] as const;
-          if (validTypes.includes(type as any)) {
-            return type as typeof validTypes[number];
-          }
-          if (type === 'climax') return 'conclusion';
-          return 'explanation';
-        };
-
-        const formulaEligibleTypes2 = ['explanation', 'example', 'data', 'comparison'];
-        const eligibleIndices2: number[] = [];
-        episodeWithScenes.scenes.forEach((s, i) => {
-          const st = mapSceneType(s.type);
-          if (formulaEligibleTypes2.includes(st)) {
-            eligibleIndices2.push(i);
-          }
+          videoId: result.videoResult.videoId,
+          videoPath: result.videoResult.videoPath,
+          gcsUrl: result.gcsUrl,
+          publicUrl: result.publicUrl,
+          duration: result.videoResult.duration,
+          details: result.videoResult.details,
+          progress: {
+            totalEpisodes: stats.totalEpisodes,
+            completedEpisodes: completedCount,
+            remainingEpisodes: pendingCount + approvedCount,
+            nextPendingEpisode: nextPending ? {
+              id: nextPending.id,
+              episodeNumber: nextPending.episodeNumber,
+              title: nextPending.title
+            } : null
+          },
+          message: nextPending
+            ? `Episode ${episode.episodeNumber} completed. Next: Episode ${nextPending.episodeNumber}`
+            : `Episode ${episode.episodeNumber} completed. All episodes done!`
         });
-
-        // v3.2.3: 수식 필터 완화 + 라운드로빈 배분 (incremental)
-        const sceneFormulaMap2 = new Map<number, string[]>();
-        const meaningfulFormulas2 = allUniqueFormulas2.filter(f => f.trim().length > 2);
-        if (meaningfulFormulas2.length > 0) {
-          for (let fi = 0; fi < eligibleIndices2.length; fi++) {
-            const formulaIdx = fi % meaningfulFormulas2.length;
-            sceneFormulaMap2.set(eligibleIndices2[fi], [meaningfulFormulas2[formulaIdx]]);
-          }
-        }
-
-        logger.info({
-          totalFormulas: allUniqueFormulas2.length,
-          meaningfulFormulas: meaningfulFormulas2.length,
-          eligibleScenes: eligibleIndices2.length,
-          assignedScenes: sceneFormulaMap2.size
-        }, 'v3.2.2: 수식→씬 1:1 사전 배분 완료 (incremental)');
-
-        // v3.2.2: hasFormula는 사전 배분된 수식이 있는 씬만 true
-        const scenesWithFormula2 = episodeWithScenes.scenes.map((s, i) => {
-          const hasFormula = sceneFormulaMap2.has(i);
-          return { ...s, hasFormula };
-        });
-
-        logger.info({ sceneCount: episodeWithScenes.scenes.length }, 'Scene 이미지 생성 시작');
-
-        const { imagePaths, failedScene } = await this.generateSceneImages(
-          scenesWithFormula2, ghibliService, neo4j, tempDir, config, episode.id
-        );
-
-        if (failedScene !== undefined) {
-          await neo4j.updateEpisodeStatus(episode.id, 'approved');
-          await fs.default.remove(tempDir);
-          return res.status(500).json({
-            success: false,
-            error: `Failed to generate image for scene ${failedScene + 1}`
-          });
-        }
-
-        // 첫 이미지를 masterImage로 저장
-        const masterImagePath = imagePaths[0];
-        await neo4j.updateEpisodeStatus(episode.id, 'producing', { masterImagePath });
-
-        // 4. BooksVideoService로 비디오 생성
-        logger.info({ imageCount: imagePaths.length }, '📹 비디오 생성 시작');
-
-        const videoService = getBooksVideoService();
-
-        // Episode를 ShortPlan 형태로 변환
-        const shortPlan = {
-          shortIndex: episodeWithScenes.episodeNumber - 1,
-          title: episodeWithScenes.title,
-          hook: episodeWithScenes.hook || '',
-          theme: 'book',
-          scenes: episodeWithScenes.scenes.map((s, i) => {
-            // v3.2.2: 사전 배분된 수식만 해당 씬에 전달
-            const assignedFormulas = sceneFormulaMap2.get(i);
-
-            return {
-              sceneIndex: i,
-              sceneType: mapSceneType(s.type),
-              narrationText: s.narration || '',
-              visualPrompt: s.visualDesc || '',
-              durationHint: s.durationSec || 7,
-              sourceChunkIds: s.sourceChunkIds || [],
-              latexFormulas: assignedFormulas
-            };
-          }),
-          totalDuration: episodeWithScenes.scenes.reduce((sum, s) => sum + (s.durationSec || 7), 0),
-          tags: episodeWithScenes.hashtags || []
-        };
-
-        const videoResult = await videoService.createShortVideo({
-          bookId: episodeWithScenes.documentId,
-          shortPlan,
-          imagePaths,
-          config: {
-            ...BOOKS_PROJECT_CONFIG,
-            ...config.ttsVoice && { ttsVoice: config.ttsVoice },
-            ...config.ttsGender && { ttsGender: config.ttsGender },
-            ...config.orientation && { orientation: config.orientation },
-            ...config.subtitleYPosition && { subtitleYPosition: config.subtitleYPosition },
-          }
-        });
-
-        // 임시 이미지 폴더 정리
-        await fs.default.remove(tempDir);
-
-        if (videoResult.success && videoResult.videoId && videoResult.videoPath) {
-          // 5. GCS에 비디오 업로드
-          let gcsUrl: string | undefined;
-          let publicUrl: string | undefined;
-          const finalVideoId = videoResult.videoId;
-          const finalVideoPath = videoResult.videoPath;
-
-          try {
-            const gcsService = new GoogleCloudStorageService(appConfig);
-            const uploadResult = await gcsService.uploadVideo(
-              finalVideoId,
-              finalVideoPath,
-              (progress) => {
-                logger.info({
-                  videoId: finalVideoId,
-                  percentComplete: progress.percentComplete
-                }, '📤 GCS 업로드 진행 중');
-              }
-            );
-
-            if (uploadResult.success) {
-              gcsUrl = uploadResult.gcsPath;
-              publicUrl = uploadResult.publicUrl;
-              logger.info({
-                videoId: finalVideoId,
-                gcsPath: gcsUrl,
-                publicUrl
-              }, '✅ GCS 업로드 완료');
-            }
-          } catch (gcsError) {
-            logger.warn({
-              error: gcsError,
-              videoId: finalVideoId
-            }, '⚠️ GCS 업로드 실패 (로컬 파일은 유지)');
-          }
-
-          // 6. Episode 상태를 'completed'로 업데이트
-          await neo4j.updateEpisodeStatus(episode.id, 'completed', {
-            videoPath: finalVideoPath
-          });
-
-          // 7. 다음 대기 Episode 확인 (진행 상황 표시용)
-          const nextPending = await neo4j.getNextPendingEpisode(documentId as string | undefined);
-          const stats = await neo4j.getEpisodeStats();
-
-          // byStatus에서 각 상태별 카운트 추출
-          const completedCount = stats.byStatus['completed'] || 0;
-          const pendingCount = stats.byStatus['draft'] || 0;
-          const approvedCount = stats.byStatus['approved'] || 0;
-
-          logger.info({
-            episodeId: episode.id,
-            episodeNumber: episode.episodeNumber,
-            videoId: finalVideoId,
-            videoPath: finalVideoPath,
-            gcsUrl,
-            duration: videoResult.duration,
-            hasMorePending: !!nextPending
-          }, '✅ Episode 비디오 생성 완료 (incremental mode)');
-
-          return res.json({
-            success: true,
-            completed: false,  // 아직 모든 에피소드가 완료되지 않음
-            episodeId: episode.id,
-            episodeNumber: episode.episodeNumber,
-            documentId: episode.documentId,
-            title: episode.title,
-            videoId: finalVideoId,
-            videoPath: finalVideoPath,
-            gcsUrl,
-            publicUrl,
-            duration: videoResult.duration,
-            details: videoResult.details,
-            // 진행 상황
-            progress: {
-              totalEpisodes: stats.totalEpisodes,
-              completedEpisodes: completedCount,
-              remainingEpisodes: pendingCount + approvedCount,
-              nextPendingEpisode: nextPending ? {
-                id: nextPending.id,
-                episodeNumber: nextPending.episodeNumber,
-                title: nextPending.title
-              } : null
-            },
-            message: nextPending
-              ? `Episode ${episode.episodeNumber} completed. Next: Episode ${nextPending.episodeNumber}`
-              : `Episode ${episode.episodeNumber} completed. All episodes done!`
-          });
-        } else if (!videoResult.success) {
-          await neo4j.updateEpisodeStatus(episode.id, 'approved');
-          return res.status(500).json({
-            success: false,
-            error: `Video generation failed: ${videoResult.error}`
-          });
-        } else {
-          await neo4j.updateEpisodeStatus(episode.id, 'approved');
-          return res.status(500).json({
-            success: false,
-            error: 'Video generation succeeded but videoId or videoPath is missing'
-          });
-        }
       } catch (error) {
         logger.error({ error }, '❌ Failed to generate next episode video');
         res.status(500).json({
@@ -1427,7 +1299,10 @@ export class BooksRouter {
                 visualDesc: scene.visualPrompt as string,
                 camera: 'static' as const,
                 transition: 'cut' as const,
-                sourceChunkIds: (scene.sourceChunkIds || []) as string[]
+                sourceChunkIds: (scene.sourceChunkIds || []) as string[],
+                assignedFormula: scene.assignedFormula || undefined,
+                formulaName: scene.formulaName || undefined,
+                formulaMetaphor: scene.formulaMetaphor || undefined,
               }));
 
               const episodeWithScenes = await neo4j.createEpisodeWithScenes(
@@ -1648,7 +1523,10 @@ export class BooksRouter {
               visualDesc: scene.visualPrompt as string,
               camera: 'static' as const,
               transition: 'cut' as const,
-              sourceChunkIds: (scene.sourceChunkIds || []) as string[]
+              sourceChunkIds: (scene.sourceChunkIds || []) as string[],
+              assignedFormula: scene.assignedFormula || undefined,
+              formulaName: scene.formulaName || undefined,
+              formulaMetaphor: scene.formulaMetaphor || undefined,
             }));
 
             const episodeWithScenes = await neo4j.createEpisodeWithScenes(
@@ -2304,7 +2182,10 @@ export class BooksRouter {
               visualDesc: scene.visualPrompt as string,
               camera: 'static' as const,
               transition: 'cut' as const,
-              sourceChunkIds: (scene.sourceChunkIds || []) as string[]
+              sourceChunkIds: (scene.sourceChunkIds || []) as string[],
+              assignedFormula: scene.assignedFormula || undefined,
+              formulaName: scene.formulaName || undefined,
+              formulaMetaphor: scene.formulaMetaphor || undefined,
             }));
 
             const episodeWithScenes = await neo4j.createEpisodeWithScenes(

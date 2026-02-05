@@ -1,8 +1,8 @@
 # YTB-Books-Project README INDEX
 
 > AI가 진행 상황을 파악하기 위한 README 모음
-> Last Updated: 2026-02-02
-> Version: **v3.2.4 수식 적응형 스케일링 + TTS 정합 + 이미지 다양성**
+> Last Updated: 2026-02-03
+> Version: **v3.4.1 MathJax SVG fill 수정 + 씬간 텀 축소 + FFmpeg 인코딩 최적화**
 
 ---
 
@@ -17,15 +17,21 @@
 
 ---
 
-## 🔥 현재 상태 (2026-02-02)
+## 🔥 현재 상태 (2026-02-03)
 
-### v3.2.4 주요 변경
+### v3.4.1 주요 변경
+- **MathJax SVG fill 수정**: `fill="currentColor"` → `fill="white"` 대체 (그리스 문자 β, ψ, θ 정상 렌더링)
+- **씬간 텀 축소**: 0.15초 → 0.05초 (PCM 무음 패딩 + 크로스페이드)
+- **FFmpeg 인코딩 최적화**: 모든 비디오 생성 함수에 `-preset ultrafast -crf 23` 추가
+  - 문제: 기존 60초 영상 500MB+ 출력, 인코딩 30분+
+  - 해결: ~10MB 출력, 인코딩 2-3분
+- **수정 파일**: `MathFormulaService.ts`, `AudioProcessor.ts`, `BooksVideoService.ts`, `VideoEditor.ts`
+
+### v3.2.4 주요 변경 (이전)
 - **수식 크기 적응형 스케일링** (짧은 수식 25%, 긴 수식 85%)
 - **수식 위치 최상단 1%** (기존 25%)
 - **TTS 나레이션 30자/씬** (기존 50자 → TTS 잘림 문제 해결)
 - **이미지 다양성**: enhanceExplanationPrompt 획일화 제거
-- EP21: 55.8초, 수식 6개
-- EP22: 56.7초, 수식 5개
 
 ### Cloud Run 테스트 결과 (2026-01-28) ✅
 
@@ -104,6 +110,37 @@
 ---
 
 ## 최근 변경 사항
+
+### v3.4.1 업데이트 (2026-02-03) - MathJax SVG fill 수정 + 씬간 텀 축소 + FFmpeg 인코딩 최적화
+
+#### 1. MathJax SVG fill 중복 수정 (MathFormulaService.ts)
+- **문제**: MathJax가 `fill="currentColor"` 속성을 이미 포함 → 기존 `<g fill="white">` 추가 방식은 XML 에러 발생
+- **해결**: `fill="currentColor"` → `fill="white"` 대체 (`.replace(/fill="currentColor"/g, 'fill="white"')`)
+- **효과**: β, ψ, θ 등 그리스 문자가 제대로 PNG로 렌더링됨
+
+#### 2. 씬간 텀 축소 (AudioProcessor.ts, BooksVideoService.ts)
+- **문제**: 씬과 씬 사이 어색한 0.15초 공백
+- **해결**:
+  - PCM 무음 패딩: 0.15초 → 0.05초 (`AudioProcessor.savePcmToMp3`)
+  - 크로스페이드: 0.15초 → 0.05초 (`BooksVideoService.concatAudiosWithCrossfade`)
+- **효과**: 자연스러운 씬 전환, TTS 끊김 감소
+
+#### 3. FFmpeg 인코딩 최적화 (VideoEditor.ts) ⭐ 핵심
+- **문제**: VideoEditor의 여러 함수에서 `-preset`, `-crf` 옵션 누락 → 60초 영상이 500MB+ 출력, 인코딩 30분+
+- **해결**: 모든 비디오 생성 함수에 인코딩 옵션 추가
+  ```typescript
+  .outputOptions(['-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p'])
+  ```
+- **적용 함수**:
+  - `combineVideoWithAudioAndCaptions()` - 자막 합성 (filter_complex_script + complexFilter 양쪽)
+  - `createStaticVideoFromImage()` - 이미지 → 비디오
+  - `createStaticVideoWithFormulaOverlay()` - drawtext 수식 오버레이
+  - `createVideoWithFormulaOverlayPng()` - PNG 수식 오버레이
+- **효과**:
+  - 파일 크기: 500MB+ → ~10MB (60초 기준)
+  - 인코딩 속도: 30분+ → 2-3분
+
+---
 
 ### v3.2.4 업데이트 (2026-02-02) - 수식 적응형 스케일링 + TTS 정합 + 이미지 다양성 + 자막 싱크
 
@@ -410,6 +447,7 @@ const plan = await planner.analyzeAndPlanSequentialCurriculum(bookId, title, chu
 - [x] 수식 배경 GhibliImageService + 크기/위치 개선 (v3.2.2)
 - [x] 이미지 다양성 + 수식 풍부화 + 마지막 끊김 수정 (v3.2.3)
 - [x] 수식 적응형 스케일링 + TTS 30자 정합 + 이미지 다양성 (v3.2.4)
+- [x] MathJax SVG fill 수정 + 씬간 텀 축소 + FFmpeg 인코딩 최적화 (v3.4.1)
 - [ ] YouTube 토큰 갱신 (clickaround/why_cat)
 - [ ] n8n에 워크플로우 Import 및 활성화
 - [ ] 24시간 자동 실행 테스트

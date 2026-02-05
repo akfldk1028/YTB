@@ -5,10 +5,10 @@
 책/논문을 Neo4j GraphRAG로 처리하여 YouTube Shorts를 자동 생성하는 프로젝트
 
 ### 핵심 철학
-- **논문/학술 콘텐츠**는 수학 수식과 원리 설명이 핵심. 캐릭터는 이해를 돕는 보조 수단
-- **이미지 전략**: 캐릭터 위주 OR 수식 일관성 위주 - 콘텐츠 성격에 따라 유동적 선택
-- **수식 파이프라인**: BookChunk LaTeX 추출 → MathJax v4 PNG 렌더링 → FFmpeg overlay (v3.2.0)
-- **설명 수준**: 중학생이 이해할 수 있는 수준 (30자/씬), 변수별 의미 설명 필수
+- **수식이 주인공** (v3.3.0): math_science + 수식 3개 이상 → 수식 중심 커리큘럼 자동 전환
+- **수식 파이프라인**: BookChunk LaTeX 추출 → 수식별 에피소드 그룹화 → assignedFormula per scene → MathJax v4 PNG → FFmpeg overlay
+- **이미지 전략**: 수식 씬은 `FORMULA_CONCEPT_PREFIX` (교육적 비유), 비수식 씬은 Ghibli 스타일
+- **설명 수준**: 고등학생이 이해할 수 있는 수준 (40-60자/수식씬), 변수별 의미 설명 필수
 
 ## 인프라 현황
 
@@ -25,7 +25,7 @@
 
 | 항목 | 상태 |
 |------|------|
-| Architecture | v3.2.4 (수식 적응형 스케일링 + TTS 정합 + 이미지 다양성) |
+| Architecture | v3.4.2 (MathJax AllPackages 크래시 수정 — 수식 PNG 렌더링 완전 복구) |
 | Neo4j Setup | **GCP VM 설치 완료** |
 | llm-graph-builder | **서버 실행 확인** |
 | API Server | **Books Router + Episode API + Video Pipeline + ELI5 + 자동 저장** |
@@ -33,17 +33,28 @@
 | Video Generation | **멀티 에피소드 생성 성공** (논문 1개 → 3개 영상) |
 | ELI5 설명 | **어려운 내용 쉽게 설명** ✅ |
 
-### 최신 테스트 결과 (2026-02-02, v3.2.4)
+### 최신 테스트 결과 (2026-02-02, v3.3.0)
 
-| Episode | 제목 | 길이 | 수식 | 상태 |
-|---------|------|------|------|------|
-| EP22 | 얼굴 움직임 압축 마법! 다중 스케일 잔차 VQ는 뭘까? | **56.7초** | 5개 (v3.2.4) | ✅ completed |
-| EP21 | 얼굴 마법 상자: 시간 여행하는 얼굴 만들기! | **55.8초** | 6개 (v3.2.4) | ✅ completed |
-| EP12 | (수식 없는 에피소드) | **55초** | 0개 | ✅ completed |
+| Episode | 제목 | 길이 | 수식 | assignedFormula | 상태 |
+|---------|------|------|------|-----------------|------|
+| EP49 | 3D 얼굴 모델링 기초: 얼굴 모양 결정짓기 | **32초** | 2개 | ✅ β (Shape Parameter) | ✅ completed |
+| EP22 | 얼굴 움직임 압축 마법! 다중 스케일 잔차 VQ는 뭘까? | **56.7초** | 5개 | ❌ (v3.2.4 라운드로빈) | ✅ completed |
 
+**v3.4.2 변경 (2026-02-04)** — **수식 렌더링 완전 복구**:
+- MathJax `AllPackages` 제거 → `new TeX({})` (Node.js CommonJS 환경 null reference 크래시 해결)
+- `<mjx-container>` wrapper SVG 추출: `svgString.match(/<svg[\s\S]*<\/svg>/)`
+- `convertLatexToDisplayText()` `$` 구분자 strip 추가
+- β, ψ, θ, L_{rec}=||M̂-M||_1 모두 PNG 렌더링 성공 확인
+- 파일: `MathFormulaService.ts`
+
+**v3.4.1 변경 (2026-02-03)**:
+- MathJax SVG `fill="currentColor"` → `fill="white"` 대체 (β, ψ, θ 렌더링 수정)
+- 씬간 텀 0.15초 → 0.05초 (PCM 패딩 + 크로스페이드)
+- FFmpeg `-preset ultrafast -crf 23` 추가 (500MB+ → ~10MB, 30분+ → 2-3분)
+- 파일: `MathFormulaService.ts`, `AudioProcessor.ts`, `BooksVideoService.ts`, `VideoEditor.ts`
+
+**v3.3.0 변경**: 수식 중심 커리큘럼, assignedFormula per scene, FORMULA_CONCEPT_PREFIX 이미지, TTS connector 수식씬 스킵, 나레이션 60자/수식씬
 **v3.2.4 변경**: 수식 적응형 스케일링(25%/40%/60%/85%), 위치 1%, TTS 30자/씬, 이미지 다양성, 자막 싱크 개선
-**v3.2.3 변경**: 이미지 다양성(개별생성+구도힌트), 수식 라운드로빈(7+씬), 마지막씬 +2초+무음패딩
-**v3.2.2 변경**: 수식 배경 GhibliImageService, 위치 25%, 나레이션 50자/씬 → 10씬 기준 ~52-60초
 
 **비디오 저장 위치:**
 - 로컬: `C:\Users\SOGANG1\.ai-agents-az-video-generator\videos\books\`
@@ -857,8 +868,30 @@ await ghibliService.setReferenceImage(masterImagePath);
 
 ---
 
-**Last Updated**: 2026-02-02
-**Version**: v3.2.4 (수식 적응형 스케일링 + TTS 정합 + 이미지 다양성)
+**Last Updated**: 2026-02-04
+**Version**: v3.4.2 (MathJax AllPackages 크래시 수정 — 수식 PNG 렌더링 완전 복구)
+
+### Changelog v3.4.2 (2026-02-04) — 수식 렌더링 완전 복구
+- **MathJax AllPackages 제거**: `new TeX({ packages: AllPackages })` → `new TeX({})`
+  - **근본 원인**: AllPackages가 Node.js CommonJS 환경에서 null reference 크래시 유발
+  - MathJax 초기화 실패 → renderLatexToPng() 에러 → drawtext fallback → `$b$` 표시
+  - 기본 TeX({})로 그리스 문자, 분수, 위첨자/아래첨자, hat 등 모두 정상 렌더링
+- **`<mjx-container>` wrapper 제거**: `adaptor.outerHTML()` → `<mjx-container><svg>...</svg></mjx-container>` 반환
+  - sharp는 `<svg>` root만 파싱 → regex로 `<svg>...</svg>` 추출
+- **`$` 구분자 제거**: `convertLatexToDisplayText()`에서 `$`/`$$` strip 추가
+- **에러 로깅 강화**: `initMathJax()` try-catch 추가
+- **빌드 주의**: TS 변경 → `npx tsc --project tsconfig.build.json` 필수 (`npm start`는 `dist/` 사용)
+- **파일 변경**: `MathFormulaService.ts`
+
+### Changelog v3.4.1 (2026-02-03)
+- **MathJax SVG fill 중복 수정**: `fill="currentColor"` → `fill="white"` 대체 (기존 `<g fill="white"` 추가 → "Attribute fill redefined" XML 에러)
+  - MathJax가 이미 `fill="currentColor"` 포함 → 새 속성 추가 대신 기존 속성 대체
+  - β, ψ, θ 등 그리스 문자가 제대로 렌더링됨
+- **씬간 텀 축소**: 0.15초 → 0.05초
+  - PCM 무음 패딩: 0.15초 → 0.05초 (`AudioProcessor.savePcmToMp3`)
+  - 크로스페이드: 0.15초 → 0.05초 (`BooksVideoService.concatAudiosWithCrossfade`)
+  - 씬과 씬 사이 어색한 공백 해결
+- **파일 변경**: `MathFormulaService.ts`, `AudioProcessor.ts`, `BooksVideoService.ts`
 
 ### Changelog v3.2.4 (2026-02-02)
 - **수식 크기 적응형 스케일링**: 짧은 수식(β 등) 25% 이하, 중간 40-60%, 긴 수식만 85%

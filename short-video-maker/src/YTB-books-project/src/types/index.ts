@@ -208,6 +208,12 @@ export interface Scene {
   audioPath?: string;
   /** 생성된 비디오 클립 경로 */
   clipPath?: string;
+  /** v3.3.0: 이 씬이 설명할 수식 (LaTeX) — 커리큘럼에서 할당 */
+  assignedFormula?: string;
+  /** v3.3.0: 수식 이름 (예: "Reconstruction Loss") */
+  formulaName?: string;
+  /** v3.3.0: 수식의 고등학생 수준 비유 (예: "원본과 복사본 비교하기") */
+  formulaMetaphor?: string;
 }
 
 /**
@@ -241,6 +247,12 @@ export interface CreateSceneInput {
   transition?: TransitionType;
   sourceChunkIds?: string[];
   mentionedEntities?: string[];
+  /** v3.3.0: 커리큘럼에서 할당된 수식 (LaTeX) */
+  assignedFormula?: string;
+  /** v3.3.0: 수식 이름 */
+  formulaName?: string;
+  /** v3.3.0: 수식 비유 */
+  formulaMetaphor?: string;
 }
 
 /**
@@ -261,3 +273,91 @@ export interface DocumentSeries {
   createdAt: Date;
   lastEpisodeNumber: number;
 }
+
+// ============================================
+// v3.4.0: Document별 비디오 설정
+// ============================================
+
+/**
+ * 콘텐츠 유형별 기본 설정 프리셋
+ */
+export type DocumentContentType = 'math_science' | 'humanities' | 'social_science' | 'general';
+
+/**
+ * v3.4.0: Document별 비디오 생성 설정
+ * contentType별 기본값 + 문서별 override로 여러 PDF가 서로 간섭하지 않음
+ */
+export interface DocumentVideoConfig {
+  /** 콘텐츠 유형 (기본 프리셋 결정) */
+  contentType: DocumentContentType;
+  /** 씬당 나레이션 최대 글자수 */
+  maxNarrationLength?: number;
+  /** 수식 씬 나레이션 최대 글자수 */
+  maxFormulaNarrationLength?: number;
+  /** 수식 오버레이 활성화 */
+  enableMathFormulas?: boolean;
+  /** 수식 위치 */
+  mathFormulaPosition?: 'center' | 'top' | 'bottom';
+  /** 에피소드당 최대 씬 수 */
+  maxScenesPerEpisode?: number;
+  /** 씬당 최대 초 */
+  maxSceneDuration?: number;
+  /** TTS voice 이름 */
+  ttsVoice?: string;
+  /** TTS 성별 */
+  ttsGender?: 'female' | 'male';
+  /** 크로스페이드 초 */
+  crossfadeDuration?: number;
+  /** 자막 Y 위치 */
+  subtitleYPosition?: string;
+}
+
+/**
+ * contentType별 기본값 프리셋
+ */
+export const DOCUMENT_CONFIG_PRESETS: Record<DocumentContentType, DocumentVideoConfig> = {
+  math_science: {
+    contentType: 'math_science',
+    maxNarrationLength: 35,
+    maxFormulaNarrationLength: 60,
+    enableMathFormulas: true,
+    mathFormulaPosition: 'top',
+    maxScenesPerEpisode: 10,
+    maxSceneDuration: 8,
+    crossfadeDuration: 0.15,
+    subtitleYPosition: 'h*0.88',
+  },
+  humanities: {
+    contentType: 'humanities',
+    maxNarrationLength: 40,
+    maxFormulaNarrationLength: 60,
+    enableMathFormulas: false,
+    mathFormulaPosition: 'top',
+    maxScenesPerEpisode: 10,
+    maxSceneDuration: 8,
+    crossfadeDuration: 0.15,
+    subtitleYPosition: 'h*0.88',
+  },
+  social_science: {
+    contentType: 'social_science',
+    maxNarrationLength: 38,
+    maxFormulaNarrationLength: 60,
+    enableMathFormulas: true,
+    mathFormulaPosition: 'top',
+    maxScenesPerEpisode: 10,
+    maxSceneDuration: 8,
+    crossfadeDuration: 0.15,
+    subtitleYPosition: 'h*0.88',
+  },
+  general: {
+    contentType: 'general',
+    maxNarrationLength: 35,
+    maxFormulaNarrationLength: 60,
+    enableMathFormulas: false,
+    mathFormulaPosition: 'top',
+    maxScenesPerEpisode: 10,
+    maxSceneDuration: 8,
+    crossfadeDuration: 0.15,
+    subtitleYPosition: 'h*0.88',
+  },
+};

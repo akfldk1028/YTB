@@ -1,7 +1,7 @@
 # Short Video Maker - README INDEX
 
 > AI가 프로젝트를 빠르게 파악하기 위한 README 목차
-> Last Updated: 2026-01-31
+> Last Updated: 2026-02-03
 
 ---
 
@@ -67,9 +67,9 @@
 
 ### 4. YTB-books-project 상세
 
-책/논문 → Neo4j GraphRAG → Shorts 자동 생성 (v3.1.1)
+책/논문 → Neo4j GraphRAG → Shorts 자동 생성 (v3.4.1)
 - **핵심 철학**: 논문은 수학 수식/원리 설명이 핵심. 이미지는 캐릭터 위주 OR 수식 일관성 위주 유동 선택
-- **v3.1.1**: FFmpeg ENAMETOOLONG 수정 (filter_complex_script)
+- **v3.4.1**: MathJax SVG fill 수정 + 씬간 텀 축소 + FFmpeg 인코딩 최적화 (500MB+ → ~10MB)
 
 | 파일 | 경로 | 설명 |
 |------|------|------|

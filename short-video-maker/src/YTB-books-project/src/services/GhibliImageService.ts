@@ -23,6 +23,21 @@ soft pastel color palette, portrait 9:16 composition,
 high contrast on white or light background, no characters, technical accuracy.
 IMPORTANT: NO TEXT, NO LABELS, NO LETTERS, NO WORDS in the image. Use only icons, arrows, colors, and shapes to convey meaning.`;
 
+/** v3.3.0: 수식 개념 시각화 Scene용 프리픽스 */
+const FORMULA_CONCEPT_PREFIX = `Educational concept illustration,
+children's book watercolor style, warm pastel colors,
+visual metaphor for mathematical concept,
+portrait 9:16, soft hand-painted texture.
+NO TEXT, NO FORMULAS, NO NUMBERS in the image.
+Focus on the VISUAL METAPHOR only.`;
+
+/** v3.5.0: 교육 콘텐츠 씬용 프리픽스 (캐릭터 없음, 내용 기반 시각화) */
+const EDUCATIONAL_STYLE_PREFIX = `Educational illustration for YouTube Shorts,
+portrait 9:16, soft watercolor style, visual metaphors and diagrams,
+warm pastel colors, NO characters or people, NO text or labels,
+clean composition with clear visual hierarchy,
+children's book illustration quality.`;
+
 /**
  * 씬 이미지 생성 결과
  */
@@ -47,6 +62,12 @@ export interface GhibliStyleConfig {
   timeOfDay?: 'dawn' | 'day' | 'sunset' | 'night';
   /** 캐릭터 설명 */
   characterDescription?: string;
+  /** v3.5.0: 이미지 모드 — narrative(캐릭터), educational(교육), formula(수식) */
+  imageMode?: 'narrative' | 'educational' | 'formula';
+  /** v3.5.0: GPT-4o 강제 사용 (주제 변경 시 새 교육 이미지 생성) */
+  forceGpt?: boolean;
+  /** v3.5.0: 교육 씬용 참조 이미지 (스타일 참조용, 캐릭터 아님) */
+  educationalReference?: { data: Buffer; mimeType: string };
 }
 
 /**
@@ -110,18 +131,49 @@ export class GhibliImageService {
   }
 
   /**
+   * v3.3.0: 프롬프트가 수식 개념 비유 요청인지 감지
+   */
+  private isFormulaConceptPrompt(prompt: string): boolean {
+    const lower = prompt.toLowerCase();
+    const formulaKeywords = [
+      'educational concept illustration', 'visual metaphor for math',
+      'concept illustration', 'mathematical concept',
+      'comparing', 'magnifying glass', 'measuring',
+      'loss function', 'reconstruction', 'encoder', 'decoder',
+      'formula concept', 'equation concept'
+    ];
+    return formulaKeywords.some(kw => lower.includes(kw));
+  }
+
+  /**
    * 프롬프트에 맞는 스타일 프리픽스 선택 + 빌드
+   * v3.5.0: imageMode 파라미터로 educational/formula 모드 지원
    */
   private buildStyledPrompt(
     basePrompt: string,
     isDiagram: boolean,
     config?: GhibliStyleConfig
   ): string {
-    const prefix = isDiagram ? DIAGRAM_STYLE_PREFIX : GHIBLI_STYLE_PREFIX;
+    const imageMode = config?.imageMode || 'narrative';
+
+    // v3.5.0: imageMode에 따라 프리픽스 선택
+    let prefix: string;
+    if (imageMode === 'educational') {
+      prefix = EDUCATIONAL_STYLE_PREFIX;
+    } else if (imageMode === 'formula') {
+      prefix = FORMULA_CONCEPT_PREFIX;
+    } else {
+      // narrative 모드: 기존 로직 유지
+      const isFormulaConcept = this.isFormulaConceptPrompt(basePrompt);
+      prefix = isFormulaConcept ? FORMULA_CONCEPT_PREFIX
+        : isDiagram ? DIAGRAM_STYLE_PREFIX
+        : GHIBLI_STYLE_PREFIX;
+    }
     const parts: string[] = [prefix];
 
-    if (!isDiagram) {
-      // Ghibli 스타일일 때만 무드/시간대/캐릭터 추가
+    // narrative 모드에서만 무드/시간대/캐릭터 추가
+    const isNarrative = imageMode === 'narrative';
+    if (isNarrative && !isDiagram) {
       if (config?.mood) {
         const moodDescriptions: Record<string, string> = {
           nostalgic: 'warm nostalgic atmosphere, memories of childhood',
@@ -167,9 +219,10 @@ export class GhibliImageService {
   /**
    * 하이브리드 이미지 생성 (핵심 메서드)
    *
-   * 전략:
-   * - 첫 씬 (sceneIndex === 0): GPT-4o로 고품질 지브리 이미지 생성
-   * - 이후 씬: NanoBanana + 이전 이미지 references로 일관성 유지
+   * v3.5.0 전략 (imageMode 분기):
+   * - narrative: 첫 씬 GPT-4o → 이후 NanoBanana + characterReference (캐릭터 일관성)
+   * - educational: forceGpt=true → GPT-4o 새 이미지, educationalReference → NanoBanana 스타일 참조 (캐릭터 없음)
+   * - formula: educational과 동일하지만 FORMULA_CONCEPT_PREFIX 사용
    */
   async generateSceneImage(
     prompt: string,
@@ -178,6 +231,7 @@ export class GhibliImageService {
     config?: GhibliStyleConfig,
     videoId?: string
   ): Promise<SceneImageResult> {
+    const imageMode = config?.imageMode || 'narrative';
     const isFirstScene = sceneIndex === 0;
     const isDiagram = this.isDiagramPrompt(prompt);
     const baseStyledPrompt = this.buildStyledPrompt(prompt, isDiagram, config);
@@ -198,11 +252,21 @@ export class GhibliImageService {
     const compositionHint = compositions[sceneIndex % compositions.length];
     const styledPrompt = `${baseStyledPrompt}\n\nCamera composition: ${compositionHint}`;
 
+    // v3.5.0: 교육/수식 모드에서 GPT 강제 사용 여부 결정
+    const forceGpt = config?.forceGpt === true;
+    const educationalRef = config?.educationalReference;
+    const isEducational = imageMode === 'educational' || imageMode === 'formula';
+
     logger.info({
       sceneIndex,
       isFirstScene,
       isDiagram,
-      strategy: isDiagram ? 'Diagram/Infographic' : (isFirstScene ? 'GPT-4o Ghibli' : 'NanoBanana + Reference'),
+      imageMode,
+      forceGpt,
+      hasEducationalRef: !!educationalRef,
+      strategy: isEducational
+        ? (forceGpt ? 'GPT-4o Educational (new topic)' : 'NanoBanana Style Reference (same topic)')
+        : (isFirstScene ? 'GPT-4o Ghibli' : 'NanoBanana + Character Reference'),
       prompt: prompt.substring(0, 80),
       videoId
     }, 'Generating scene image with hybrid strategy');
@@ -210,18 +274,92 @@ export class GhibliImageService {
     try {
       let result: ImageGenerationResult;
 
+      // ============================================================
+      // v3.5.0: Educational/Formula 모드 — 캐릭터 없는 교육 이미지
+      // ============================================================
+      if (isEducational) {
+        if (forceGpt && this.gptService) {
+          // 주제 변경 → GPT-4o로 새 교육 이미지 생성
+          logger.info({ sceneIndex, imageMode }, 'Using GPT-4o for educational scene (new topic)');
+          result = await this.gptService.generateImages({
+            prompt: styledPrompt,
+            numberOfImages: 1,
+            aspectRatio
+          }, videoId, sceneIndex);
+
+          if (result.success && result.images?.[0]) {
+            logger.info({
+              sceneIndex,
+              imageSize: result.images[0].data.length,
+              generator: 'gpt',
+              imageMode
+            }, 'GPT educational image generated');
+
+            return {
+              sceneIndex,
+              success: true,
+              imageBuffer: result.images[0].data,
+              mimeType: result.images[0].mimeType,
+              generator: 'gpt'
+            };
+          }
+          // GPT 실패 시 NanoBanana fallback (아래로)
+          logger.warn({ sceneIndex, error: result.error }, 'GPT failed for educational, falling back to NanoBanana');
+        }
+
+        // 동일 주제 또는 GPT 실패 → NanoBanana + 교육 reference (스타일 참조)
+        const eduRefImages = educationalRef
+          ? [{ data: educationalRef.data, mimeType: educationalRef.mimeType }]
+          : undefined;
+
+        logger.info({
+          sceneIndex,
+          hasEducationalRef: !!eduRefImages,
+          imageMode
+        }, 'Using NanoBanana with style reference for educational scene');
+
+        result = await this.nanoBananaService!.generateImages({
+          prompt: styledPrompt,
+          numberOfImages: 1,
+          aspectRatio,
+          referenceImages: eduRefImages,
+          referenceMode: 'style'  // v3.5.0: 스타일만 참조, 캐릭터 아님
+        }, videoId, sceneIndex);
+
+        if (result.success && result.images?.[0]) {
+          logger.info({
+            sceneIndex,
+            imageSize: result.images[0].data.length,
+            usedEducationalRef: !!eduRefImages,
+            generator: 'nano-banana',
+            imageMode
+          }, 'NanoBanana educational image generated');
+
+          return {
+            sceneIndex,
+            success: true,
+            imageBuffer: result.images[0].data,
+            mimeType: result.images[0].mimeType,
+            generator: 'nano-banana'
+          };
+        }
+
+        throw new Error(result.error || 'Educational image generation failed');
+      }
+
+      // ============================================================
+      // Narrative 모드 — 기존 캐릭터 기반 로직 (변경 없음)
+      // ============================================================
       if (isFirstScene && this.gptService) {
         // 첫 씬: GPT-4o
         if (isDiagram) {
-          // 다이어그램 씬: Ghibli prefix 대신 diagram prefix 사용
           logger.info({ sceneIndex }, 'Using GPT-4o for first scene (Diagram style)');
           result = await this.gptService.generateImages({
-            prompt: styledPrompt,  // DIAGRAM_STYLE_PREFIX 적용됨
+            prompt: styledPrompt,
             numberOfImages: 1,
             aspectRatio
           }, videoId, sceneIndex);
         } else {
-          // 일반 씬: Ghibli 스타일
           logger.info({ sceneIndex }, 'Using GPT-4o for first scene (Ghibli style)');
           result = await this.gptService.generateGhibliImage(
             prompt,
@@ -232,7 +370,6 @@ export class GhibliImageService {
         }
 
         if (result.success && result.images?.[0]) {
-          // 항상 reference로 저장 (동일성 유지)
           this.referenceImage = {
             data: result.images[0].data,
             mimeType: result.images[0].mimeType
@@ -260,29 +397,27 @@ export class GhibliImageService {
           };
         }
 
-        // GPT 실패 시 NanoBanana로 fallback
         logger.warn({ sceneIndex, error: result.error }, 'GPT failed, falling back to NanoBanana');
       }
 
-      // 이후 씬 또는 GPT 실패: NanoBanana + reference
+      // 이후 narrative 씬: NanoBanana + character reference
       logger.info({
         sceneIndex,
         hasReference: !!this.referenceImage,
         previousImageCount: this.generatedImages.length
-      }, 'Using NanoBanana with reference images');
+      }, 'Using NanoBanana with character reference images');
 
-      // Reference 이미지 항상 사용 (스타일 일관성 유지, isDiagram은 프리픽스만 전환)
       const referenceImages = this.getReferenceImages(3);
 
       result = await this.nanoBananaService!.generateImages({
         prompt: styledPrompt,
         numberOfImages: 1,
         aspectRatio,
-        referenceImages
+        referenceImages,
+        referenceMode: 'character'  // v3.5.0: 명시적으로 character 모드
       }, videoId, sceneIndex);
 
       if (result.success && result.images?.[0]) {
-        // 항상 reference로 저장 (동일성 유지)
         if (sceneIndex === 0 && !this.referenceImage) {
           this.referenceImage = {
             data: result.images[0].data,
@@ -313,7 +448,6 @@ export class GhibliImageService {
         };
       }
 
-      // 모든 방법 실패
       throw new Error(result.error || 'Image generation failed');
 
     } catch (error) {
@@ -328,7 +462,7 @@ export class GhibliImageService {
         sceneIndex,
         success: false,
         error: errorMsg,
-        generator: 'nano-banana'  // 마지막 시도한 generator
+        generator: 'nano-banana'
       };
     }
   }

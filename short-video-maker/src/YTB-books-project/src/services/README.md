@@ -1,9 +1,17 @@
 # Services - 비즈니스 로직 계층
 
-> Last Updated: 2026-01-31
-> Status: **v3.1.1 FFmpeg ENAMETOOLONG 수정 + 수식 중심 설명 철학**
+> Last Updated: 2026-02-04
+> Status: **v3.4.2 MathJax AllPackages 크래시 수정 — 수식 PNG 렌더링 완전 복구**
 >
-> **핵심 철학**: 논문 콘텐츠는 수학 수식과 원리 설명이 핵심. 이미지는 캐릭터 위주 또는 수식 일관성 위주로 유동 선택
+> **핵심 철학**: 수식이 주인공. math_science 문서는 수식 중심 커리큘럼으로 자동 전환. 각 씬에 assignedFormula 할당, 고등학생 수준 40-60자 나레이션
+>
+> **v3.4.2 핵심 변경 (수식 완전 복구)**:
+> 1. MathJax `AllPackages` 제거 → `new TeX({})` (Node.js CommonJS null reference 크래시 해결)
+> 2. `<mjx-container>` wrapper에서 `<svg>` 추출 (sharp 파싱 에러 해결)
+> 3. `convertLatexToDisplayText()` `$` 구분자 strip 추가 (drawtext fallback `$b$` → `b`)
+> 4. β, ψ, θ, L_{rec}=||M̂-M||_1 PNG 렌더링 성공 확인
+>
+> **v3.4.1 변경**: MathJax SVG fill + 씬간 텀 0.05초 + FFmpeg ultrafast
 
 ---
 
@@ -15,7 +23,7 @@
 | ContentPlannerService | `ContentPlannerService.ts` | ✅ | AI 분석 (Gemini) → ShortsPlan |
 | GhibliImageService | `GhibliImageService.ts` | ✅ | GPT + NanoBanana 하이브리드 이미지 |
 | BooksVideoService | `BooksVideoService.ts` | ✅ | TTS + FFmpeg 비디오 생성 (테스트 완료) |
-| MathFormulaService | `MathFormulaService.ts` | ✅ | 수학 수식 감지 + LaTeX → PNG 렌더링 + 수식 컨텍스트 추출 |
+| MathFormulaService | `MathFormulaService.ts` | ✅ | MathJax v4 LaTeX → SVG → PNG 렌더링 (v3.4.2: AllPackages 제거, 완전 복구) |
 
 ---
 
@@ -41,7 +49,11 @@ BooksRouter (API)
 
 ---
 
-## Neo4jService (v3.1.0)
+## Neo4jService (v3.3.0)
+
+### v3.3.0 수식 필드 (Scene 노드)
+- `createScene()`, `createEpisodeWithScenes()`: `assignedFormula`, `formulaName`, `formulaMetaphor` 저장
+- `recordToScene()`: 조회 시 `assignedFormula`, `formulaName`, `formulaMetaphor` 매핑
 
 ### contentType 캐싱 (v3.0.0 신규)
 ```typescript

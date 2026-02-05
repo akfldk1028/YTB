@@ -24,7 +24,8 @@ import { TeX } from 'mathjax-full/js/input/tex.js';
 import { SVG } from 'mathjax-full/js/output/svg.js';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
-import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
+// v3.4.2: AllPackages 제거 — CommonJS 환경에서 null reference 크래시 유발
+// 기본 TeX({})만으로 그리스 문자, 분수, 위첨자/아래첨자 등 기본 수식 렌더링 가능
 import path from 'path';
 import fs from 'fs-extra';
 
@@ -82,13 +83,19 @@ export class MathFormulaService {
    */
   private static initMathJax(): void {
     if (MathFormulaService.mathjaxDocument) return;
-    const adaptor = liteAdaptor();
-    RegisterHTMLHandler(adaptor);
-    MathFormulaService.mathjaxAdaptor = adaptor;
-    MathFormulaService.mathjaxDocument = mathjax.document('', {
-      InputJax: new TeX({ packages: AllPackages }),
-      OutputJax: new SVG({ fontCache: 'none' }),
-    });
+    try {
+      const adaptor = liteAdaptor();
+      RegisterHTMLHandler(adaptor);
+      MathFormulaService.mathjaxAdaptor = adaptor;
+      MathFormulaService.mathjaxDocument = mathjax.document('', {
+        InputJax: new TeX({}),  // v3.4.2: AllPackages 대신 기본 TeX — 안정성 확보
+        OutputJax: new SVG({ fontCache: 'none' }),
+      });
+      logger.info('MathJax v4 초기화 성공 (TeX 기본 패키지)');
+    } catch (error) {
+      logger.error({ error }, 'MathJax 초기화 실패!');
+      throw error;
+    }
   }
 
   /**
@@ -107,9 +114,32 @@ export class MathFormulaService {
     const doc = MathFormulaService.mathjaxDocument;
     const adaptor = MathFormulaService.mathjaxAdaptor;
 
+    // v3.3.1: $$ / $ 구분자 제거 (display:true이면 MathJax가 직접 display math 처리)
+    let cleanLatex = latex.trim();
+    if (cleanLatex.startsWith('$$') && cleanLatex.endsWith('$$')) {
+      cleanLatex = cleanLatex.slice(2, -2).trim();
+    } else if (cleanLatex.startsWith('$') && cleanLatex.endsWith('$')) {
+      cleanLatex = cleanLatex.slice(1, -1).trim();
+    }
+    // \( \) 또는 \[ \] 구분자도 제거
+    if (cleanLatex.startsWith('\\[') && cleanLatex.endsWith('\\]')) {
+      cleanLatex = cleanLatex.slice(2, -2).trim();
+    } else if (cleanLatex.startsWith('\\(') && cleanLatex.endsWith('\\)')) {
+      cleanLatex = cleanLatex.slice(2, -2).trim();
+    }
+
     // LaTeX → SVG
-    const node = doc.convert(latex, { display: true });
+    logger.info({ cleanLatex: cleanLatex.substring(0, 80) }, 'MathJax convert 시작');
+    const node = doc.convert(cleanLatex, { display: true });
     let svgString = adaptor.outerHTML(node);
+    logger.info({ outerHTMLLength: svgString.length, snippet: svgString.substring(0, 150) }, 'MathJax outerHTML 결과');
+
+    // v3.4.2: MathJax outerHTML은 <mjx-container><svg>...</svg></mjx-container> 형태
+    // sharp는 <svg> root가 필요하므로 <svg>...</svg>만 추출
+    const svgMatch = svgString.match(/<svg[\s\S]*<\/svg>/);
+    if (svgMatch) {
+      svgString = svgMatch[0];
+    }
 
     // SVG에서 width/height 추출
     const widthMatch = svgString.match(/width="([^"]+)"/);
@@ -128,20 +158,44 @@ export class MathFormulaService {
       svgHeight = svgHeight * scale;
     }
 
-    // SVG에 흰색 fill 추가 + viewBox 설정
-    svgString = svgString
-      .replace(/<svg/, `<svg xmlns="http://www.w3.org/2000/svg"`)
-      .replace(/style="/, `style="color: white; `)
-      .replace(/<g /, '<g fill="white" stroke="white" ');
-
-    // width/height를 px 단위로 교체
-    const density = 300;
+    // v3.4.0: renderWidth/renderHeight 계산 (viewBox + px 단위 기반)
     const renderWidth = Math.ceil(svgWidth * 2);
     const renderHeight = Math.ceil(svgHeight * 2);
 
+    // SVG에 흰색 fill 추가 + viewBox 설정
+    // xmlns 중복 방지: MathJax가 이미 xmlns를 포함하는 경우 추가하지 않음
+    if (!svgString.includes('xmlns=')) {
+      svgString = svgString.replace(/<svg/, `<svg xmlns="http://www.w3.org/2000/svg"`);
+    }
+
+    // viewBox 명시 추가 (없는 경우만)
+    if (!svgString.includes('viewBox')) {
+      svgString = svgString.replace(/<svg([^>]*)>/, `<svg$1 viewBox="0 0 ${renderWidth} ${renderHeight}">`);
+    }
+
+    // v3.4.1: SVG fill/stroke 수정 — 기존 속성을 대체 (중복 방지)
+    // MathJax SVG는 fill="currentColor" stroke="currentColor"를 사용
+    svgString = svgString
+      .replace(/style="/, `style="color: white; `)
+      .replace(/fill="currentColor"/g, 'fill="white"')
+      .replace(/stroke="currentColor"/g, 'stroke="white"');
+
+    // width/height를 px 단위로 교체
     svgString = svgString
       .replace(/width="[^"]*"/, `width="${renderWidth}"`)
       .replace(/height="[^"]*"/, `height="${renderHeight}"`);
+
+    // v3.4.0: sharp density를 SVG 크기 기반으로 조정 (고정 DPI 대신)
+    // 작은 수식은 높은 DPI, 큰 수식은 낮은 DPI로 선명도 유지
+    const density = renderWidth < 200 ? 400 : renderWidth < 500 ? 300 : 200;
+
+    logger.debug({
+      svgSnippet: svgString.substring(0, 200),
+      renderWidth,
+      renderHeight,
+      density,
+      latex: latex.substring(0, 50),
+    }, 'MathJax SVG 변환 디버그');
 
     // SVG → PNG (sharp)
     const svgBuffer = Buffer.from(svgString);
@@ -152,6 +206,17 @@ export class MathFormulaService {
     const formulaMeta = await sharp(formulaPng).metadata();
     const fWidth = formulaMeta.width || renderWidth;
     const fHeight = formulaMeta.height || renderHeight;
+
+    // v3.4.0: PNG 크기 검증 (빈 이미지 감지)
+    if (formulaPng.length < 500 || fWidth < 10 || fHeight < 10) {
+      logger.warn({
+        pngSize: formulaPng.length,
+        fWidth,
+        fHeight,
+        latex: latex.substring(0, 50),
+      }, 'MathJax PNG 렌더링 결과가 비정상적으로 작음 - 빈 이미지 가능성');
+      throw new Error(`MathJax PNG rendering produced empty/tiny image (${formulaPng.length} bytes, ${fWidth}x${fHeight})`);
+    }
 
     // 반투명 검정 배경 박스 합성 (padding 추가)
     const padding = 24;
@@ -183,12 +248,22 @@ export class MathFormulaService {
     const pngPath = path.join(outputDir, fileName);
     await fs.writeFile(pngPath, finalPng);
 
+    // v3.4.0: 최종 PNG 파일 크기 검증
+    const finalStat = await fs.stat(pngPath);
+    if (finalStat.size < 500) {
+      logger.warn({ pngPath, fileSize: finalStat.size }, 'MathJax 최종 PNG 파일 크기 비정상');
+      throw new Error(`MathJax final PNG too small: ${finalStat.size} bytes`);
+    }
+
     logger.info({
       latex: latex.substring(0, 50),
       width: bgWidth,
       height: bgHeight,
+      formulaPngSize: `${fWidth}x${fHeight}`,
+      fileSize: finalStat.size,
+      density,
       pngPath,
-    }, '📐 MathJax PNG 렌더링 완료 (v3.2.0)');
+    }, '📐 MathJax PNG 렌더링 완료 (v3.4.0)');
 
     return {
       pngPath,
@@ -383,7 +458,14 @@ export class MathFormulaService {
    * drawtext fallback용으로 유지
    */
   convertLatexToDisplayText(latex: string): string {
-    let text = latex;
+    let text = latex.trim();
+
+    // v3.4.2: $$ / $ 구분자 제거 (renderLatexToPng과 동일)
+    if (text.startsWith('$$') && text.endsWith('$$')) {
+      text = text.slice(2, -2).trim();
+    } else if (text.startsWith('$') && text.endsWith('$')) {
+      text = text.slice(1, -1).trim();
+    }
 
     // v3.1.4: 결합 문자(combining characters) 사용 금지 — FFmpeg drawtext가 깨짐
     text = text.replace(/\\hat\{([^}]+)\}/g, "$1'");
@@ -461,6 +543,12 @@ export class MathFormulaService {
     maxFormulas: number = 2,
     visualPrompt?: string
   ): Promise<string[]> {
+    // v3.3.0: assignedFormula로 이미 1개 할당된 경우 → AI 필터링 스킵
+    if (latexFormulas.length === 1) {
+      logger.info({ formula: latexFormulas[0].substring(0, 40) }, '수식 1개 (커리큘럼 할당) → 필터링 스킵');
+      return latexFormulas;
+    }
+
     // 수식이 적어도 항상 필터링 (매칭 안 되면 0개 반환해야 하므로)
     try {
       const formulaList = latexFormulas.map((f, i) => `[${i}] ${f}`).join('\n');
@@ -560,16 +648,17 @@ JSON 형식으로 응답 (JSON만 출력):
 ${formulaList}
 
 작성 규칙:
-1. 수식이 뭘 하는지 핵심만 설명 (각 변수/기호의 의미)
+1. 수식이 뭘 하는지 핵심 설명 + 각 변수/기호의 의미 필수
+   예: "M은 원본 얼굴, M̂은 AI가 만든 얼굴이에요"
 2. 원래 맥락과 자연스럽게 연결
 3. "수식을 보세요", "화면에 보이는" 등 화면 참조 금지
 4. 수식 기호(\\, ^, _, {})나 LaTeX 코드 절대 포함 금지
 5. 영어 전문용어 그대로 OK (예: "Reconstruction Loss")
-6. 1-2문장, 20-24자 이내, "~거예요/~이죠/~해요" 말투
-7. ★ 반드시 24자 이내! 초과하면 안 됨 ★
+6. 2-3문장, 40-60자, "~거예요/~이죠/~해요" 말투
+7. ★ 반드시 40-60자 범위! 24자보다 길게 써야 수식을 충분히 설명 가능 ★
 
-예시 (수식: L_{rec} = ||x - \\hat{x}||_2^2):
-○ "원본과 복원 차이를 재는 게 Reconstruction Loss예요."  (22자)
+예시 (수식: L_{rec} = ||\\hat{M} - M||_1 + w_{lips}||V_{lips} - \\hat{V}_{lips}||^2):
+○ "Reconstruction Loss는 원본 얼굴 M과 AI가 만든 M̂의 차이를 측정해요. 특히 입술 부분은 가중치가 더 높죠."  (52자)
 
 JSON으로 응답:
 {"narration": "나레이션 텍스트"}`;

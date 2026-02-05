@@ -146,6 +146,7 @@ export class YouTubeUploader {
     const scopes = [
       'https://www.googleapis.com/auth/youtube.upload',
       'https://www.googleapis.com/auth/youtube',
+      'https://www.googleapis.com/auth/youtube.force-ssl', // Required for commentThreads.insert
       'https://www.googleapis.com/auth/yt-analytics.readonly',
     ];
 
@@ -459,40 +460,74 @@ export class YouTubeUploader {
    * Post a comment on a YouTube video
    * Used for first-comment (e.g. source attribution) after upload
    * Does NOT throw on failure - returns null instead
+   * v3.5.1: Added delay + retry (YouTube needs time to process video before accepting comments)
    */
   public async postComment(
     youtubeVideoId: string,
     channelName: string,
     commentText: string
   ): Promise<string | null> {
-    try {
-      const oauth2Client = this.createOAuth2Client(channelName);
-      const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+    const maxRetries = 3;
+    const delays = [30000, 30000, 60000]; // 30s, 30s, 60s
 
-      const response = await youtube.commentThreads.insert({
-        part: ['snippet'],
-        requestBody: {
-          snippet: {
-            videoId: youtubeVideoId,
-            topLevelComment: {
-              snippet: {
-                textOriginal: commentText,
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Wait before posting (YouTube needs time to process the uploaded video)
+        const delayMs = attempt === 0 ? 30000 : delays[attempt];
+        logger.info({ youtubeVideoId, attempt: attempt + 1, delayMs }, '[YouTube] 댓글 등록 대기 중...');
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+
+        const oauth2Client = this.createOAuth2Client(channelName);
+        const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+        const response = await youtube.commentThreads.insert({
+          part: ['snippet'],
+          requestBody: {
+            snippet: {
+              videoId: youtubeVideoId,
+              topLevelComment: {
+                snippet: {
+                  textOriginal: commentText,
+                },
               },
             },
           },
-        },
-      });
+        });
 
-      const commentId = response.data.id || null;
-      logger.info({ youtubeVideoId, channelName, commentId }, 'YouTube comment posted successfully');
-      return commentId;
-    } catch (error) {
-      logger.warn(
-        { error, youtubeVideoId, channelName },
-        'Failed to post YouTube comment - non-critical, continuing'
-      );
-      return null;
+        const commentId = response.data.id || null;
+        logger.info({ youtubeVideoId, channelName, commentId, attempt: attempt + 1 }, 'YouTube comment posted successfully');
+        return commentId;
+      } catch (error: any) {
+        // Extract YouTube API error details
+        const apiError = error?.response?.data?.error;
+        const errorReason = apiError?.errors?.[0]?.reason || 'unknown';
+        const errorMessage = apiError?.message || error?.message || 'unknown';
+        const errorCode = error?.code || error?.response?.status || 0;
+
+        logger.warn({
+          youtubeVideoId,
+          channelName,
+          attempt: attempt + 1,
+          maxRetries,
+          errorCode,
+          errorReason,
+          errorMessage,
+          apiErrors: apiError?.errors,
+        }, `[YouTube] 댓글 등록 실패 (시도 ${attempt + 1}/${maxRetries})`);
+
+        // Don't retry on non-retryable errors
+        if (errorReason === 'commentsDisabled' || errorReason === 'insufficientPermissions') {
+          logger.warn({ errorReason }, '[YouTube] 재시도 불가능한 에러 - 댓글 등록 포기');
+          return null;
+        }
+
+        if (attempt === maxRetries - 1) {
+          logger.warn({ youtubeVideoId, errorReason, errorMessage }, '[YouTube] 댓글 등록 최종 실패 - 계속 진행');
+          return null;
+        }
+      }
     }
+    return null;
   }
 
   /**

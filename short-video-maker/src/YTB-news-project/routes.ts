@@ -80,6 +80,8 @@ const NewsPayloadSchema = z.object({
     })).min(1),
     // 🔥 n8n payload: video.hashtags
     hashtags: z.array(z.string()).optional(),
+    // 🔥 업로드 후 첫 댓글 (출처 고지 등)
+    firstComment: z.string().optional(),
     // 비디오별 YouTube 메타데이터 (선택적)
     youtube: z.object({
       finalTitle: z.string(),

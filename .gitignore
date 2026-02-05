@@ -195,3 +195,17 @@ tmp_episodes.json
 tmp_ep26.json
 Data00_PersonalYTBNEBneb_api.json
 temp-yt/*.json
+temp-yt/*.txt
+temp-yt/*.tar.gz
+
+## Test/debug JSON output files
+books.json
+chunks.json
+curriculum.json
+curriculum_cloud2.json
+ep_check.json
+ep_next.json
+ep_pending.json
+ep_stats.json
+gen_result.json
+video_cloud2.json

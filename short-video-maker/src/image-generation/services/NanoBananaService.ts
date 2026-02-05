@@ -157,20 +157,36 @@ export class NanoBananaService {
       }
 
       // 🔥 FIX: 각 이미지의 역할을 명시적으로 설명 (공식 문서 권장 방식)
-      // "Image 1: ...", "Image 2: ..." 형식으로 AI가 각 입력을 명확히 이해하게 함
+      // v3.5.0: referenceMode에 따라 character 참조 vs style 참조 분기
+      const isStyleMode = query.referenceMode === 'style';
+
       let imageDescriptions = '';
       for (let imgIdx = 0; imgIdx < maxReferenceImages; imgIdx++) {
-        if (imgIdx === 0) {
-          imageDescriptions += `Image ${imgIdx + 1}: Main character reference sheet showing the character's appearance, face, hairstyle, and clothing.\n`;
+        if (isStyleMode) {
+          imageDescriptions += `Image ${imgIdx + 1}: Visual style reference for educational illustrations.\n`;
         } else {
-          imageDescriptions += `Image ${imgIdx + 1}: Additional character reference from different angle/pose.\n`;
+          if (imgIdx === 0) {
+            imageDescriptions += `Image ${imgIdx + 1}: Main character reference sheet showing the character's appearance, face, hairstyle, and clothing.\n`;
+          } else {
+            imageDescriptions += `Image ${imgIdx + 1}: Additional character reference from different angle/pose.\n`;
+          }
         }
       }
 
-      const consistencyInstruction = `${imageDescriptions}
+      let consistencyInstruction: string;
+      if (isStyleMode) {
+        consistencyInstruction = `${imageDescriptions}
+Generate a new scene in this EXACT SAME visual style (colors, composition, art technique, color palette).
+The scene content should be DIFFERENT - focus on the educational concept described below.
+Do NOT include any characters or people in the image.
+
+New scene: `;
+      } else {
+        consistencyInstruction = `${imageDescriptions}
 Generate a new scene with this EXACT SAME character. The character's face, hairstyle, clothing, and all visual features must be IDENTICAL to the reference images above. This is the same person.
 
 New scene: `;
+      }
       parts.push({
         text: consistencyInstruction + query.prompt
       });

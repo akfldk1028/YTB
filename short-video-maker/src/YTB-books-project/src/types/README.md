@@ -1,7 +1,7 @@
 # Types - 타입 정의
 
-> Last Updated: 2026-01-31
-> Status: **v3.1.0** (BookChunk latexFormulas/sectionTitle + FormulaWithContext + Episode/Scene)
+> Last Updated: 2026-02-03
+> Status: **v3.4.1** (Scene assignedFormula/formulaName/formulaMetaphor + DocumentVideoConfig)
 
 ---
 
@@ -40,7 +40,7 @@
 | `CameraType` | `wide` \| `close_up` \| ... |
 | `TransitionType` | `cut` \| `fade` \| ... |
 | `CreateEpisodeInput` | Episode 생성 입력 |
-| `CreateSceneInput` | Scene 생성 입력 |
+| `CreateSceneInput` | Scene 생성 입력 (v3.3.0: assignedFormula/formulaName/formulaMetaphor) |
 | `EpisodeWithScenes` | Episode + Scenes 조합 |
 | `DocumentSeries` | Document의 전체 시리즈 |
 

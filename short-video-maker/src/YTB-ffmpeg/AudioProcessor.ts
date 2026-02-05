@@ -181,12 +181,11 @@ export class AudioProcessor {
    * Gemini TTS returns L16 PCM (24kHz, mono, 16-bit signed little-endian)
    */
   async savePcmToMp3(audio: ArrayBuffer, filePath: string): Promise<string> {
-    // v3.2.5: PCM 레벨에서 0.5초 무음 패딩 추가 후 단일 MP3 인코딩
-    // MP3 concat 방식은 인코딩 경계마다 LAME 패딩(576 samples=24ms) 손실 발생
-    // PCM에 직접 무음 바이트를 붙여서 한 번만 인코딩하면 끊김 없음
+    // v3.5.0: PCM 레벨에서 0.1초 무음 패딩 (씬간 자연스러운 쉼)
+    // 0.05초 답답 → 0.5초 늘어짐 → 0.1초 확정
     const pcmBuffer = Buffer.from(audio);
-    const paddingSeconds = 0.5;
-    const silenceBytes = Math.ceil(24000 * 2 * paddingSeconds); // 24kHz * 16bit * 0.5s = 24000 bytes
+    const paddingSeconds = 0.1;
+    const silenceBytes = Math.ceil(24000 * 2 * paddingSeconds); // 24kHz * 16bit * 0.1s = 4800 bytes
     const silenceBuffer = Buffer.alloc(silenceBytes, 0);
     const paddedBuffer = Buffer.concat([pcmBuffer, silenceBuffer]);
 
@@ -207,7 +206,7 @@ export class AudioProcessor {
         .toFormat("mp3")
         .save(filePath)
         .on("end", () => {
-          logger.debug("PCM to MP3 conversion complete (with 0.5s PCM tail padding)");
+          logger.debug("PCM to MP3 conversion complete (with 0.1s PCM tail padding)");
           resolve(filePath);
         })
         .on("error", (err) => {
@@ -610,6 +609,92 @@ export class AudioProcessor {
       } catch (error) {
         logger.error(error, "Error setting up FFmpeg audio concatenation");
         reject(error);
+      }
+    });
+  }
+
+  /**
+   * v3.3.1: 크로스페이드 적용 오디오 연결
+   * 씬 사이 0.08초 acrossfade → TTS 끊김 없이 자연스러운 전환
+   * 총 길이가 (N-1)*crossfadeDuration 만큼 줄어듦
+   */
+  async concatAudiosWithCrossfade(
+    inputPaths: string[],
+    outputPath: string,
+    crossfadeDuration: number = 0.08
+  ): Promise<string> {
+    logger.debug({ inputPaths, outputPath, crossfadeDuration }, "Concatenating audio with crossfade");
+
+    return new Promise(async (resolve, reject) => {
+      try {
+        if (inputPaths.length === 0) {
+          reject(new Error("No audio input paths provided"));
+          return;
+        }
+
+        if (inputPaths.length === 1) {
+          const fs = await import("fs-extra");
+          fs.copyFileSync(inputPaths[0], outputPath);
+          resolve(outputPath);
+          return;
+        }
+
+        // 2개면 단순 acrossfade
+        if (inputPaths.length === 2) {
+          let cmd = ffmpeg();
+          for (const p of inputPaths) cmd = cmd.input(p);
+          cmd
+            .complexFilter(`[0:a][1:a]acrossfade=d=${crossfadeDuration}:c1=tri:c2=tri[outa]`)
+            .outputOptions('-map', '[outa]')
+            .audioCodec('libmp3lame')
+            .audioBitrate('192k')
+            .on('end', () => { resolve(outputPath); })
+            .on('error', (err) => {
+              logger.warn({ err }, 'Crossfade failed, falling back to concat');
+              this.concatAudios(inputPaths, outputPath).then(resolve).catch(reject);
+            })
+            .save(outputPath);
+          return;
+        }
+
+        // 3개 이상: acrossfade 체인
+        let cmd = ffmpeg();
+        for (const p of inputPaths) cmd = cmd.input(p);
+
+        const filters: string[] = [];
+        const n = inputPaths.length;
+        // [0:a][1:a]acrossfade=...[a01]; [a01][2:a]acrossfade=...[a02]; ...
+        let prevLabel = '[0:a]';
+        for (let i = 1; i < n; i++) {
+          const outLabel = i === n - 1 ? '[outa]' : `[a${String(i).padStart(2, '0')}]`;
+          filters.push(
+            `${prevLabel}[${i}:a]acrossfade=d=${crossfadeDuration}:c1=tri:c2=tri${outLabel}`
+          );
+          prevLabel = outLabel;
+        }
+
+        cmd
+          .complexFilter(filters.join(';'))
+          .outputOptions('-map', '[outa]')
+          .audioCodec('libmp3lame')
+          .audioBitrate('192k')
+          .on('start', (commandLine) => {
+            logger.debug('FFmpeg crossfade concat command: ' + commandLine);
+          })
+          .on('end', () => {
+            logger.debug({ outputPath }, "Audio crossfade concat complete");
+            resolve(outputPath);
+          })
+          .on('error', (error) => {
+            logger.warn({ error }, 'Crossfade concat failed, falling back to plain concat');
+            this.concatAudios(inputPaths, outputPath).then(resolve).catch(reject);
+          })
+          .save(outputPath);
+
+      } catch (error) {
+        logger.error(error, "Error setting up crossfade concat");
+        // fallback to plain concat
+        this.concatAudios(inputPaths, outputPath).then(resolve).catch(reject);
       }
     });
   }

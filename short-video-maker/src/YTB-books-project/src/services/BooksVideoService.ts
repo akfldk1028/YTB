@@ -56,10 +56,14 @@ export const BOOKS_PROJECT_CONFIG = {
   reuseImageForSameType: false,
   /** v3.1.3: 에피소드당 최대 씬 수 (숏츠 60초 제한 대응) */
   maxScenesPerEpisode: 10,
-  /** v3.2.5: 씬당 나레이션 최대 글자수 (한국어 TTS ~4자/초 → 24자=6초, 여유 포함) */
-  maxNarrationLength: 24,
+  /** v3.4.0: 씬당 나레이션 최대 글자수 (한국어 TTS ~4자/초 → 35자≈9초, 자연스러운 완결) */
+  maxNarrationLength: 35,
+  /** v3.3.0: 수식 씬 나레이션 최대 글자수 (수식 설명에 충분한 길이) */
+  maxFormulaNarrationLength: 60,
   /** v3.2.5: 씬당 최대 초 — TTS 길이 우선, 이 값은 TTS 없는 씬의 fallback */
   maxSceneDuration: 8,
+  /** v3.3.0: 수식 씬 최대 초 (수식 설명에 충분한 시간) */
+  maxFormulaSceneDuration: 12,
 } as const;
 
 export interface BooksVideoConfig {
@@ -274,8 +278,8 @@ export class BooksVideoService {
                 .replace(/\s+([,.!?])/g, '$1')
                 .trim();
 
-              // v3.2.2: 수식 씬은 설명이 핵심이므로 길이 제한 완화 (50→100자)
-              const maxLen = Math.max(BOOKS_PROJECT_CONFIG.maxNarrationLength * 2, 70);
+              // v3.3.0: 수식 씬은 maxFormulaNarrationLength (60자) 적용
+              const maxLen = BOOKS_PROJECT_CONFIG.maxFormulaNarrationLength;
               if (newNarration.length > maxLen) {
                 // v3.2.2: 한국어 종결어미 포함 문장 분리 (마침표 없는 문장도 감지)
                 const sentences = newNarration.match(/[^.!?。！？]+[.!?。！？]+|[^.!?。！？]+$/g) || [newNarration];
@@ -343,16 +347,34 @@ export class BooksVideoService {
         : this.geminiTTS.getDefaultVoice(language, inputConfig?.ttsGender || 'female');
       logger.info({ voice: selectedVoice.name, gender: selectedVoice.gender, language }, 'TTS Voice 선택');
 
+      // v3.3.0: 씬간 연결 접속사 (TTS 자연스러움 개선)
+      const connectors = ['그리고', '다음으로', '이어서', '또', '그래서'];
+
       for (let i = 0; i < shortPlan.scenes.length; i++) {
         const scene = shortPlan.scenes[i];
         // v2.9.2: 수식 정렬된 나레이션 사용
         let narrationText = sceneNarrations[i];
 
-        // v3.2.5: 수식 씬은 설명이 핵심이므로 길이 제한 완화
         const hasMathFormula = sceneMathFormulas.has(i);
+        const sceneType = scene.sceneType || '';
+
+        // v3.3.0: 2번째 씬부터 자연스러운 연결어 prepend
+        // - 첫 씬, 마지막 씬 제외
+        // - 수식 씬(explanation + formula)은 connector 스킵 (수식 도입이 자체적으로 자연스러움)
+        if (i > 0 && i < shortPlan.scenes.length - 1 && narrationText && narrationText.trim().length > 0) {
+          if (!hasMathFormula) {
+            narrationText = `${connectors[i % connectors.length]}, ${narrationText}`;
+            sceneNarrations[i] = narrationText;
+          }
+        }
+
+        // v3.3.0: 수식 씬/비수식 씬 나레이션 길이 분기
+        const isNarrationScene = ['hook', 'conclusion', 'cta', 'intro'].includes(sceneType);
         const maxLen = hasMathFormula
-          ? Math.max(BOOKS_PROJECT_CONFIG.maxNarrationLength * 2, 48)  // 수식 씬: 48자 (TTS ~10초)
-          : BOOKS_PROJECT_CONFIG.maxNarrationLength;                    // 일반 씬: 24자 (TTS ~6초)
+          ? BOOKS_PROJECT_CONFIG.maxFormulaNarrationLength   // 수식 씬: 60자 (TTS ~12초)
+          : isNarrationScene
+            ? BOOKS_PROJECT_CONFIG.maxFormulaNarrationLength  // hook/conclusion: 60자 (잘리지 않게)
+            : BOOKS_PROJECT_CONFIG.maxNarrationLength;         // 일반 explanation: 24자 (TTS ~6초)
         if (narrationText && narrationText.length > maxLen) {
           // v3.2.2: 한국어 종결어미 포함 문장 분리 (마침표 없는 문장도 감지)
           const sentences = narrationText.match(/[^.!?。！？]+[.!?。！？]+|[^.!?。！？]+$/g) || [narrationText];
@@ -398,40 +420,42 @@ export class BooksVideoService {
           }
         );
 
-        // v3.2.5: PCM→MP3 변환 (savePcmToMp3에서 PCM 레벨 0.5초 무음 패딩 포함)
-        // MP3 concat 패딩 방식 폐기 — PCM 단일 인코딩으로 LAME 경계 손실 제거
+        // v3.5.0: PCM→MP3 변환 (savePcmToMp3에서 PCM 레벨 0.1초 무음 패딩 포함)
         const audioPath = path.join(tempDir, `audio_${i}.mp3`);
         await this.ffmpeg.savePcmToMp3(ttsResult.audio, audioPath);
 
-        // ffprobe로 실제 MP3 길이 측정 (0.5초 패딩 포함된 값)
+        // ffprobe로 실제 MP3 길이 측정 (0.1초 패딩 포함된 값)
         const mp3Duration = await this.ffmpeg.getAudioDuration(audioPath);
-        // 실제 음성 길이 = MP3 전체 - 0.5초 패딩 (자막 싱크용)
-        const ttsDuration = Math.max(mp3Duration - 0.5, 1);
+        // 실제 음성 길이 = MP3 전체 - 0.1초 패딩 (자막 싱크용)
+        const ttsDuration = Math.max(mp3Duration - 0.1, 1);
         logger.debug({ scene: i + 1, pcmEstimate: ttsResult.audioLength, mp3Duration, speechDuration: ttsDuration }, 'TTS 실제 길이 측정');
 
-        const hintDuration = scene.durationHint || 5;
         const isLastScene = (i === shortPlan.scenes.length - 1);
         const remainingTime = 60 - cumulativeTime;
 
-        // 씬 duration = MP3 전체 길이 (패딩 포함) 기준으로 결정
-        const effectiveDuration = Math.min(
-          Math.max(mp3Duration, hintDuration),
-          remainingTime
-        );
+        // v3.5.0: TTS 길이 기반 씬 duration (hintDuration 무음 패딩 제거)
+        // 이전: max(mp3Duration, hintDuration) → TTS 짧으면 수초 무음 발생
+        // 수정: mp3Duration 그대로 사용 (PCM 패딩 0.15초 이미 포함)
+        // 마지막 씬만 0.5초 여유 (자연스러운 종료)
+        const effectiveDuration = isLastScene
+          ? Math.min(mp3Duration + 0.5, remainingTime)
+          : Math.min(mp3Duration, remainingTime);
 
-        // MP3 concat 불필요 — savePcmToMp3에서 이미 패딩됨
         let finalAudioPath = audioPath;
 
-        if (mp3Duration < hintDuration) {
-          // TTS가 hint보다 짧으면 무음 패딩
-          const paddedPath = path.join(tempDir, `audio_padded_${i}.mp3`);
-          const silencePath = path.join(tempDir, `silence_${i}.mp3`);
-          await this.ffmpeg.generateSilentAudio(silencePath, hintDuration - mp3Duration);
-          await this.ffmpeg.concatAudios([audioPath, silencePath], paddedPath);
-          finalAudioPath = paddedPath;
-          logger.debug({ scene: i + 1, padding: hintDuration - mp3Duration }, '무음 패딩 추가');
+        if (isLastScene) {
+          // 마지막 씬만 무음 패딩 (자연스러운 fadeout)
+          const paddingNeeded = effectiveDuration - mp3Duration;
+          if (paddingNeeded > 0.05) {
+            const paddedPath = path.join(tempDir, `audio_padded_${i}.mp3`);
+            const silencePath = path.join(tempDir, `silence_${i}.mp3`);
+            await this.ffmpeg.generateSilentAudio(silencePath, paddingNeeded);
+            await this.ffmpeg.concatAudios([audioPath, silencePath], paddedPath);
+            finalAudioPath = paddedPath;
+            logger.debug({ scene: i + 1, padding: paddingNeeded, isLastScene }, '마지막 씬 무음 패딩');
+          }
         }
-        logger.debug({ scene: i + 1, ttsDuration, mp3Duration, hintDuration, effectiveDuration, remainingTime }, '씬 duration 결정');
+        logger.debug({ scene: i + 1, ttsDuration, mp3Duration, effectiveDuration, remainingTime }, '씬 duration 결정');
 
         audioFiles.push(finalAudioPath);
         sceneDurations.push(effectiveDuration);
@@ -522,10 +546,28 @@ export class BooksVideoService {
       let finalAudioPath: string;
       if (audioFiles.length > 1) {
         finalAudioPath = path.join(tempDir, `final_audio.mp3`);
-        await this.ffmpeg.concatAudios(audioFiles, finalAudioPath);
-        logger.info({ audioCount: audioFiles.length }, '오디오 연결 완료');
+        // v3.5.0: 크로스페이드 적용 (0.1초) → 씬간 여유있는 전환 (0.05→0.1)
+        await this.ffmpeg.concatAudiosWithCrossfade(audioFiles, finalAudioPath, 0.1);
+        logger.info({ audioCount: audioFiles.length }, '오디오 크로스페이드 연결 완료');
       } else {
         finalAudioPath = audioFiles[0];
+      }
+
+      // ============================================
+      // Step 3.5: A/V 싱크 보정 (v3.3.1)
+      // 크로스페이드로 오디오가 (N-1)×0.08초 짧아짐 → 무음 패딩으로 보정
+      // ============================================
+      const finalAudioDuration = await this.ffmpeg.getAudioDuration(finalAudioPath);
+      const totalVideoDuration = sceneDurations.reduce((a, b) => a + b, 0);
+      const durationGap = totalVideoDuration - finalAudioDuration;
+
+      if (durationGap > 0.1) {
+        const silencePath = path.join(tempDir, 'sync_silence.mp3');
+        await this.ffmpeg.generateSilentAudio(silencePath, durationGap);
+        const syncedPath = path.join(tempDir, 'final_audio_synced.mp3');
+        await this.ffmpeg.concatAudios([finalAudioPath, silencePath], syncedPath);
+        finalAudioPath = syncedPath;
+        logger.info({ durationGap, finalAudioDuration, totalVideoDuration }, 'A/V 싱크 패딩 추가');
       }
 
       // ============================================

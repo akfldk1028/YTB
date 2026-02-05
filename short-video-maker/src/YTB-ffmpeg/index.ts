@@ -112,6 +112,10 @@ export class FFMpeg {
     return this.audioProcessor.concatAudios(inputPaths, outputPath);
   }
 
+  async concatAudiosWithCrossfade(inputPaths: string[], outputPath: string, crossfadeDuration?: number): Promise<string> {
+    return this.audioProcessor.concatAudiosWithCrossfade(inputPaths, outputPath, crossfadeDuration);
+  }
+
   // ===== Subtitle Filter Operations =====
 
   createSubtitleFilter(

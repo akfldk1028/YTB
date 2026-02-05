@@ -113,6 +113,12 @@ export async function initFFmpeg(): Promise<void> {
       ffmpeg.setFfmpegPath(systemFfmpegPath);
       ffmpegPath = systemFfmpegPath;
       logger.info(`FFmpeg path set to system: ${systemFfmpegPath} (Linux)`);
+      // system ffprobe
+      const systemFfprobePath = '/usr/bin/ffprobe';
+      if (fs.existsSync(systemFfprobePath)) {
+        ffmpeg.setFfprobePath(systemFfprobePath);
+        logger.info(`FFprobe path set to system: ${systemFfprobePath}`);
+      }
     } else {
       // Fallback to npm installer if system FFmpeg not found
       const ffmpegInstaller = await import("@ffmpeg-installer/ffmpeg");
@@ -126,6 +132,19 @@ export async function initFFmpeg(): Promise<void> {
     ffmpeg.setFfmpegPath(ffmpegInstaller.path);
     ffmpegPath = ffmpegInstaller.path;
     logger.info(`FFmpeg path set to npm installer: ${ffmpegInstaller.path}`);
+  }
+
+  // v3.4.0: Set ffprobe path from @ffprobe-installer/ffprobe
+  // v3.5.1: Only use npm installer on Windows/Mac - Linux uses system ffprobe (set above)
+  // Docker COPY --from strips execute permissions on npm binary → EACCES on Cloud Run
+  if (!isLinux) {
+    try {
+      const ffprobeInstaller = await import("@ffprobe-installer/ffprobe");
+      ffmpeg.setFfprobePath(ffprobeInstaller.path);
+      logger.info(`FFprobe path set to npm installer: ${ffprobeInstaller.path}`);
+    } catch {
+      logger.warn('FFprobe installer not found - ffprobe features may not work');
+    }
   }
 
   // 🔥 앱 시작 시 모든 폰트 경로 확인 (디버깅용)

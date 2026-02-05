@@ -2,7 +2,7 @@
 
 FFmpeg 비디오/오디오 처리를 위한 모듈화된 라이브러리.
 
-> Last Updated: 2026-02-01 | v3.1.2 adaptive formula sizing + drop shadow
+> Last Updated: 2026-02-03 | v3.4.1 FFmpeg 인코딩 최적화 + 씬간 텀 축소
 
 ## Architecture
 
@@ -24,11 +24,13 @@ YTB-ffmpeg/
 | Method | Description |
 |--------|-------------|
 | `saveNormalizedAudio()` | 오디오 정규화 후 저장 |
+| `savePcmToMp3()` | PCM → MP3 변환 (0.05초 무음 패딩 포함, v3.4.1) |
 | `createMp3DataUri()` | MP3 Data URI 생성 |
 | `generateSilentAudio()` | 무음 오디오 생성 |
 | `createAudioFromSoundEffects()` | 효과음으로 오디오 트랙 생성 |
 | `mixAudioTracks()` | 여러 오디오 트랙 믹싱 |
 | `concatAudios()` | 오디오 파일 연결 |
+| `concatAudiosWithCrossfade()` | 크로스페이드로 오디오 연결 (0.05초, v3.4.1) |
 
 ### 2. SubtitleFilter
 FFmpeg drawtext 필터 생성.
@@ -194,6 +196,27 @@ Audio+Video → Video-only → Error
 - 긴 수식 (50자+): 화면 70% (756px)
 
 투명 배경 수식 가독성을 위해 드롭쉐도우 효과 자동 적용 (boxblur + alpha).
+
+### 🚀 FFmpeg 인코딩 최적화 (v3.4.1)
+
+**문제**: VideoEditor의 여러 함수에서 `-preset`, `-crf` 옵션 누락 → 60초 영상이 500MB+, 인코딩 30분+
+
+**해결**: 모든 비디오 생성 함수에 인코딩 옵션 추가
+
+```typescript
+// v3.4.1: 모든 비디오 생성 함수에 적용
+.outputOptions(['-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p'])
+```
+
+**적용 함수:**
+- `combineVideoWithAudioAndCaptions()` - 자막 합성
+- `createStaticVideoFromImage()` - 이미지 → 비디오
+- `createStaticVideoWithFormulaOverlay()` - drawtext 수식 오버레이
+- `createVideoWithFormulaOverlayPng()` - PNG 수식 오버레이
+
+**효과:**
+- 파일 크기: 500MB+ → ~10MB (60초 기준)
+- 인코딩 속도: 30분+ → 2-3분
 
 ### ENAMETOOLONG 방지 (v3.1.1)
 `combineVideoWithAudioAndCaptions()`에서 자막 필터가 8KB 이상이면 파일로 저장:

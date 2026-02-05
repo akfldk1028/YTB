@@ -37,10 +37,10 @@ flowchart TB
 
 | channelName | YouTube 채널 | Google 계정 | 상태 |
 |-------------|--------------|-------------|:----:|
-| `segong` | ATT | sogangmetaverselab@gmail.com | ✅ |
-| `cgxr` | CGXR | sogangmetaverselab@gmail.com | ⚠️ 토큰 필요 |
 | `clickaround` | ClickAround | clickaround8@gmail.com | ✅ |
-| `why_cat` | 왜저러냥 | clickaround8@gmail.com | ✅ |
+| `why_cat` | InkMilk (왜저러냥) | clickaround8@gmail.com | ✅ |
+| `red_news` | 빨강나라보수공주 | clickaround8@gmail.com | ✅ |
+| `blue_news_2` | 진보나라파랑왕자 | clickaround8@gmail.com | ✅ |
 
 > [!warning] Brand Account 채널은 별도 토큰 필요
 > 같은 Google 계정이라도 Brand Account 채널은 **별도 OAuth 인증**이 필요합니다.
@@ -219,17 +219,18 @@ curl -X POST https://short-video-maker-7qtnitbuvq-uc.a.run.app/api/youtube/uploa
 ## 파일 구조
 
 ```
-/home/akfldk1028/.ai-agents-az-video-generator/
+D:\Data\00_Personal\YTB\temp-yt\
 ├── youtube-channels.json
-├── youtube-tokens-segong.json      # ATT 채널
-├── youtube-tokens-cgxr.json        # CGXR 채널 (필요시 추가)
 ├── youtube-tokens-clickaround.json # ClickAround 채널
-├── youtube-tokens-why_cat.json     # 왜저러냥 채널 (필요시 추가)
-└── youtube-data.tar.gz
+├── youtube-tokens-why_cat.json     # InkMilk/왜저러냥 채널
+├── youtube-tokens-red_news.json    # 빨강나라보수공주 채널
+├── youtube-tokens-blue_news_2.json # 진보나라파랑왕자 채널
+├── youtube-data.tar.gz
+└── youtube-data-base64.txt
 ```
 
 ---
 
 #youtube #upload #n8n #api #reference
 
-**Last Updated**: 2025-12-22 12:40 KST
+**Last Updated**: 2026-02-05 KST

@@ -93,6 +93,9 @@ export class VideoEditor {
             '-filter_complex_script', filterScriptPath,
             '-map', '[v]',
             '-map', '1:a:0',
+            '-preset', 'ultrafast',
+            '-crf', '23',
+            '-pix_fmt', 'yuv420p',
             `-t`, `${durationSeconds}`
           ]);
           logger.info({ filterLength: fullFilter.length, scriptPath: filterScriptPath }, 'Using filter_complex_script (filter too long for command line)');
@@ -101,14 +104,20 @@ export class VideoEditor {
           ffmpegCommand.outputOptions([
             '-map', '[v]',
             '-map', '1:a:0',
-            `-t ${durationSeconds}`
+            '-preset', 'ultrafast',
+            '-crf', '23',
+            '-pix_fmt', 'yuv420p',
+            `-t`, `${durationSeconds}`
           ]);
         }
       } else {
         ffmpegCommand.outputOptions([
           '-map', '0:v:0',
           '-map', '1:a:0',
-          `-t ${durationSeconds}`
+          '-preset', 'ultrafast',
+          '-crf', '23',
+          '-pix_fmt', 'yuv420p',
+          `-t`, `${durationSeconds}`
         ]);
       }
 
@@ -188,7 +197,7 @@ export class VideoEditor {
         .videoCodec('libx264')
         .audioCodec('aac')
         .outputOptions([
-          '-preset', 'fast',
+          '-preset', 'ultrafast',
           '-crf', '23',
           '-pix_fmt', 'yuv420p'
         ])
@@ -252,7 +261,7 @@ export class VideoEditor {
         .size(`${dimensions.width}x${dimensions.height}`)
         .autopad(true, 'black')  // 비율 유지 + 검은색 패딩
         .outputOptions([
-          '-preset', 'fast',
+          '-preset', 'ultrafast',
           '-crf', '23',
           '-pix_fmt', 'yuv420p'
         ])
@@ -554,7 +563,8 @@ export class VideoEditor {
         .videoCodec('libx264')
         .size(dimensions)
         .fps(30)
-        .outputOption('-pix_fmt yuv420p')
+        // v3.4.1: 인코딩 옵션 추가
+        .outputOptions(['-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p'])
         .on('start', (commandLine) => {
           logger.debug('FFmpeg createStaticVideoFromImage command: ' + commandLine);
         })
@@ -600,15 +610,25 @@ export class VideoEditor {
 
     const singleFormula = formulaTexts[0];
 
-    // v3.2.0: PNG overlay가 있으면 새 메서드 사용
+    // v3.4.0: PNG overlay — 파일 존재 + 크기 검증 후 사용, 실패 시 drawtext fallback
     if (singleFormula.pngPath && fs.existsSync(singleFormula.pngPath)) {
-      return this.createVideoWithFormulaOverlayPng(
-        imagePath, outputPath, duration, dimensions,
-        singleFormula.pngPath,
-        singleFormula.pngWidth || 0,
-        singleFormula.pngHeight || 0,
-        singleFormula.position || 'top'
-      );
+      const pngStat = fs.statSync(singleFormula.pngPath);
+      if (pngStat.size > 500) {
+        try {
+          return await this.createVideoWithFormulaOverlayPng(
+            imagePath, outputPath, duration, dimensions,
+            singleFormula.pngPath,
+            singleFormula.pngWidth || 0,
+            singleFormula.pngHeight || 0,
+            singleFormula.position || 'top'
+          );
+        } catch (pngError) {
+          logger.warn({ error: pngError, pngPath: singleFormula.pngPath }, '📐 PNG overlay 실패 - drawtext fallback 시도');
+          // fall through to drawtext below
+        }
+      } else {
+        logger.warn({ pngPath: singleFormula.pngPath, size: pngStat.size }, '📐 PNG 파일 크기 비정상 - drawtext fallback');
+      }
     }
 
     // drawtext fallback (pngPath 없을 때)
@@ -628,11 +648,11 @@ export class VideoEditor {
     const tempDir = path.dirname(outputPath);
 
     return new Promise((resolve, reject) => {
-      // v3.2.4: Position calculation — top을 1%로 이동 (최최상단)
+      // v3.3.1: Position calculation — top을 5%로 이동 (상단 여유)
       let posY: string;
       switch (singleFormula.position) {
         case 'top':
-          posY = `h*0.01`;
+          posY = `h*0.05`;
           break;
         case 'bottom':
           posY = `h*0.65`;
@@ -700,7 +720,8 @@ export class VideoEditor {
         .size(dimensions)
         .fps(30)
         .videoFilters(drawtextFilter)
-        .outputOption('-pix_fmt yuv420p')
+        // v3.4.1: 인코딩 옵션 추가
+        .outputOptions(['-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p'])
         .on('start', (commandLine) => {
           logger.debug('FFmpeg createStaticVideoWithFormulaOverlay command: ' + commandLine);
         })
@@ -745,11 +766,11 @@ export class VideoEditor {
   ): Promise<void> {
     const [width, height] = dimensions.split('x').map(Number);
 
-    // v3.2.4: Y 위치 계산 — top을 1%로 이동 (최최상단)
+    // v3.3.1: Y 위치 계산 — top을 5%로 이동 (상단 여유)
     let overlayY: string;
     switch (position) {
       case 'top':
-        overlayY = `${Math.round(height * 0.01)}`;
+        overlayY = `${Math.round(height * 0.05)}`;
         break;
       case 'bottom':
         overlayY = `${Math.round(height * 0.65)}`;
@@ -802,7 +823,8 @@ export class VideoEditor {
         .outputOption('-map [v]')
         .videoCodec('libx264')
         .fps(30)
-        .outputOption('-pix_fmt yuv420p')
+        // v3.4.1: 인코딩 옵션 추가 (기본값 사용 시 대용량 출력 방지)
+        .outputOptions(['-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p'])
         .outputOption('-shortest')
         .on('start', (commandLine) => {
           logger.debug('FFmpeg createVideoWithFormulaOverlayPng command: ' + commandLine);

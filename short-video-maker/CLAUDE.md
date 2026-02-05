@@ -255,11 +255,37 @@ src/
 
 ```bash
 # Cloud Run 배포
-gcloud builds submit --config=cloudbuild.yaml
-
-# Secret Manager (YouTube 토큰)
-gcloud secrets versions add YOUTUBE_DATA --data-file=youtube-data.tar.gz
+cd D:\Data\00_Personal\YTB\short-video-maker
+gcloud builds submit --config cloudbuild.yaml --project=dkdk-474008
 ```
+
+### YouTube 토큰 Secret Manager 업데이트
+
+**주의: 반드시 base64 인코딩 후 업로드! tar.gz 직접 업로드 시 "non-UTF8 data" 에러 발생**
+
+```bash
+# 1. 마스터 토큰 폴더에서 tar.gz 생성
+cd D:\Data\00_Personal\YTB\temp-yt
+tar -czvf youtube-data.tar.gz youtube-*.json
+
+# 2. base64 인코딩 (필수! index.ts에서 Buffer.from(YOUTUBE_DATA, "base64")로 디코딩)
+base64 -w 0 youtube-data.tar.gz > youtube-data-base64.txt
+
+# 3. Secret Manager 업데이트
+gcloud secrets versions add YOUTUBE_DATA --data-file=youtube-data-base64.txt --project=dkdk-474008
+
+# 4. 로컬에도 동기화
+cp youtube-*.json D:\Data\00_Personal\YTB\short-video-maker/
+
+# 5. Cloud Run 재배포
+cd D:\Data\00_Personal\YTB\short-video-maker
+gcloud builds submit --config cloudbuild.yaml --project=dkdk-474008
+```
+
+**토큰 파일 위치**:
+- 마스터: `D:\Data\00_Personal\YTB\temp-yt\youtube-*.json`
+- 로컬 백업: `D:\Data\00_Personal\YTB\short-video-maker\youtube-*.json`
+- Cloud Run: Secret Manager `YOUTUBE_DATA` (base64 encoded tar.gz)
 
 ---
 
@@ -342,6 +368,19 @@ OpenAI 모더레이션이 **생존 아티스트 이름**을 차단함.
 
 ## 뉴스 프로젝트 (NewsProject) 변경 이력
 
+### 2026-02-05 - YouTube 토큰 Secret Manager 수정 (base64 인코딩)
+
+**문제**: `blue_news_2`에서 YouTube 업로드는 되는데 첫 댓글이 안 달림
+**원인**: Secret Manager에 `blue_news_2` 토큰이 누락되어 있었음 (구 토큰 파일만 배포)
+**추가 발견**: tar.gz 직접 업로드 시 "non-UTF8 data" 에러로 Cloud Run 시작 실패
+
+**수정 내용:**
+1. `temp-yt/` 폴더의 최신 토큰(5채널) → tar.gz → **base64 인코딩** → Secret Manager v700
+2. Cloud Run 재배포 성공
+3. `red_news`, `blue_news_2` 모두 `authenticated: true` 확인
+
+**핵심 규칙**: Secret Manager 업로드 시 반드시 `base64 -w 0 youtube-data.tar.gz > youtube-data-base64.txt` 후 base64 파일 업로드!
+
 ### 2026-02-02 - YouTube 첫 댓글 자동 등록
 
 업로드 후 **첫 댓글(출처 고지)** 자동 등록 기능 추가.
@@ -366,24 +405,33 @@ n8n Final Payload → videos[0].firstComment: "이 영상은 ... AI가 작성...
 
 **설계 원칙:**
 - `postComment()`는 실패해도 throw하지 않음 → `null` 반환 (댓글 실패로 전체 파이프라인 중단 방지)
-- 기존 OAuth2 scope(`youtube.upload` + `youtube`)에 댓글 권한 이미 포함
+- OAuth2 scope: `youtube.upload` + `youtube` + `yt-analytics.readonly` → **`youtube` scope에 댓글 권한 포함**
 - n8n에서 `firstComment` 필드를 안 보내면 아무 동작 안 함 (하위 호환)
+
+**OAuth Scope 참고 (전 채널 동일):**
+```
+https://www.googleapis.com/auth/youtube.upload    → 비디오 업로드
+https://www.googleapis.com/auth/youtube            → 전체 권한 (댓글, 좋아요, 플레이리스트 등)
+https://www.googleapis.com/auth/yt-analytics.readonly → 분석 읽기
+```
 
 ---
 
-## Books 프로젝트 (v3.2.4 ✅)
+## Books 프로젝트 (v3.5.0 ✅)
 
 책/논문 → Neo4j GraphRAG → Ghibli Shorts 자동 생성
 
 ### 핵심 철학: 논문 영상의 본질
-- **논문/학술 콘텐츠**: 수학 수식과 원리 설명이 핵심. 캐릭터는 보조 수단
-- **이미지 전략**: 캐릭터 위주 OR 수식 일관성 위주 - 콘텐츠에 따라 유동적
-- **수식 파이프라인**: BookChunk → LaTeX 추출 → MathJax v4 PNG 렌더링 → FFmpeg overlay (적응형 크기, 최상단 1%)
+- **수식이 주인공**: math_science 문서는 수식 중심 커리큘럼 자동 전환 (수식 3개 이상 감지 시)
+- **수식 파이프라인**: BookChunk → LaTeX 추출 → 수식별 에피소드 그룹화 → assignedFormula per scene → MathJax v4 PNG 렌더링 → FFmpeg overlay
+- **이미지 전략 (v3.5.0)**: 씬 타입별 3분기 — narrative(캐릭터 Ghibli), educational(교육 일러스트, 캐릭터 없음), formula(수식 비유 이미지, 캐릭터 없음)
+- **씬간 타이밍 (v3.5.0)**: TTS 기반 duration (hintDuration 무음 패딩 제거), PCM 0.1초 + 크로스페이드 0.1초
+- **TTS 자연스러움**: 비수식 중간 씬만 연결어 적용, 수식 씬 스킵
 
 **문서**: `src/YTB-books-project/README.md`
 **NEB 연동**: [`D:\Data\00_Personal\YTB\NEB\CLAUDE.md`](../NEB/CLAUDE.md) - LLM Graph Builder 엔티티 기반 멀티 에피소드
 **Neo4j**: `bolt://34.47.112.49:7687` (user: neo4j)
-**테스트 결과**: ICS 프레임워크로 커리큘럼 재생성 (13 에피소드, 117 씬)
+**테스트 결과**: 수식 중심 커리큘럼 3 에피소드, assignedFormula 정상 저장/조회, 32초 테스트 영상 생성
 **로컬 다운로드**: `downloads/books/`
 
 ### 🆕 v2.6.0 핵심: 점진적 비디오 생성 (Incremental Mode)
@@ -427,6 +475,156 @@ curl -X POST http://localhost:3124/api/books/AR_TALK.pdf/curriculum \
 # 특정 에피소드 비디오 생성
 curl -X POST http://localhost:3124/api/books/episodes/{episodeId}/generate-video
 ```
+
+### v3.5.0 이미지 전략 연구 근거 (논문/공식 문서 검증 완료)
+
+현재 전략(narrative/educational/formula 3분기)은 아래 연구에 의해 **검증 완료**:
+
+| 원칙 | 출처 | 우리 전략과의 관계 |
+|------|------|-------------------|
+| **Mayer Image Principle** | Mayer, *Multimedia Learning* | 교육 씬에서 캐릭터(화자 이미지) 제거 → 학습 효과 저하 없음, 오히려 콘텐츠 집중도 향상 |
+| **Interference Hypothesis** | 메타분석 35연구 6,339명 (ScienceDirect) | 화자 이미지가 있으면 학습 콘텐츠에 대한 시선 체류 시간(dwell time) **유의미하게 감소** |
+| **Dual Coding Theory** | Paivio | 나레이션(청각) + 내용 관련 이미지(시각) 조합이 최적 → 캐릭터가 아닌 **개념 시각화**가 맞음 |
+| **Coherence Principle** | Mayer 12원칙 | 학습 목표와 무관한 시각 요소(캐릭터) 제거 → 인지 부하 감소 |
+| **YouTube Shorts 실전** | Content Whale 2026 | 하이브리드(캐릭터 bookend + 교육 비주얼 중간)가 최적, 나레이션 리텐션 1.9x |
+
+**캐릭터 사용 적합 시점** (연구 기반):
+- hook/conclusion: 감정 연결, 동기부여, 스토리텔링 → **캐릭터 O**
+- explanation/formula: 시스템 설명, 추상 개념, 데이터 → **캐릭터 X, 다이어그램/비유 이미지**
+
+**30-50초 숏폼에서 중간 캐릭터 부재(20-30초)**: TTS 나레이션이 engagement 유지하므로 문제 없음.
+
+참고 문헌:
+- [Mayer's 12 Principles](https://www.digitallearninginstitute.com/blog/mayers-principles-multimedia-learning)
+- [Instructor Presence Meta-Analysis](https://www.sciencedirect.com/science/article/pii/S1747938X2300057X)
+- [Eye-tracking Talking Head Study](https://www.researchgate.net/publication/377767716)
+- [PNAS: Onscreen Instructor Effect](https://www.pnas.org/doi/10.1073/pnas.2309054121)
+- [Short-Form Video Strategy 2026](https://content-whale.com/blog/master-short-form-video-content-guide/)
+
+---
+
+### v3.5.0 변경사항 (2026-02-04) - 씬 타입별 이미지 전략 + 씬간 텀 최적화
+
+#### 1. 씬 타입별 이미지 생성 전략 (핵심 변경)
+
+**문제**: 모든 씬에 동일한 캐릭터 이미지만 생성됨. 수식/교육 씬에서도 캐릭터만 나옴.
+
+**해결**: 씬 타입을 3가지로 분류하여 각각 다른 이미지 전략 적용
+
+| 씬 타입 | 해당 sceneType | 이미지 전략 | 캐릭터 |
+|---------|---------------|------------|--------|
+| `narrative` | hook, intro, conclusion | GPT-4o Ghibli + NanoBanana characterRef | O |
+| `educational` | explanation, example, data, comparison, deep_dive | GPT-4o Educational (캐릭터 없음) | X |
+| `formula` | assignedFormula 있는 씬 | GPT-4o Educational (수식 비유 이미지) | X |
+
+**이미지 일관성 전략**:
+- 교육/수식 씬: 주제가 바뀌면 GPT-4o로 새 이미지 생성, 같은 주제면 NanoBanana `referenceMode: 'style'` (스타일만 참조, 캐릭터 없음)
+- 캐릭터 씬: 기존 NanoBanana `referenceMode: 'character'` (캐릭터 동일성 유지)
+- 2개의 별도 reference 추적: `characterReference` (캐릭터용) + `educationalReference` (교육용)
+
+**수정 파일 4개**:
+
+| 파일 | 변경 |
+|------|------|
+| `BooksRouter.ts` | `getSceneImageStrategy()` 메서드 추가, `generateSceneImages()` 씬 타입별 분기, 주제 변경 감지(`lastEducationalTopic`) |
+| `GhibliImageService.ts` | `EDUCATIONAL_STYLE_PREFIX` 추가, `GhibliStyleConfig`에 `imageMode`/`forceGpt`/`educationalReference` 추가, `buildStyledPrompt()` 모드별 프리픽스, `generateSceneImage()` 전략 분기 |
+| `NanoBananaService.ts` | `referenceMode: 'character' \| 'style'` 추가. style 모드: 스타일만 참조 + "Do NOT include any characters" 지시 |
+| `ContentPlannerService.ts` | 교육/수식 씬 visualPrompt에 캐릭터 금지 규칙 추가 (AI 프롬프트 강화) |
+
+**테스트 결과 (EP41 - 3DMM 얼굴 모델링, 5씬 3수식)**:
+```
+Scene 0 (hook):        캐릭터 등장 (GPT Ghibli)      ← narrative
+Scene 1 (β formula):   뼈대 모핑 다이어그램 (GPT)     ← formula, 캐릭터 없음
+Scene 2 (ψ formula):   표정 변환 일러스트 (GPT)       ← formula, 캐릭터 없음
+Scene 3 (θ formula):   3D 헤드 회전 화살표 (GPT)      ← formula, 캐릭터 없음
+Scene 4 (conclusion):  캐릭터 마무리 (NanoBanana)     ← narrative, Scene 0과 일관
+```
+
+#### 2. 씬간 텀 최적화 (dead air 제거)
+
+**문제**: 씬과 씬 사이에 2~4초 무음 구간 발생 → 답답하고 늘어지는 느낌
+
+**근본 원인**: `effectiveDuration = Math.max(mp3Duration, hintDuration)` — TTS가 4초인데 hintDuration이 7초면 3초 무음 패딩이 붙음
+
+**해결**:
+- `effectiveDuration`을 `hintDuration` 기반 → **mp3Duration(TTS 실제 길이) 기반**으로 변경
+- 마지막 씬만 +0.5초 fadeout 여유
+- 중간 씬은 무음 패딩 없음 (PCM 0.1초 패딩만)
+- 크로스페이드 0.1초
+
+**최종 타이밍 설정**:
+```
+PCM 무음 패딩: 0.1초 (AudioProcessor.savePcmToMp3)
+크로스페이드:  0.1초 (BooksVideoService.concatAudiosWithCrossfade)
+hintDuration 패딩: 제거 (BooksVideoService effectiveDuration)
+마지막 씬 여유: +0.5초
+```
+
+**수정 파일 2개**:
+
+| 파일 | 변경 |
+|------|------|
+| `AudioProcessor.ts:189` | `paddingSeconds = 0.1` (0.05→0.1) |
+| `BooksVideoService.ts:438-457` | `effectiveDuration = mp3Duration` (hintDuration 패딩 제거), 마지막 씬만 무음 패딩, 크로스페이드 0.1초 |
+
+**결과**: 49초 → 32초 (dead air 17초 제거)
+
+**튜닝 히스토리** (참고용):
+| 시도 | PCM패딩 | 크로스페이드 | hintDuration패딩 | 결과 |
+|------|---------|------------|-----------------|------|
+| v3.4.1 | 0.05초 | 0.05초 | O (7초) | 답답 + 늘어짐 |
+| 시도1 | 0.5초 | 0.1초 | O (7초) | 더 늘어짐 |
+| 시도2 | 0.25초 | 0.1초 | O (7초) | 여전히 느림 |
+| 시도3 | 0.15초 | 0.1초 | X | 빠릿빠릿 |
+| **최종** | **0.1초** | **0.1초** | **X** | **자연스러운 리듬** |
+
+---
+
+### v3.4.2 변경사항 (2026-02-04) - MathJax AllPackages 크래시 수정 (수식 렌더링 완전 복구)
+- **MathJax AllPackages 제거**: `new TeX({ packages: AllPackages })` → `new TeX({})` 변경
+  - **근본 원인**: AllPackages가 Node.js CommonJS 환경에서 null reference 크래시 유발 (`Cannot read properties of null (reading '4')` in BaseConfiguration.js)
+  - MathJax 초기화 자체가 실패 → renderLatexToPng() 에러 → drawtext fallback 사용 → `$b$` 표시
+  - 기본 TeX({})만으로 그리스 문자(β,ψ,θ), 분수(\frac), 위첨자/아래첨자, hat 등 모두 정상 렌더링
+- **`<mjx-container>` wrapper 제거**: MathJax `adaptor.outerHTML(node)`는 `<mjx-container><svg>...</svg></mjx-container>` 반환
+  - sharp는 `<svg>` root만 파싱 가능 → `svgString.match(/<svg[\s\S]*<\/svg>/)` 로 SVG 추출
+- **`$` 구분자 제거**: `convertLatexToDisplayText()`에서 `$`/`$$` 구분자 strip 추가
+  - 이전: `convertLatexToDisplayText("$\beta$")` → `$b$` (구분자 미제거)
+  - 수정: `$` strip 후 변환 → `b`
+- **에러 로깅 강화**: `initMathJax()` try-catch + logger.info/error 추가
+- **테스트 확인**: β, ψ, θ, L_{rec}=||M̂-M||_1 모두 PNG 렌더링 성공 (7.6KB~35.5KB)
+- **파일 변경**: `MathFormulaService.ts`
+- **빌드 주의**: TS 변경 후 반드시 `npx tsc --project tsconfig.build.json` 실행 필요 (`npm start`는 `dist/` 사용)
+
+### v3.4.1 변경사항 (2026-02-03) - MathJax SVG fill 수정 + 씬간 텀 축소 + FFmpeg 인코딩 최적화
+- **MathJax SVG fill 중복 수정**: `fill="currentColor"` → `fill="white"` 대체 (기존 `<g fill="white"` 추가 방식은 XML 에러 발생)
+  - MathJax가 이미 `fill="currentColor"` 포함 → 새 속성 추가 대신 기존 속성 대체로 변경
+  - β, ψ, θ 등 그리스 문자가 제대로 PNG로 렌더링됨
+- **씬간 텀 축소**: 0.15초 → 0.05초
+  - PCM 무음 패딩: 0.15초 → 0.05초 (`AudioProcessor.savePcmToMp3`)
+  - 크로스페이드: 0.15초 → 0.05초 (`BooksVideoService.concatAudiosWithCrossfade`)
+  - 씬과 씬 사이 어색한 공백 해결
+- **FFmpeg 인코딩 옵션 추가**: 모든 비디오 생성 함수에 `-preset ultrafast -crf 23` 추가
+  - `VideoEditor.ts`: `combineVideoWithAudioAndCaptions`, `createStaticVideoFromImage`, `createStaticVideoWithFormulaOverlay`, `createVideoWithFormulaOverlayPng`
+  - **문제**: 기존 코드는 preset/crf 없이 FFmpeg 기본값 사용 → 60초 영상이 500MB+ 출력, 인코딩 30분+
+  - **해결**: `-preset ultrafast -crf 23 -pix_fmt yuv420p` 옵션 추가 → 파일 크기 대폭 감소, 인코딩 속도 향상
+- **파일 변경**: `MathFormulaService.ts`, `AudioProcessor.ts`, `BooksVideoService.ts`, `VideoEditor.ts`
+
+### v3.3.0 변경사항 (2026-02-02) - 수식 중심 파이프라인 + TTS 자연스러움 개선
+- **수식 중심 커리큘럼**: math_science 문서 + 수식 3개 이상 → 자동 분기
+  - `ContentPlannerService.analyzeAndPlanFormulaCentricCurriculum()`: AI가 모든 수식 추출 → 그룹화 → 에피소드당 2-3개 수식
+  - 각 explanation 씬에 `assignedFormula`, `formulaName`, `formulaMetaphor` 필드 필수
+  - 프롬프트: 씬 최소 7개, 50-65초 목표, 같은 수식 반복 배정 금지
+- **라운드로빈 제거**: BooksRouter에서 `assignedFormula` 우선 사용, fallback만 기존 로직
+- **Neo4j 수식 저장**: Scene 노드에 `assignedFormula`/`formulaName`/`formulaMetaphor` 저장/조회
+  - `CreateSceneInput`, `Neo4jService.createScene()`, `recordToScene()` 수정
+- **수식 이미지**: 수식 씬에 `Educational concept illustration` 키워드 주입 → `FORMULA_CONCEPT_PREFIX` 적용
+- **TTS 개선**: 수식 씬은 connector 스킵, 비수식 중간 씬만 연결어 적용
+- **나레이션 길이**: 수식 씬 60자, hook/conclusion 60자, 일반 씬 24자 (conclusion 잘림 방지)
+- **씬간 패딩**: 0.5초 → 0.15초 (자연스러운 호흡 간격)
+- **MathFormulaService**: 나레이션 40-60자, 고등학생 수준, 변수별 설명 필수
+- **Gemini JSON 파싱**: `extractJSON()` 헬퍼 추가 (markdown code fence 제거)
+- **수정 파일**: `ContentPlannerService.ts`, `BooksRouter.ts`, `BooksVideoService.ts`, `GhibliImageService.ts`, `MathFormulaService.ts`, `Neo4jService.ts`, `AudioProcessor.ts`, `types/index.ts`
+- **테스트**: Cloud Run 배포, EP49 32초 영상 생성 성공 (수식 2개, 자막 11개)
 
 ### v3.2.4 변경사항 (2026-02-02) - 수식 적응형 스케일링 + TTS 정합 + 이미지 다양성
 - **수식 크기 적응형 스케일링**: 짧은 수식(β 등) 25% 이하, 중간 40-60%, 긴 수식만 85%

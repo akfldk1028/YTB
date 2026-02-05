@@ -25,6 +25,12 @@ export interface ScenePlan {
   sourceChunkIds: string[];        // 참조된 청크 ID들
   /** v2.7.0: 청크에서 추출된 LaTeX 수식 배열 (직접 렌더링용) */
   latexFormulas?: string[];
+  /** v3.3.0: 커리큘럼에서 할당된 수식 (LaTeX) */
+  assignedFormula?: string;
+  /** v3.3.0: 수식 이름 (예: "Reconstruction Loss") */
+  formulaName?: string;
+  /** v3.3.0: 수식의 고등학생 수준 비유 */
+  formulaMetaphor?: string;
 }
 
 export interface ShortPlan {
@@ -694,6 +700,23 @@ ${sampleText}
   }
 
   /**
+   * AI 응답에서 JSON 문자열 추출 (markdown code fence 제거)
+   */
+  private extractJSON(responseText: string): string {
+    let jsonStr = responseText.trim();
+    if (jsonStr.startsWith('```json')) {
+      jsonStr = jsonStr.slice(7);
+    }
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.slice(3);
+    }
+    if (jsonStr.endsWith('```')) {
+      jsonStr = jsonStr.slice(0, -3);
+    }
+    return jsonStr.trim();
+  }
+
+  /**
    * AI 응답 파싱
    */
   private parseAIResponse(
@@ -731,7 +754,10 @@ ${sampleText}
         narrationText: sc.narrationText || '',
         visualPrompt: sc.visualPrompt || '',
         durationHint: sc.durationHint || 5,
-        sourceChunkIds: sc.sourceChunkIds || [`chunk_${scIdx}`]
+        sourceChunkIds: sc.sourceChunkIds || [`chunk_${scIdx}`],
+        assignedFormula: sc.assignedFormula || undefined,
+        formulaName: sc.formulaName || undefined,
+        formulaMetaphor: sc.formulaMetaphor || undefined,
       }));
 
       return {
@@ -1015,6 +1041,20 @@ ${contentGuide}
   ): Promise<ShortsPlan> {
     logger.info({ bookId, bookTitle, chunkCount: chunks.length }, 'Starting SEQUENTIAL CURRICULUM planning');
 
+    // v3.3.0: 수식 3개 이상 + math_science → 수식 중심 커리큘럼으로 분기
+    const allFormulas = chunks.flatMap(c => c.latexFormulas || []);
+    const uniqueFormulas = [...new Set(allFormulas)].filter(f => f.trim().length > 2);
+    const detectedType = this.detectPrimaryContentType(
+      chunks.map(c => c.text).join('\n').substring(0, 10000)
+    );
+    if (uniqueFormulas.length >= 3 && (detectedType === 'math_science' || this.config.contentType === 'math_science')) {
+      logger.info({
+        formulaCount: uniqueFormulas.length,
+        contentType: detectedType
+      }, 'v3.3.0: 수식 3개 이상 감지 → 수식 중심 커리큘럼으로 전환');
+      return this.analyzeAndPlanFormulaCentricCurriculum(bookId, bookTitle, chunks, characterDescription);
+    }
+
     // 1단계: 전체 문서 분석하여 커리큘럼 구조 생성 (v3.1.0: 수식 포함)
     const combinedText = chunks.map((c, i) => {
       let text = `[청크 ${i + 1}/${chunks.length}]${c.sectionTitle ? ` (${c.sectionTitle})` : ''}\n${c.text}`;
@@ -1072,7 +1112,7 @@ ${contentGuide}
 
       try {
         const episodeResponse = await this.callGeminiAPI(episodePrompt);
-        const parsed = JSON.parse(episodeResponse.trim());
+        const parsed = JSON.parse(this.extractJSON(episodeResponse));
 
         const scenes: ScenePlan[] = (parsed.scenes || []).map((sc: any, scIdx: number) => ({
           sceneIndex: sc.sceneIndex ?? scIdx,
@@ -1080,7 +1120,10 @@ ${contentGuide}
           narrationText: sc.narrationText || '',
           visualPrompt: sc.visualPrompt || '',
           durationHint: sc.durationHint || 7,
-          sourceChunkIds: relevantChunks.map(c => c.id)
+          sourceChunkIds: relevantChunks.map(c => c.id),
+          assignedFormula: sc.assignedFormula || undefined,
+          formulaName: sc.formulaName || undefined,
+          formulaMetaphor: sc.formulaMetaphor || undefined,
         }));
 
         const short: ShortPlan = {
@@ -1322,38 +1365,50 @@ ${audienceGuide}
 
 ${eli5Rules}
 
-## visualPrompt 작성 가이드 (핵심) - 씬 타입별 차별화!
+## visualPrompt 작성 가이드 (핵심) - 씬 타입별 이미지 완전 분리!
 
-### 씬 타입별 이미지 스타일 (반드시 구분!)
+### ⚠️ 핵심 원칙: 씬 타입에 따라 이미지가 완전히 달라야 합니다!
+- 서사 씬 (hook/intro/conclusion) → 캐릭터가 등장하는 동화책 일러스트
+- 교육 씬 (explanation/example/data/comparison) → 캐릭터 완전 금지! 내용 기반 교육 시각화만
+- 수식 씬 (assignedFormula 있는 씬) → 캐릭터 완전 금지! 수식의 비유적 시각화만
 
-#### 🎭 서사 씬 (hook, intro, cta, conclusion): 동화책 스타일
-"Children's book illustration, soft watercolor, [장면 묘사], whimsical storybook style, warm pastel colors, portrait 9:16"
+### 🎭 서사 씬 (hook, intro, cta, conclusion): 캐릭터 + 동화책 스타일
+"Children's book illustration, soft watercolor, [캐릭터가 있는 장면 묘사], whimsical storybook style, warm pastel colors, portrait 9:16"
 - 캐릭터, 감정, 스토리 전달이 목적
 - 따뜻한 파스텔 톤, 수채화 질감
+- 캐릭터가 등장해도 OK
 
-#### 📊 설명 씬 (explanation, example, data, comparison): 교육 인포그래픽 스타일
-"Clean educational infographic on soft cream background, [개념의 시각화: 다이어그램/플로우차트/비교표], directional arrows and visual cues, consistent flat illustration style with warm muted colors, organized layout, portrait 9:16"
-- **다이어그램, 플로우차트, 비교 차트, 색상으로 구분된 구조도**가 주인공
-- 캐릭터는 보조 역할 (작은 아이콘 수준) 또는 없어도 됨
+### 📊 교육 씬 (explanation, example, data, comparison): 내용 기반 시각화 (캐릭터 금지!)
+"Educational illustration, soft watercolor, [해당 내용의 비유적/다이어그램 시각화], warm pastel colors, NO characters, NO people, NO text, clean composition, portrait 9:16"
+- **🚫 캐릭터/사람 절대 금지** ("a cute character", "a friendly narrator", "a person explaining" 등 금지)
+- 해당 내용을 시각적 비유, 다이어그램, 개념도로 표현
+- 예: 데이터 압축 설명 → "Two contrasting structures, one compressed and one expanded, visual metaphor for compression"
+- 예: 인코더 설명 → "A funnel transforming a detailed landscape into a tiny glowing marble, then expanding back"
 - 각 구성요소에 **고유한 색상/아이콘** 필수
-- **같은 에피소드 내 설명 씬끼리 일관된 레이아웃/색상 톤 유지**
+- **같은 에피소드 내 교육 씬끼리 일관된 워터컬러 스타일 유지**
 
-### 설명 씬 템플릿 (explanation/example/data/comparison)
-- 수학/공식: "Clean educational infographic on soft cream background, left side shows the equation concept as visual diagram [구성요소 나열], right side shows real-world analogy [비유 장면], connecting arrows between them, warm muted colors, portrait 9:16"
-- 프로세스/파이프라인: "Clean educational infographic on soft cream background, step-by-step flowchart: [Step1] → [Step2] → [Step3], each step in a rounded box with icon and label, directional arrows, warm muted colors, portrait 9:16"
-- 비교: "Clean educational infographic on soft cream background, side-by-side comparison: [A] vs [B], two columns with distinct rows showing [차이점1], [차이점2], [차이점3], warm muted colors, portrait 9:16"
-- 구조/아키텍처: "Clean educational infographic on soft cream background, architecture diagram with [N] color-coded connected blocks for [Component1], [Component2], data flow arrows between them, warm muted colors, portrait 9:16"
-- 데이터: "Clean educational infographic on soft cream background, visual data representation showing [비유적 시각화: 예) 10개 사과 중 7개 빨간색], color-coded proportions, warm muted colors, portrait 9:16"
+### 🔢 수식 씬 (assignedFormula가 있는 씬): 수식 비유 시각화 (캐릭터 금지!)
+"Educational concept illustration, watercolor style, [수식 개념의 비유적 시각화], warm pastel colors, NO characters, NO people, NO text, portrait 9:16"
+- **🚫 캐릭터/사람 절대 금지**
+- 수식의 핵심 행위를 비유적 오브젝트로 시각화
+- 예: Loss 함수(비교) → "Two objects side by side being compared with magnifying glass"
+- 예: 합산 수식 → "Apples being collected one by one into a basket"
 
-### 설명 이미지 일관성 규칙
-1. 같은 에피소드 내 설명 씬은 동일한 배경색/레이아웃 사용
-2. 색상 스타일 통일 (같은 색상 팔레트, 같은 화살표 스타일)
-3. 연속되는 수식 설명은 같은 시각 프레임워크 유지 (예: 항상 왼쪽=수식, 오른쪽=비유)
+### 교육/수식 씬 visualPrompt 예시
+- 인코더: "Educational illustration, soft watercolor, a detailed flower being squeezed through a magical funnel into a tiny seed, then growing back, warm pastel colors, portrait 9:16"
+- β 파라미터: "Educational illustration, soft watercolor, a balance scale with a heavy weight on one side and scattered feathers on the other, adjusting dial in the center, warm pastel colors, portrait 9:16"
+- 비교: "Educational illustration, soft watercolor, split view - left side shows old method as rusty machine, right side shows new method as shiny crystal engine, warm pastel colors, portrait 9:16"
+- 데이터 흐름: "Educational illustration, soft watercolor, a river branching into three colored streams, each flowing through different shaped tunnels, then merging back, warm pastel colors, portrait 9:16"
 
-### 금지 사항
-- 설명 씬에서 캐릭터가 주인공인 이미지 ("a cute character explaining...") → **다이어그램/차트가 주인공** 필수
-- 추상적 묘사만 ("concept illustration") → 구체적 구성요소 나열 필수
-- 설명 씬마다 완전히 다른 시각 스타일 → 에피소드 내 일관성 유지
+### 교육 이미지 일관성 규칙
+1. 같은 에피소드 내 교육 씬은 동일한 워터컬러 스타일 유지
+2. 색상 팔레트 통일 (따뜻한 파스텔)
+3. 연속되는 교육 씬은 같은 시각적 비유 체계 유지
+
+### 금지 사항 (교육/수식 씬)
+- 🚫 캐릭터/사람이 등장하는 이미지 ("a cute character explaining", "a narrator pointing at", "a teacher showing") → **내용의 비유적 시각화만** 필수
+- 🚫 추상적 묘사만 ("Mathematical concept", "Educational concept") → **구체적 비유 장면** 필수
+- 🚫 교육 씬에서 "character", "person", "narrator", "teacher", "student", "child" 등 인물 관련 단어 사용 금지
 
 ${contentGuide}
 
@@ -1400,10 +1455,337 @@ ${previousEpisodeSummary ? '- "지난 시간에 ~를 배웠죠? 오늘은..."' :
 1. 전문 용어 사용 시 반드시 "(쉽게 말해 ~)" 추가
 2. 수학 공식은 추상적 비유로 설명, 변수 기호 언급 가능하되 쉬운 설명 추가
 3. 모든 추상 개념에 비유 필수
-4. visualPrompt는 동화책 일러스트 스타일 필수 ("Children's book illustration, soft watercolor, ..."). 딱딱한 다이어그램 금지, 비유적 동화 장면으로 시각화. 텍스트/라벨/문자 일체 금지 - 색상, 아이콘, 화살표로만 표현
+4. visualPrompt는 워터컬러 일러스트 스타일 필수. 텍스트/라벨/문자 일체 금지 - 색상, 아이콘, 화살표로만 표현
 5. 이전 에피소드 내용을 자연스럽게 언급
 6. **비유의 행위 = 수식의 행위**: 비교하는 수식 → 비교하는 비유, 합산 수식 → 모으는 비유. 수식의 본질과 무관한 비유 금지 (예: 얼굴 비교 수식에 "점묘화" 비유는 금지)
-7. JSON만 출력`;
+7. **교육/수식 씬 (explanation, example, data, comparison, assignedFormula 있는 씬)의 visualPrompt에 캐릭터/사람 절대 금지!** hook/intro/conclusion만 캐릭터 가능
+8. JSON만 출력`;
+  }
+
+  // ============================================
+  // Formula-Centric Curriculum Planning (v3.3.0)
+  // 수식이 중심인 커리큘럼: 모든 수식 추출 → 수식별 에피소드 구성
+  // ============================================
+
+  /**
+   * v3.3.0: 수식 중심 커리큘럼 분석 및 계획 생성
+   * 조건: contentType === 'math_science' AND 수식 3개 이상
+   * 기존 analyzeAndPlanSequentialCurriculum()의 수식 중심 분기
+   */
+  async analyzeAndPlanFormulaCentricCurriculum(
+    bookId: string,
+    bookTitle: string,
+    chunks: BookChunk[],
+    characterDescription?: string
+  ): Promise<ShortsPlan> {
+    logger.info({ bookId, bookTitle, chunkCount: chunks.length }, 'Starting FORMULA-CENTRIC curriculum planning (v3.3.0)');
+
+    // 1단계: 수식 중심 커리큘럼 구조 생성
+    const combinedText = chunks.map((c, i) => {
+      let text = `[청크 ${i + 1}/${chunks.length}]${c.sectionTitle ? ` (${c.sectionTitle})` : ''}\n${c.text}`;
+      if (c.latexFormulas && c.latexFormulas.length > 0) {
+        text += `\n\n[이 청크의 주요 수식]\n${c.latexFormulas.map((f, j) => `${j+1}. $$${f}$$`).join('\n')}`;
+      }
+      return text;
+    }).join('\n\n---\n\n');
+
+    const curriculumPrompt = this.buildFormulaCentricCurriculumPrompt(bookTitle, combinedText);
+    const curriculumResponse = await this.callGeminiAPI(curriculumPrompt);
+
+    let curriculum: any;
+    try {
+      curriculum = JSON.parse(this.extractJSON(curriculumResponse));
+    } catch (e) {
+      logger.error({ error: e, responsePreview: curriculumResponse.substring(0, 300) }, 'Failed to parse formula-centric curriculum JSON, falling back to sequential');
+      return this.analyzeAndPlanSequentialCurriculum(bookId, bookTitle, chunks, characterDescription);
+    }
+
+    logger.info({
+      totalEpisodes: curriculum.episodes?.length,
+      formulaGroups: curriculum.formulaGroups?.length,
+      topics: curriculum.episodes?.map((e: any) => e.topic)
+    }, 'Formula-centric curriculum structure generated');
+
+    // 2단계: 각 에피소드를 수식 중심으로 상세 생성
+    const shorts: ShortPlan[] = [];
+    let previousEpisodeSummary = '';
+
+    for (let i = 0; i < (curriculum.episodes || []).length; i++) {
+      const episodeOutline = curriculum.episodes[i];
+
+      logger.info({
+        episodeNumber: i + 1,
+        topic: episodeOutline.topic,
+        formulaCount: episodeOutline.formulas?.length
+      }, `Generating formula-centric episode ${i + 1}`);
+
+      // 해당 에피소드에 필요한 청크 텍스트 추출
+      const startChunk = episodeOutline.chunkRange?.[0] || 0;
+      const endChunk = episodeOutline.chunkRange?.[1] || chunks.length - 1;
+      const relevantChunks = chunks.slice(startChunk, endChunk + 1);
+      const episodeContent = relevantChunks.map(c => c.text).join('\n\n');
+
+      const episodePrompt = this.buildFormulaCentricEpisodePrompt(
+        bookTitle,
+        episodeOutline,
+        episodeContent,
+        i,
+        curriculum.episodes.length,
+        previousEpisodeSummary,
+        characterDescription
+      );
+
+      try {
+        const episodeResponse = await this.callGeminiAPI(episodePrompt);
+        const parsed = JSON.parse(this.extractJSON(episodeResponse));
+
+        const scenes: ScenePlan[] = (parsed.scenes || []).map((sc: any, scIdx: number) => ({
+          sceneIndex: sc.sceneIndex ?? scIdx,
+          sceneType: sc.sceneType || 'explanation',
+          narrationText: sc.narrationText || '',
+          visualPrompt: sc.visualPrompt || '',
+          durationHint: sc.durationHint || 8,
+          sourceChunkIds: relevantChunks.map(c => c.id),
+          assignedFormula: sc.assignedFormula || undefined,
+          formulaName: sc.formulaName || undefined,
+          formulaMetaphor: sc.formulaMetaphor || undefined,
+        }));
+
+        const short: ShortPlan = {
+          shortIndex: i,
+          title: parsed.title || episodeOutline.topic,
+          hook: parsed.hook || '',
+          theme: episodeOutline.topic,
+          scenes,
+          totalDuration: scenes.reduce((sum, sc) => sum + sc.durationHint, 0),
+          tags: parsed.tags || [episodeOutline.topic]
+        };
+
+        shorts.push(short);
+        previousEpisodeSummary = parsed.summary || `Episode ${i + 1}: ${episodeOutline.topic}`;
+
+      } catch (error) {
+        logger.error({ error, episode: i + 1 }, 'Failed to generate formula-centric episode');
+      }
+    }
+
+    const totalScenes = shorts.reduce((sum, s) => sum + s.scenes.length, 0);
+    const totalDuration = shorts.reduce((sum, s) => sum + s.totalDuration, 0);
+
+    const plan: ShortsPlan = {
+      bookId,
+      bookTitle,
+      totalShorts: shorts.length,
+      character: {
+        description: characterDescription || `A friendly narrator character, ${this.config.style} style`,
+        style: this.config.style
+      },
+      shorts,
+      metadata: {
+        analyzedAt: new Date().toISOString(),
+        totalChunks: chunks.length,
+        totalScenes,
+        estimatedTotalDuration: totalDuration
+      }
+    };
+
+    logger.info({
+      bookId,
+      totalShorts: plan.totalShorts,
+      totalScenes,
+      totalDuration,
+      scenesWithFormula: shorts.reduce((sum, s) => sum + s.scenes.filter(sc => sc.assignedFormula).length, 0)
+    }, 'Formula-centric curriculum planning completed (v3.3.0)');
+
+    return plan;
+  }
+
+  /**
+   * v3.3.0: 수식 중심 커리큘럼 구조 분석 프롬프트
+   * 기존 buildCurriculumAnalysisPrompt() 대체 (math_science일 때)
+   */
+  private buildFormulaCentricCurriculumPrompt(
+    bookTitle: string,
+    content: string
+  ): string {
+    return `당신은 수학/과학 논문을 **수식 중심의 학습 커리큘럼**으로 변환하는 전문가입니다.
+
+## 문서
+제목: ${bookTitle}
+내용:
+${content.substring(0, 20000)}
+${content.length > 20000 ? '\n... (이하 생략)' : ''}
+
+## 목표
+이 문서의 **모든 수식을 추출**하고, **수식을 중심으로** YouTube Shorts 시리즈 커리큘럼을 설계하세요.
+
+## 핵심 원칙 (기존과 다름!)
+1. **수식이 주인공**: 각 에피소드는 2-3개 수식을 깊이 있게 설명하는 것이 목적
+2. **수식 그룹화**: 관련 수식끼리 같은 에피소드에 배치 (예: 같은 Loss 계열, 같은 모듈)
+3. **기초→심화**: 단순 수식 → 복합 수식 순서
+4. **모든 수식 커버**: 문서에 나온 수식을 빠짐없이 포함
+5. **각 수식에 비유**: 고등학생이 이해할 비유와 시각적 개념 포함
+
+## 수식 분석 방법
+1. 문서의 모든 LaTeX 수식 ($$...$$ 또는 \\begin{equation} 등) 추출
+2. 각 수식의 이름, 변수, 역할 파악
+3. 주제별/모듈별로 그룹화
+4. 학습 순서 결정 (독립 개념 → 의존 개념)
+
+## 출력 형식 (JSON)
+{
+  "documentSummary": "문서 전체 요약 (2-3문장)",
+  "totalFormulas": 숫자,
+  "formulaGroups": [
+    {
+      "groupName": "그룹명 (예: Reconstruction Losses)",
+      "formulas": [
+        {
+          "latex": "실제 LaTeX 수식",
+          "name": "수식 이름 (한국어)",
+          "variables": ["M", "M̂", "V_lips"],
+          "whatItDoes": "이 수식이 하는 일 1줄",
+          "highSchoolMetaphor": "고등학생 수준 비유 (예: '시험 답안지와 정답지를 대조하는 것')",
+          "visualConcept": "이미지로 표현할 비유 장면 (영어, 예: 'two papers side by side with magnifying glass comparing them')"
+        }
+      ]
+    }
+  ],
+  "totalEpisodes": 숫자,
+  "episodes": [
+    {
+      "episodeNumber": 1,
+      "topic": "에피소드 주제 (한국어)",
+      "chunkRange": [시작청크번호, 끝청크번호],
+      "formulas": [
+        {"latex": "수식", "name": "이름", "highSchoolMetaphor": "비유", "visualConcept": "시각화"}
+      ],
+      "keyConceptsToExplain": ["개념1", "개념2"],
+      "connectionToPrevious": "이전 에피소드와의 연결점",
+      "connectionToNext": "다음 에피소드로의 연결점"
+    }
+  ]
+}
+
+## 주의사항
+1. 에피소드당 수식 2-3개가 적절 (너무 많으면 분할)
+2. hook/conclusion 씬에는 수식 없음 — 수식 씬은 explanation 타입
+3. 수식이 없는 개념 설명도 별도 에피소드로 가능
+4. JSON만 출력`;
+  }
+
+  /**
+   * v3.3.0: 수식 중심 에피소드 상세 생성 프롬프트
+   * 각 씬에 assignedFormula 필드를 포함한 씬 구조를 강제
+   */
+  private buildFormulaCentricEpisodePrompt(
+    bookTitle: string,
+    episodeOutline: any,
+    content: string,
+    episodeIndex: number,
+    totalEpisodes: number,
+    previousEpisodeSummary: string,
+    characterDescription?: string
+  ): string {
+    const style = this.config.style;
+    const maxScenes = this.config.maxScenesPerShort;
+
+    const formulaList = (episodeOutline.formulas || []).map((f: any, i: number) =>
+      `수식 ${i + 1}: $$${f.latex}$$\n이름: ${f.name}\n비유: ${f.highSchoolMetaphor || '없음'}\n시각화: ${f.visualConcept || '없음'}`
+    ).join('\n\n');
+
+    return `당신은 수학/과학 수식을 고등학생이 이해하도록 설명하는 YouTube Shorts 크리에이터입니다.
+
+## 문서 정보
+제목: ${bookTitle}
+에피소드: ${episodeIndex + 1}/${totalEpisodes} (시리즈물)
+
+## 이번 에피소드 주제
+${episodeOutline.topic}
+
+## ★ 이번 에피소드에서 설명할 수식 (핵심!) ★
+${formulaList || '(수식 없음 — 개념 설명 에피소드)'}
+
+## 이전 에피소드 요약
+${previousEpisodeSummary || '(첫 번째 에피소드입니다)'}
+
+## 연결
+이전: ${episodeOutline.connectionToPrevious || '(첫 에피소드)'}
+다음: ${episodeOutline.connectionToNext || '(마지막 에피소드)'}
+
+## 참조 내용
+${content.substring(0, 8000)}
+${content.length > 8000 ? '\n... (생략)' : ''}
+
+## ★★★ 씬 구조 (반드시 따르세요!) ★★★
+
+### Scene 1: Hook (5초)
+- sceneType: "hook"
+- "오늘 배울 수식은..." 또는 호기심 유발 질문
+- assignedFormula: 없음
+
+### Scene 2~N: 수식 설명 (각 8-12초) — 핵심!
+- sceneType: "explanation"
+- **각 씬 = 수식 1개 설명** (같은 수식을 여러 씬에 반복 배정 금지!)
+- assignedFormula: 해당 수식의 LaTeX (필수!)
+- formulaName: 수식 이름 (필수!)
+- formulaMetaphor: 고등학생 비유 (필수!)
+- narrationText: 40-60자, 수식의 변수별 의미 + 전체 역할 설명
+  예: "Reconstruction Loss는 원본 얼굴 M과 AI가 만든 M̂의 차이를 측정해요. 차이가 크면 점수가 높아지죠."
+- visualPrompt: 반드시 "Educational concept illustration, watercolor style," 로 시작! 캐릭터/사람 절대 금지 — 비유적 오브젝트만!
+  예: "Educational concept illustration, watercolor style, two faces side by side being compared with magnifying glass, NO characters, NO people, warm pastel colors, portrait 9:16"
+
+### 수식 설명 후 비유 씬 (각 5-7초) — 보충 설명
+- sceneType: "example"
+- 수식의 비유를 구체적 사례로 보여주는 씬 (assignedFormula 없음)
+- 수식 씬 다음에 1개씩 배치하여 이해를 돕기
+
+### 마지막 Scene: 정리 (7초)
+- sceneType: "conclusion"
+- 이번 에피소드 수식 정리 + 다음 예고
+- assignedFormula: 없음
+
+## 제약조건
+- Scene 개수: 최소 7개, 최대 ${maxScenes}개 (짧으면 비유/예시 씬 추가)
+- 목표 총 길이: 50-65초 (반드시 50초 이상!)
+- 스타일: ${style}
+- 캐릭터: ${characterDescription || `${style} 스타일의 친근한 해설자`}
+- narrationText: 한국어, 고등학생 수준, "~거예요/~이죠/~해요" 말투
+
+## 출력 형식 (JSON)
+{
+  "title": "에피소드 제목 (한국어)",
+  "hook": "첫 문장",
+  "summary": "이 에피소드 요약 (100자)",
+  "tags": ["태그1", "태그2"],
+  "scenes": [
+    {
+      "sceneIndex": 0,
+      "sceneType": "hook",
+      "narrationText": "오늘은 Loss 함수에 대해 알아볼까요?",
+      "visualPrompt": "Children's book illustration...",
+      "durationHint": 5
+    },
+    {
+      "sceneIndex": 1,
+      "sceneType": "explanation",
+      "narrationText": "Reconstruction Loss는 원본과 AI 결과의 차이를 측정해요. (45자)",
+      "visualPrompt": "Educational concept illustration, watercolor...",
+      "durationHint": 10,
+      "assignedFormula": "L_{recon} = ||\\hat{M} - M||_1",
+      "formulaName": "Reconstruction Loss",
+      "formulaMetaphor": "시험 답안지와 정답지를 대조하는 것"
+    }
+  ]
+}
+
+## 절대 규칙
+1. 수식 씬의 assignedFormula는 반드시 에피소드의 수식 목록에 있는 LaTeX를 그대로 사용
+2. narrationText에 LaTeX 코드 금지, 영어 용어명은 OK
+3. visualPrompt에 텍스트/숫자/수식 금지 — 비유적 시각 장면만
+4. 수식의 각 변수 의미를 narrationText에 반드시 포함
+5. **explanation/example 씬의 visualPrompt에 캐릭터/사람 절대 금지!** ("character", "person", "narrator", "teacher" 금지) — 비유적 오브젝트/시각화만 사용. hook/conclusion만 캐릭터 가능
+6. JSON만 출력`;
   }
 
   /**
