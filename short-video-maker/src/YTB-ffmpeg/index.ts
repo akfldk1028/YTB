@@ -257,6 +257,18 @@ export class FFMpeg {
     );
   }
 
+  /**
+   * v4.0: Trim or loop video to exact target duration
+   * Used by VideoAnimationService when Grok returns non-exact duration clips
+   */
+  async trimOrLoopVideo(
+    inputPath: string,
+    outputPath: string,
+    targetDuration: number
+  ): Promise<void> {
+    return this.videoEditor.trimOrLoopVideo(inputPath, outputPath, targetDuration);
+  }
+
   async createStaticVideoFromImage(
     imagePath: string,
     outputPath: string,
@@ -264,6 +276,39 @@ export class FFMpeg {
     dimensions: string
   ): Promise<void> {
     return this.videoEditor.createStaticVideoFromImage(imagePath, outputPath, duration, dimensions);
+  }
+
+  /**
+   * v4.1: Create Ken Burns (zoompan) video from a single image
+   */
+  async createKenBurnsVideoFromImage(
+    imagePath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: string,
+    effect?: 'zoom_in' | 'zoom_out' | 'pan_right' | 'pan_left'
+  ): Promise<void> {
+    return this.videoEditor.createKenBurnsVideoFromImage(imagePath, outputPath, duration, dimensions, effect);
+  }
+
+  /**
+   * v4.1: Create Ken Burns video with formula PNG overlay
+   */
+  async createKenBurnsVideoWithFormulaOverlay(
+    imagePath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: string,
+    pngPath: string,
+    pngWidth: number,
+    pngHeight: number,
+    position: 'center' | 'top' | 'bottom',
+    effect?: 'zoom_in' | 'zoom_out' | 'pan_right' | 'pan_left'
+  ): Promise<void> {
+    return this.videoEditor.createKenBurnsVideoWithFormulaOverlay(
+      imagePath, outputPath, duration, dimensions,
+      pngPath, pngWidth, pngHeight, position, effect
+    );
   }
 
   async createStaticVideoFromMultipleImages(

@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Owl Creature - Happy Mode (squinted eyes, slight smile beak) -->
+
+  <g id="body">
+    <ellipse cx="100" cy="120" rx="55" ry="65" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="2"/>
+    <ellipse cx="100" cy="135" rx="35" ry="40" fill="#C4956A"/>
+    <ellipse cx="80" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+    <ellipse cx="120" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+  </g>
+
+  <!-- Wings slightly raised (happy gesture) -->
+  <g id="left_wing">
+    <path d="M42 95 Q20 115 45 150 Q50 130 47 108Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <g id="right_wing">
+    <path d="M158 95 Q180 115 155 150 Q150 130 153 108Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <g id="ear_tufts">
+    <path d="M65 58 L55 30 L75 50Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+    <path d="M135 58 L145 30 L125 50Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+  </g>
+
+  <!-- Squinted happy eyes (upside-down arcs) -->
+  <g id="left_eye">
+    <circle cx="78" cy="85" r="18" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="78" cy="85" r="9" fill="#1a1a1a"/>
+    <circle cx="74" cy="81" r="3" fill="white"/>
+    <!-- Happy squint overlay -->
+    <path d="M60 80 Q78 72 96 80" fill="none" stroke="#333" stroke-width="2"/>
+    <rect x="58" y="68" width="40" height="14" fill="#8B5E3C" rx="2"/>
+  </g>
+
+  <g id="right_eye">
+    <circle cx="122" cy="85" r="18" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="122" cy="85" r="9" fill="#1a1a1a"/>
+    <circle cx="118" cy="81" r="3" fill="white"/>
+    <!-- Happy squint overlay -->
+    <path d="M104 80 Q122 72 140 80" fill="none" stroke="#333" stroke-width="2"/>
+    <rect x="102" y="68" width="40" height="14" fill="#8B5E3C" rx="2"/>
+  </g>
+
+  <g id="glasses" fill="none" stroke="#333" stroke-width="2.5">
+    <circle cx="78" cy="85" r="22"/>
+    <circle cx="122" cy="85" r="22"/>
+    <path d="M96 83 Q100 78 104 83" stroke="#333" stroke-width="2"/>
+    <line x1="56" y1="82" x2="45" y2="75"/>
+    <line x1="144" y1="82" x2="155" y2="75"/>
+  </g>
+
+  <!-- Beak (slight smile) -->
+  <g id="beak">
+    <path d="M95 100 L100 110 L105 100Z" fill="#E8A838" stroke="#C88C28" stroke-width="1"/>
+    <path d="M93 110 Q100 116 107 110" fill="none" stroke="#C88C28" stroke-width="1.5"/>
+  </g>
+
+  <!-- Blush marks -->
+  <ellipse cx="58" cy="98" rx="8" ry="4" fill="#E8A0A0" opacity="0.5"/>
+  <ellipse cx="142" cy="98" rx="8" ry="4" fill="#E8A0A0" opacity="0.5"/>
+</svg>

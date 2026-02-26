@@ -24,6 +24,8 @@ import { TeX } from 'mathjax-full/js/input/tex.js';
 import { SVG } from 'mathjax-full/js/output/svg.js';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
+// v5.0: color 패키지 — \textcolor{#hex}{var} 지원 (AllPackages와 달리 개별 로드는 안정)
+import 'mathjax-full/js/input/tex/color/ColorConfiguration.js';
 // v3.4.2: AllPackages 제거 — CommonJS 환경에서 null reference 크래시 유발
 // 기본 TeX({})만으로 그리스 문자, 분수, 위첨자/아래첨자 등 기본 수식 렌더링 가능
 import path from 'path';
@@ -88,7 +90,7 @@ export class MathFormulaService {
       RegisterHTMLHandler(adaptor);
       MathFormulaService.mathjaxAdaptor = adaptor;
       MathFormulaService.mathjaxDocument = mathjax.document('', {
-        InputJax: new TeX({}),  // v3.4.2: AllPackages 대신 기본 TeX — 안정성 확보
+        InputJax: new TeX({ packages: ['base', 'color'] }),  // v5.0: base + color (AllPackages는 크래시, 개별은 안정)
         OutputJax: new SVG({ fontCache: 'none' }),
       });
       logger.info('MathJax v4 초기화 성공 (TeX 기본 패키지)');
@@ -106,7 +108,7 @@ export class MathFormulaService {
   async renderLatexToPng(
     latex: string,
     outputDir: string,
-    options?: { maxWidth?: number; fontSize?: number }
+    options?: { maxWidth?: number; fontSize?: number; fillColor?: string }
   ): Promise<MathPngResult> {
     MathFormulaService.initMathJax();
 
@@ -175,10 +177,16 @@ export class MathFormulaService {
 
     // v3.4.1: SVG fill/stroke 수정 — 기존 속성을 대체 (중복 방지)
     // MathJax SVG는 fill="currentColor" stroke="currentColor"를 사용
+    const fillColor = options?.fillColor || 'white';
+    // v12.2: \textcolor가 포함된 수식은 CSS color 상속을 주입하지 않음
+    // MathJax가 \textcolor 요소에 직접 fill="#hex"를 설정하므로 currentColor 치환은 안전
+    const hasTextColor = cleanLatex.includes('\\textcolor');
     svgString = svgString
-      .replace(/style="/, `style="color: white; `)
-      .replace(/fill="currentColor"/g, 'fill="white"')
-      .replace(/stroke="currentColor"/g, 'stroke="white"');
+      .replace(/fill="currentColor"/g, `fill="${fillColor}"`)
+      .replace(/stroke="currentColor"/g, `stroke="${fillColor}"`);
+    if (!hasTextColor) {
+      svgString = svgString.replace(/style="/, `style="color: ${fillColor}; `);
+    }
 
     // width/height를 px 단위로 교체
     svgString = svgString
@@ -279,14 +287,15 @@ export class MathFormulaService {
    */
   async renderFormulasForScene(
     formulas: MathFormula[],
-    outputDir: string
+    outputDir: string,
+    renderOptions?: { fillColor?: string }
   ): Promise<MathFormula[]> {
     await fs.ensureDir(outputDir);
     const result: MathFormula[] = [];
 
     for (const formula of formulas) {
       try {
-        const pngResult = await this.renderLatexToPng(formula.latex, outputDir);
+        const pngResult = await this.renderLatexToPng(formula.latex, outputDir, { fillColor: renderOptions?.fillColor });
         result.push({
           ...formula,
           pngPath: pngResult.pngPath,

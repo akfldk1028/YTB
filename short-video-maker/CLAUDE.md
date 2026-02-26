@@ -2,6 +2,55 @@
 
 > **전체 README 목차**: [`README_INDEX.md`](./README_INDEX.md) - 모든 모듈 README 연결
 
+---
+
+## MCP 도구 활용 가이드 (필수)
+
+**연결된 MCP 서버들을 적극적으로 활용하라.** 단순 코드 편집에만 의존하지 말고, 아래 도구들을 상황에 맞게 사용할 것.
+
+### 핵심 도구 (이 프로젝트에 직접 관련)
+
+| MCP 서버 | 용도 | 언제 사용 |
+|----------|------|----------|
+| **Graphiti** | 지식 그래프 메모리 | 프로젝트 결정사항, 버그 패턴, 아키텍처 선택을 `add_memory`로 저장. 이전 세션에서 뭘 했는지 `search_memory_facts`로 검색. group_id: `ytb-project` |
+| **Memory Service** | 영속 메모리 저장소 | 세션 간 컨텍스트 유지. `memory_store`로 중요 결정 저장, `memory_search`로 이전 작업 검색 |
+| **Context7** | 라이브러리 문서 조회 | FFmpeg, MathJax, Gemini API, NanoBanana API 등 라이브러리 최신 문서가 필요할 때. `resolve-library-id` → `get-library-docs` |
+| **n8n** | 워크플로우 트리거 | n8n 웹훅 호출로 뉴스 영상 파이프라인 자동 트리거. `list_workflows` → `call_webhook_post` |
+| **ArXiv** | 논문 검색 | Books 프로젝트에서 새 논문/교재 소스 찾을 때. `search_papers`로 주제 검색, `get_paper_details`로 상세 확인 |
+| **GitHub** | 코드/이슈 관리 | PR 생성, 이슈 추적, 코드 검색. `create_pull_request`, `create_issue`, `search_code` |
+| **Supabase** | DB 마이그레이션 | 필요 시 DB 스키마 관리. `execute_sql`, `apply_migration`, `list_tables` |
+
+### 리서치/분석 도구
+
+| MCP 서버 | 용도 | 언제 사용 |
+|----------|------|----------|
+| **Brave Search** | 웹 검색 | 최신 기술 정보, API 변경사항, 에러 해결책 검색. `brave_web_search` |
+| **Exa** | 심층 웹 검색 | 코드 컨텍스트 검색(`get_code_context_exa`), 기업/기술 리서치(`company_research_exa`) |
+| **Sequential Thinking** | 복잡한 추론 | 아키텍처 설계, 디버깅 전략, 다단계 문제 해결 시 `sequentialthinking`으로 체계적 사고 |
+| **Notion** | 문서 관리 | 프로젝트 문서, 작업 기록을 Notion에 저장/검색. `notion-search`, `notion-create-pages` |
+| **Linear** | 이슈 트래킹 | 버그/기능 요청 이슈 생성 및 추적. `linear_createIssue`, `linear_getIssues` |
+| **PostHog** | 분석/메트릭 | 영상 생성 성과, 사용자 행동 분석. `query-run`, `insight-create-from-query` |
+
+### 테스트/자동화 도구
+
+| MCP 서버 | 용도 | 언제 사용 |
+|----------|------|----------|
+| **Playwright** | 브라우저 자동화 | YouTube 업로드 확인, 웹 UI 테스트. `browser_navigate` → `browser_snapshot` → 검증 |
+| **Puppeteer** | 브라우저 제어 | Playwright 대안. 스크린샷, 페이지 조작 |
+| **E2B** | 샌드박스 코드 실행 | 안전한 환경에서 코드 테스트. `run_code` |
+| **Cloudflare Container** | 컨테이너 실행 | 격리된 환경에서 빌드/테스트. `container_exec` |
+| **Vast.ai** | GPU 컴퓨팅 | 대규모 영상 처리, ML 모델 실행 시. `search_offers` → `create_instance` |
+
+### 사용 원칙
+
+1. **새 세션 시작 시**: `memory_search` 또는 `search_memory_facts`로 이전 세션 컨텍스트 확인
+2. **기술 조사 필요 시**: 코드만 보지 말고 `brave_web_search` 또는 `context7`로 최신 문서 확인
+3. **중요 결정 후**: `add_memory` 또는 `memory_store`로 결정 사항과 이유 기록
+4. **디버깅 시**: `sequentialthinking`으로 체계적 원인 분석 → `search_memory_facts`로 유사 버그 패턴 검색
+5. **논문/교재 소스 탐색**: `search_papers`로 ArXiv 검색, `brave_web_search`로 일반 검색
+6. **배포 전**: `playwright` 또는 `puppeteer`로 엔드포인트 동작 검증
+7. **n8n 워크플로우 연동**: `list_workflow_webhooks`로 사용 가능한 웹훅 확인 후 `call_webhook_post`로 트리거
+
 ## 인프라 현황
 
 | 서비스 | 타입 | URL | Region |
@@ -417,14 +466,21 @@ https://www.googleapis.com/auth/yt-analytics.readonly → 분석 읽기
 
 ---
 
-## Books 프로젝트 (v3.5.0 ✅)
+## Books 프로젝트 (v3.7.0 ✅)
 
-책/논문 → Neo4j GraphRAG → Ghibli Shorts 자동 생성
+책/논문 → Neo4j GraphRAG → YouTube Shorts 자동 생성 (스타일 자동 감지)
 
 ### 핵심 철학: 논문 영상의 본질
 - **수식이 주인공**: math_science 문서는 수식 중심 커리큘럼 자동 전환 (수식 3개 이상 감지 시)
 - **수식 파이프라인**: BookChunk → LaTeX 추출 → 수식별 에피소드 그룹화 → assignedFormula per scene → MathJax v4 PNG 렌더링 → FFmpeg overlay
 - **이미지 전략 (v3.5.0)**: 씬 타입별 3분기 — narrative(캐릭터 Ghibli), educational(교육 일러스트, 캐릭터 없음), formula(수식 비유 이미지, 캐릭터 없음)
+- **스타일 시스템 (v3.7.0)**: Strategy Pattern 기반 비주얼 스타일 자동 전환
+  - `math_character` (기본, 3B1B): 안경 올빼미, 어두운 네이비 배경, Charon(남성) TTS — 교육 콘텐츠 주력 캐릭터
+  - `ghibli` (레거시): 밝은 수채화 배경, Leda(여성) TTS — 신규 제작 미사용
+  - 자동 감지: videoConfig.style → contentType → assignedFormula 존재 여부 (미지정 시 math_character 우선)
+  - 새 스타일 = 1 프로파일 파일 + registry 등록 → 기존 코드 변경 없음
+- **Production workflow**: NanoBanana(이미지 생성) → Grok/xAI(애니메이션, optional) → FFmpeg(합성+자막)
+- **Grok animation module**: `src/YTB-video-animation/` — n8n 패턴 독립 노드, graceful degradation
 - **씬간 타이밍 (v3.5.0)**: TTS 기반 duration (hintDuration 무음 패딩 제거), PCM 0.1초 + 크로스페이드 0.1초
 - **TTS 자연스러움**: 비수식 중간 씬만 연결어 적용, 수식 씬 스킵
 
@@ -502,6 +558,32 @@ curl -X POST http://localhost:3124/api/books/episodes/{episodeId}/generate-video
 - [Short-Form Video Strategy 2026](https://content-whale.com/blog/master-short-form-video-content-guide/)
 
 ---
+
+### v3.7.0 변경사항 (2026-02-08) — 스타일 자동 감지 시스템
+
+#### 근본 원인 수정: `getStyleProfile(undefined)` → ghibli 기본값 문제
+- API 호출 시 `style` 파라미터 미전달 → `getStyleProfile(undefined)` → 무조건 ghibli → 모든 non-ghibli 코드 무시
+- Neo4j에 `contentType` 미저장 문서 → 자동 감지도 실패
+
+#### 수정: `generateEpisodeVideoPipeline` 3단계 자동 스타일 추론
+1. Neo4j `videoConfig.style` 조회
+2. `contentType` 매핑 (math_science → math_character)
+3. Episode `assignedFormula` 존재 → math_character + contentType 자동 저장
+
+#### 추가 변경
+- `DocumentVideoConfig`에 `style?: string` 필드 추가
+- API 응답에 `_styleUsed` 필드 추가 (디버그용)
+
+**수정 파일 2개**:
+
+| 파일 | 변경 |
+|------|------|
+| `BooksRouter.ts` | `generateEpisodeVideoPipeline` 3단계 자동 스타일 추론, 응답에 `_styleUsed` |
+| `types/index.ts` | `DocumentVideoConfig.style` 필드 추가 |
+
+**테스트 결과 (EP52-53, AR_TALK_LATEX.pdf)**:
+- EP52: `style: 'math_character'` 명시 → 올빼미 + 어두운 배경 ✅
+- EP53: style 미전달 → assignedFormula 감지 → 자동 math_character → 올빼미 ✅
 
 ### v3.5.0 변경사항 (2026-02-04) - 씬 타입별 이미지 전략 + 씬간 텀 최적화
 

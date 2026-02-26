@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Owl Creature - Thinking Mode (eyes looking up-right) -->
+
+  <g id="body">
+    <ellipse cx="100" cy="120" rx="55" ry="65" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="2"/>
+    <ellipse cx="100" cy="135" rx="35" ry="40" fill="#C4956A"/>
+    <ellipse cx="80" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+    <ellipse cx="120" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+  </g>
+
+  <g id="left_wing">
+    <!-- Wing raised slightly (thinking pose) -->
+    <path d="M45 95 Q20 120 45 155 Q50 135 48 110Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <g id="right_wing">
+    <path d="M155 100 Q175 130 150 160 Q145 140 150 115Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <g id="ear_tufts">
+    <path d="M65 58 L55 30 L75 50Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+    <path d="M135 58 L145 30 L125 50Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+  </g>
+
+  <!-- Eyes looking up-right (thinking) -->
+  <g id="left_eye">
+    <circle cx="78" cy="85" r="18" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="83" cy="80" r="9" fill="#1a1a1a"/>
+    <circle cx="80" cy="76" r="3" fill="white"/>
+  </g>
+
+  <g id="right_eye">
+    <circle cx="122" cy="85" r="18" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="127" cy="80" r="9" fill="#1a1a1a"/>
+    <circle cx="124" cy="76" r="3" fill="white"/>
+  </g>
+
+  <g id="glasses" fill="none" stroke="#333" stroke-width="2.5">
+    <circle cx="78" cy="85" r="22"/>
+    <circle cx="122" cy="85" r="22"/>
+    <path d="M96 83 Q100 78 104 83" stroke="#333" stroke-width="2"/>
+    <line x1="56" y1="82" x2="45" y2="75"/>
+    <line x1="144" y1="82" x2="155" y2="75"/>
+  </g>
+
+  <g id="beak">
+    <path d="M95 100 L100 112 L105 100Z" fill="#E8A838" stroke="#C88C28" stroke-width="1"/>
+  </g>
+
+  <!-- Thought dots -->
+  <circle cx="155" cy="55" r="3" fill="#AAA" opacity="0.6"/>
+  <circle cx="165" cy="42" r="4" fill="#AAA" opacity="0.5"/>
+  <circle cx="172" cy="28" r="5" fill="#AAA" opacity="0.4"/>
+</svg>

@@ -23,6 +23,7 @@ import { GoogleSheetsService, createSheetRoutes } from "../YTB-sheet";
 import { politicsRouter } from "../politics-project";
 import { newsRouter } from "../YTB-news-project";
 import { createBooksRouter } from "../YTB-books-project/src/api/BooksRouter";
+import { createTrendRouter } from "../YTB-Trend-projects/api/TrendRouter";
 import { logger } from "../logger";
 import { Config } from "../config";
 
@@ -84,6 +85,10 @@ export class Server {
     // Mount Books Project API (Neo4j → Shorts generator)
     this.app.use("/api/books", createBooksRouter());
     logger.info("Books Project API mounted at /api/books");
+
+    // Mount Trend Project API (YouTube style clone → new video)
+    this.app.use("/api/trends", createTrendRouter());
+    logger.info("Trend Project API mounted at /api/trends");
 
     // Mount YouTube upload routes if uploader is available
     if (youtubeUploader) {

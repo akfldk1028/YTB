@@ -1,0 +1,1 @@
+export { VideoAnimationService } from './VideoAnimationService';

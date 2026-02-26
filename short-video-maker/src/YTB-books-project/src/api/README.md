@@ -1,9 +1,12 @@
 # API - REST 엔드포인트
 
-> Last Updated: 2026-02-03
-> Status: **v3.4.1 MathJax SVG fill + 씬간 텀 축소 + FFmpeg 인코딩 최적화** ✅
+> Last Updated: 2026-02-25
+> Status: **v12.1 핸들러 분리 + NotebookLM + VEO 3.1 + 멀티 스타일** ✅
 >
-> **v3.4.1 변경**: FFmpeg 인코딩 옵션 추가 (`-preset ultrafast -crf 23` → 500MB+ → ~10MB), MathJax `fill="currentColor"` → `fill="white"` 대체, 씬간 텀 0.15초 → 0.05초
+> **v12.1 변경**: BooksRouter 2767줄→134줄 (handlers/ 10개 파일 분리), NotebookLM 파이프라인, 시맨틱 리청킹
+> **v12.0 변경**: 모듈별 독립 테스트 5개, PhilosophyMentor 스타일, HookTextOverlay 노드
+> **v11.0 변경**: VEO 3.1 Frame Interpolation (useVeo: true)
+> **v10.0 변경**: Viral Cat 스타일 (empathy_lifestyle, Fenrir voice)
 
 ---
 
@@ -11,7 +14,17 @@
 
 | 파일 | 상태 | 설명 |
 |------|:----:|------|
-| `BooksRouter.ts` | ✅ | Books API + Episode/Scene API |
+| `BooksRouter.ts` | ✅ | v12.1: 134줄 (RouterContext + handler 등록만) |
+| `handlers/types.ts` | ✅ | RouterContext 인터페이스 (44줄) |
+| `handlers/episodeHandler.ts` | ✅ | Episode CRUD (112줄) |
+| `handlers/videoGenerationHandler.ts` | ✅ | 비디오 생성 파이프라인 (173줄) |
+| `handlers/youtubePublishHandler.ts` | ✅ | YouTube 업로드/자동 파이프라인 (280줄) |
+| `handlers/contentPlanningHandler.ts` | ✅ | 커리큘럼/분석/에피소드 생성 (472줄) |
+| `handlers/notebookLMHandler.ts` | ✅ | NotebookLM export/import/rechunk (158줄) |
+| `handlers/longFormHandler.ts` | ✅ | 롱폼 컴필레이션 (128줄) |
+| `handlers/booksDataHandler.ts` | ✅ | Books CRUD/검색/다운로드 (350줄) |
+| `handlers/testHandler.ts` | ✅ | v12.0 모듈별 독립 테스트 (259줄) |
+| `handlers/index.ts` | ✅ | re-exports (14줄) |
 
 ---
 
@@ -59,6 +72,39 @@ Base URL: `http://localhost:3124/api/books`
 |--------|----------|------|:----:|
 | `POST` | `/episodes/:episodeId/generate-video` | Episode → 비디오 생성 | ✅ |
 | `POST` | `/episodes/:episodeId/generate-images` | Episode → 이미지만 생성 | ✅ |
+| `POST` | `/generate-next-episode` | 점진적 비디오 생성 (자동 스타일 감지) | ✅ v3.7.0 |
+
+### YouTube 업로드 (v8.1)
+| Method | Endpoint | 설명 | 상태 |
+|--------|----------|------|:----:|
+| `POST` | `/episodes/:id/upload` | 에피소드 YouTube 업로드 | ✅ |
+| `POST` | `/auto-pipeline` | 자동 파이프라인 (생성→업로드) | ✅ |
+| `POST` | `/bulk-pipeline` | 벌크 파이프라인 | ✅ |
+
+### LongForm 컴필레이션 (v9.0)
+| Method | Endpoint | 설명 | 상태 |
+|--------|----------|------|:----:|
+| `POST` | `/longform/compile` | 숏츠 N개 → 롱폼 비디오 | ✅ |
+| `GET` | `/longform/:documentId` | 컴필 가능 에피소드 목록 | ✅ |
+| `POST` | `/longform/compile-and-upload` | 컴파일 + YouTube 업로드 | ✅ |
+
+### NotebookLM 파이프라인 (v12.1)
+| Method | Endpoint | 설명 | 상태 |
+|--------|----------|------|:----:|
+| `POST` | `/:bookId/rechunk` | AI 시맨틱 리청킹 | ✅ |
+| `POST` | `/:bookId/export/notebooklm` | NotebookLM 소스 패키지 export | ✅ |
+| `GET` | `/:bookId/export/notebooklm/files` | export 파일 목록 | ✅ |
+| `POST` | `/:bookId/export/episodes` | 에피소드 슬라이드 export | ✅ |
+| `POST` | `/:bookId/import/slides` | NotebookLM 슬라이드 import | ✅ |
+
+### 모듈별 독립 테스트 (v12.0)
+| Method | Endpoint | 설명 | 상태 |
+|--------|----------|------|:----:|
+| `GET` | `/test/styles` | 등록된 스타일 프로파일 목록 | ✅ |
+| `POST` | `/test/image` | 단일 이미지 생성 테스트 | ✅ |
+| `POST` | `/test/voice` | TTS voice 테스트 | ✅ |
+| `POST` | `/test/overlay` | Hook 텍스트 오버레이 테스트 | ✅ |
+| `POST` | `/test/scene` | 전체 씬 파이프라인 테스트 | ✅ |
 
 ### 상태 관리
 | Method | Endpoint | 설명 | 상태 |
@@ -85,7 +131,7 @@ curl -X POST http://localhost:3124/api/books/AR_TALK.pdf/analyze \
     "totalShorts": 1,
     "character": {
       "description": "A friendly narrator...",
-      "style": "ghibli"
+      "style": "math_character"
     },
     "shorts": [{
       "title": "말하는 3D 아바타!",
@@ -112,6 +158,8 @@ curl -X POST http://localhost:3124/api/books/episodes/{episodeId}/generate-video
       "timeOfDay": "day"
     }
   }'
+# v3.7.0: style 파라미터 없이도 수식 문서는 자동으로 math_character 스타일 적용
+# 명시적 지정: "style": "math_character" 또는 "config": {"style": "math_character"}
 ```
 
 **응답:**
@@ -136,6 +184,130 @@ curl -X POST http://localhost:3124/api/books/episodes/{episodeId}/generate-image
       "mood": "whimsical"
     }
   }'
+```
+
+---
+
+## v12.1 변경사항 (2026-02-14) — BooksRouter 핸들러 분리
+
+### 핵심: 2767줄→134줄 (RouterContext 패턴)
+
+BooksRouter를 10개 핸들러 파일로 분리. BooksRouter는 RouterContext 인터페이스를 구현하고, 각 핸들러에 `register(router, ctx)` 패턴으로 주입.
+
+```
+BooksRouter (134줄)
+    ├── implements RouterContext
+    └── 각 handler.register(router, this)
+        ├── testHandler        → /test/*
+        ├── episodeHandler     → /episodes/*
+        ├── videoGenHandler    → /episodes/*/generate-*
+        ├── youtubeHandler     → /episodes/*/upload, /auto-pipeline, /bulk-pipeline
+        ├── contentPlanHandler  → /:bookId/curriculum, /entities, /analyze
+        ├── notebookLMHandler  → /:bookId/rechunk, /export/*, /import/*
+        ├── longFormHandler    → /longform/*
+        ├── booksDataHandler   → /:bookId, /search, /download/*
+        └── 라우트 순서: test→static→/:bookId (Express 캡처 우선순위)
+```
+
+---
+
+## v12.0 변경사항 (2026-02-13) — 모듈별 독립 테스트 + 멘탈훈련소 스타일
+
+### 테스트 엔드포인트
+```bash
+# 스타일 목록
+curl .../api/books/test/styles
+
+# 단일 이미지 테스트
+curl -X POST .../api/books/test/image \
+  -d '{"style": "philosophy_mentor", "prompt": "따뜻한 멘토 캐릭터"}'
+
+# TTS voice 테스트
+curl -X POST .../api/books/test/voice \
+  -d '{"style": "viral_cat", "text": "오늘도 퇴근 후 지친 당신에게"}'
+
+# Hook 오버레이 테스트
+curl -X POST .../api/books/test/overlay \
+  -d '{"text": "이것만 알면 인생이 바뀝니다", "style": "philosophy_mentor"}'
+
+# 전체 씬 파이프라인 테스트
+curl -X POST .../api/books/test/scene \
+  -d '{"style": "philosophy_mentor", "narration": "철학의 핵심은...", "visualPrompt": "..."}'
+```
+
+### 새 스타일: `philosophy_mentor`
+```bash
+curl -X POST .../api/books/{bookId}/curriculum \
+  -d '{"style": "philosophy_mentor", "saveToNeo4j": true}'
+```
+
+---
+
+## v11.0 변경사항 (2026-02-13) — VEO 3.1 Frame Interpolation
+
+### VEO 모드 사용
+```bash
+# 커리큘럼 생성 시 반드시 useVeo=true 전달
+curl -X POST .../api/books/{bookId}/curriculum \
+  -d '{"saveToNeo4j": true, "useVeo": true}'
+
+# 비디오 생성 시에도 useVeo=true
+curl -X POST .../api/books/episodes/{episodeId}/generate-video \
+  -d '{"config": {"useVeo": true}}'
+```
+
+---
+
+## v10.0 변경사항 (2026-02-12) — Viral Cat 스타일
+
+### 사용 예시
+```bash
+# viral_cat 스타일로 커리큘럼 생성
+curl -X POST .../api/books/{bookId}/curriculum \
+  -d '{"style": "viral_cat", "saveToNeo4j": true}'
+```
+
+| 파라미터 | 값 | 효과 |
+|----------|-----|------|
+| `style` | `viral_cat` | 고양이+수채화+직장인공감 전체 전환 |
+| `style` | `philosophy_mentor` | 멘탈훈련소 전체 전환 |
+| `style` | `math_character` | 올빼미 교육 (기본) |
+| `useVeo` | `true` | VEO 3.1 프레임 보간 활성화 |
+
+---
+
+## v3.7.0 변경사항 (2026-02-08) -- 스타일 자동 감지
+
+### 핵심: `style` 파라미터 없이도 수식 문서는 자동 감지
+
+```
+/generate-next-episode 호출
+    |
+    +-- config.style 명시적 전달 -> 해당 스타일 사용
+    |
+    +-- config.style 없음 -> 3단계 자동 감지
+        +-- 1. Neo4j videoConfig.style 조회
+        +-- 2. contentType 매핑 (math_science -> math_character)
+        +-- 3. assignedFormula 존재 -> math_character + contentType 자동 저장
+```
+
+| 스타일 | 캐릭터 | 배경 | TTS Voice | hookTextOverlay |
+|--------|--------|------|-----------|:---:|
+| `math_character` (기본) | 올빼미 교수 | dark navy | Charon (남성) | X |
+| `viral_cat` (v10.0) | 고양이 | 따뜻한 수채화 | Fenrir (남성) | O |
+| `philosophy_mentor` (v12.0) | 만화풍 | 따뜻한 톤 | Enceladus (남성) | O |
+| `humanities` | - | 시네마틱 | Charon (남성) | X |
+| `ghibli` (DEPRECATED) | - | - | Leda (여성) | X |
+
+### 사용 예시
+```bash
+# 자동 감지 (수식 있는 문서 -> math_character)
+curl -X POST .../api/books/generate-next-episode \
+  -d '{"documentId": "AR_TALK_LATEX.pdf"}'
+
+# 명시적 지정
+curl -X POST .../api/books/generate-next-episode \
+  -d '{"documentId": "AR_TALK_LATEX.pdf", "style": "math_character"}'
 ```
 
 ---
@@ -198,8 +370,8 @@ async function generateSceneImages(scenes, ghibliService, config) {
 Episode → Scenes
     │
     ├── generateSceneImages() (v2.9.1 헬퍼)
-    │   ├── GhibliImageService
-    │   │   └── Scene 0: GPT-4o → 마스터 이미지
+    │   ├── GhibliImageService (v3.8.0: NanoBanana Only)
+    │   │   └── Scene 0: NanoBanana → 마스터 이미지 (reference 저장)
     │   │   └── Scene 1+: NanoBanana + 레퍼런스 → 일관성 유지
     │   └── streak-limited reuse (동일 sceneType → 이미지 재사용, streak=1)
     │
@@ -223,7 +395,7 @@ Episode → Scenes
 | 총 용량 | 74MB (9개 영상) |
 | 해상도 | 1080x1920 (Portrait) |
 | TTS | Gemini Kore (한국어) |
-| 이미지 | GPT(1장) + NanoBanana(7장/에피소드) |
+| 이미지 | NanoBanana 전체 (v3.8.0: GPT-4o 제거) |
 
 ### v2.9.1 변경사항
 | 변경 | 설명 |
@@ -260,6 +432,12 @@ curl -X POST "http://localhost:3124/api/books/AR_TALK.pdf/generate-video" \
 - [x] Episode/Scene API 엔드포인트 추가
 - [x] 시리즈 연속성 API 구현
 - [x] Phase 3: Episode → Video 생성 파이프라인
+- [x] YouTube 자동 업로드 (v8.1)
+- [x] LongForm 컴필레이션 (v9.0)
+- [x] Viral Cat 스타일 (v10.0)
+- [x] VEO 3.1 Frame Interpolation (v11.0)
+- [x] 모듈별 독립 테스트 + 멘탈훈련소 (v12.0)
+- [x] NotebookLM 파이프라인 + 핸들러 분리 (v12.1)
 - [ ] n8n 웹훅 연동 (Phase 4)
 
 ---

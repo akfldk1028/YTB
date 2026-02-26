@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Owl Creature - Neutral Mode -->
+  <!-- Parts: body, left_eye, right_eye, glasses, left_wing, right_wing -->
+
+  <!-- Body (brown oval) -->
+  <g id="body">
+    <ellipse cx="100" cy="120" rx="55" ry="65" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="2"/>
+    <!-- Belly -->
+    <ellipse cx="100" cy="135" rx="35" ry="40" fill="#C4956A"/>
+    <!-- Feet -->
+    <ellipse cx="80" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+    <ellipse cx="120" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+  </g>
+
+  <!-- Left Wing -->
+  <g id="left_wing">
+    <path d="M45 100 Q25 130 50 160 Q55 140 50 115Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <!-- Right Wing -->
+  <g id="right_wing">
+    <path d="M155 100 Q175 130 150 160 Q145 140 150 115Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <!-- Head feather tufts (ear tufts) -->
+  <g id="ear_tufts">
+    <path d="M65 58 L55 30 L75 50Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+    <path d="M135 58 L145 30 L125 50Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+  </g>
+
+  <!-- Left Eye (white with black pupil - looking straight) -->
+  <g id="left_eye">
+    <circle cx="78" cy="85" r="18" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="78" cy="85" r="9" fill="#1a1a1a"/>
+    <circle cx="74" cy="81" r="3" fill="white"/>
+  </g>
+
+  <!-- Right Eye (white with black pupil - looking straight) -->
+  <g id="right_eye">
+    <circle cx="122" cy="85" r="18" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="122" cy="85" r="9" fill="#1a1a1a"/>
+    <circle cx="118" cy="81" r="3" fill="white"/>
+  </g>
+
+  <!-- Glasses (round frames) -->
+  <g id="glasses" fill="none" stroke="#333" stroke-width="2.5">
+    <circle cx="78" cy="85" r="22"/>
+    <circle cx="122" cy="85" r="22"/>
+    <!-- Bridge -->
+    <line x1="100" y1="85" x2="100" y2="85"/>
+    <path d="M96 83 Q100 78 104 83" stroke="#333" stroke-width="2"/>
+    <!-- Temple arms -->
+    <line x1="56" y1="82" x2="45" y2="75"/>
+    <line x1="144" y1="82" x2="155" y2="75"/>
+  </g>
+
+  <!-- Beak -->
+  <g id="beak">
+    <path d="M95 100 L100 112 L105 100Z" fill="#E8A838" stroke="#C88C28" stroke-width="1"/>
+  </g>
+</svg>

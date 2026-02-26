@@ -51,6 +51,7 @@ export class Config {
   public freesoundClientId?: string; // Freesound Client ID
   public runwayApiKey?: string; // For Runway Gen-3 Turbo (VEO alternative)
   public openaiApiKey?: string; // For OpenAI GPT Image 1.5 (gpt-image-1.5)
+  public xaiApiKey?: string; // For xAI Grok Imagine Video (img2video animation)
   public runwayModel: "gen3a_turbo" | "veo3.1" = "gen3a_turbo"; // Runway model selection
   public runwayVeoAudio: boolean = false; // Use VEO 3.1 auto-generated audio (only for veo3.1 model)
   public ttsProvider: "kokoro" | "google" | "elevenlabs" = "kokoro"; // TTS provider selection
@@ -117,6 +118,7 @@ export class Config {
     this.freesoundClientId = process.env.FREESOUND_CLIENT_ID;
     this.runwayApiKey = process.env.RUNWAY_API_KEY;
     this.openaiApiKey = process.env.OPENAI_API_KEY;  // 🔥 OpenAI GPT Image 1.5
+    this.xaiApiKey = process.env.XAI_API_KEY;  // xAI Grok Imagine Video
     this.runwayModel = (process.env.RUNWAY_MODEL as "gen3a_turbo" | "veo3.1") || "gen3a_turbo";
     this.runwayVeoAudio = process.env.RUNWAY_VEO_AUDIO === "true";
     this.ttsProvider = (process.env.TTS_PROVIDER as "kokoro" | "google" | "elevenlabs") || "kokoro";

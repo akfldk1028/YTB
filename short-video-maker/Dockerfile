@@ -70,8 +70,18 @@ RUN apt update && apt install -y \
       fonts-nanum \
       # 🔥 fontconfig for fc-cache (font cache update)
       fontconfig \
+      # v12.2: poppler-utils for PDF→PNG conversion (NotebookLM slides)
+      poppler-utils \
+      # v5.0: Python3 + Manim dependencies (올빼미 캐릭터 애니메이션)
+      python3 \
+      python3-pip \
+      python3-dev \
+      libpango1.0-dev \
+      pkg-config \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
+    # v5.0: Install Manim Community Edition
+    && pip3 install manim --break-system-packages \
     # 🔥 Update font cache so FFmpeg can find Korean fonts
     && fc-cache -fv
 
@@ -126,6 +136,9 @@ COPY --from=prod-deps /app/node_modules /app/node_modules
 
 # Copy built application
 COPY --from=build /app/dist /app/dist
+
+# v5.0: Copy Manim Python scenes + owl SVG characters (not part of TS build)
+COPY src/YTB-video-animation/manim /app/dist/YTB-video-animation/manim
 
 # Copy package.json for runtime
 COPY package.json /app/

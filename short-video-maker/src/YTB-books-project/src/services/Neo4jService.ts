@@ -162,7 +162,10 @@ export class Neo4jService {
                c.length as length,
                c.content_offset as contentOffset,
                c.latexFormulas as latexFormulas,
-               c.sectionTitle as sectionTitle
+               c.sectionTitle as sectionTitle,
+               c.summary as summary,
+               c.keywords as keywords,
+               c.chunkType as chunkType
         ORDER BY c.position ASC
         ${limit ? `LIMIT ${limit}` : ''}
       `;
@@ -174,9 +177,11 @@ export class Neo4jService {
         bookId,
         chunkIndex: record.get('position')?.toNumber?.() || index,
         text: record.get('text') || '',
-        summary: undefined,
+        summary: record.get('summary') || undefined,
         latexFormulas: record.get('latexFormulas') || undefined,
-        sectionTitle: record.get('sectionTitle') || undefined
+        sectionTitle: record.get('sectionTitle') || undefined,
+        keywords: record.get('keywords') || undefined,
+        chunkType: record.get('chunkType') || undefined,
       }));
 
       logger.info({ bookId, count: chunks.length }, 'Chunks retrieved');
@@ -807,6 +812,8 @@ export class Neo4jService {
           sceneCount: 0,
           keywords: $keywords,
           hashtags: $hashtags,
+          description: $description,
+          summary: $summary,
           status: 'draft',
           createdAt: datetime(),
           updatedAt: datetime()
@@ -831,6 +838,8 @@ export class Neo4jService {
         ctaAction: input.ctaAction || 'next_episode',
         keywords: input.keywords || [],
         hashtags: input.hashtags || [],
+        description: input.description || '',
+        summary: input.summary || '',
         previousEpisodeId: input.previousEpisodeId || ''
       });
 
@@ -879,7 +888,9 @@ export class Neo4jService {
           mentionedEntities: $mentionedEntities,
           assignedFormula: $assignedFormula,
           formulaName: $formulaName,
-          formulaMetaphor: $formulaMetaphor
+          formulaMetaphor: $formulaMetaphor,
+          firstFramePrompt: $firstFramePrompt,
+          lastFramePrompt: $lastFramePrompt
         })
         CREATE (e)-[:HAS_SCENE {order: $sceneNumber}]->(s)
         SET e.sceneCount = COALESCE(e.sceneCount, 0) + 1,
@@ -908,7 +919,9 @@ export class Neo4jService {
         mentionedEntities: input.mentionedEntities || [],
         assignedFormula: input.assignedFormula || '',
         formulaName: input.formulaName || '',
-        formulaMetaphor: input.formulaMetaphor || ''
+        formulaMetaphor: input.formulaMetaphor || '',
+        firstFramePrompt: input.firstFramePrompt || '',
+        lastFramePrompt: input.lastFramePrompt || ''
       });
 
       if (result.records.length === 0) {
@@ -959,6 +972,8 @@ export class Neo4jService {
             sceneCount: $sceneCount,
             keywords: $keywords,
             hashtags: $hashtags,
+            description: $description,
+            summary: $summary,
             status: 'draft',
             createdAt: datetime(),
             updatedAt: datetime()
@@ -984,6 +999,8 @@ export class Neo4jService {
           sceneCount: neo4j.int(scenesInput.length),
           keywords: episodeInput.keywords || [],
           hashtags: episodeInput.hashtags || [],
+          description: episodeInput.description || '',
+          summary: episodeInput.summary || '',
           previousEpisodeId: episodeInput.previousEpisodeId || ''
         });
 
@@ -1021,7 +1038,9 @@ export class Neo4jService {
               mentionedEntities: $mentionedEntities,
               assignedFormula: $assignedFormula,
               formulaName: $formulaName,
-              formulaMetaphor: $formulaMetaphor
+              formulaMetaphor: $formulaMetaphor,
+              firstFramePrompt: $firstFramePrompt,
+              lastFramePrompt: $lastFramePrompt
             })
             CREATE (e)-[:HAS_SCENE {order: $sceneNumber}]->(s)
             RETURN s
@@ -1041,7 +1060,9 @@ export class Neo4jService {
             mentionedEntities: sceneInput.mentionedEntities || [],
             assignedFormula: (sceneInput as any).assignedFormula || '',
             formulaName: (sceneInput as any).formulaName || '',
-            formulaMetaphor: (sceneInput as any).formulaMetaphor || ''
+            formulaMetaphor: (sceneInput as any).formulaMetaphor || '',
+            firstFramePrompt: (sceneInput as any).firstFramePrompt || '',
+            lastFramePrompt: (sceneInput as any).lastFramePrompt || ''
           });
 
           if (scResult.records.length > 0) {
@@ -1513,6 +1534,205 @@ export class Neo4jService {
   }
 
   // ============================================
+  // v12.1: Smart Chunk CRUD (시맨틱 리청킹)
+  // ============================================
+
+  /**
+   * 문서의 모든 Chunk 노드 삭제 (관계 포함)
+   * Document 노드는 유지
+   */
+  async deleteChunks(documentId: string): Promise<{ deletedChunks: number }> {
+    const session = this.driver.session({ database: this.database });
+
+    try {
+      const result = await session.run(`
+        MATCH (c:Chunk {fileName: $documentId})
+        DETACH DELETE c
+        RETURN count(c) as count
+      `, { documentId });
+
+      const deletedChunks = result.records[0]?.get('count')?.toNumber?.() || 0;
+
+      // Document 노드의 chunkNodeCount 리셋
+      await session.run(`
+        MATCH (d:Document {fileName: $documentId})
+        SET d.chunkNodeCount = 0, d.total_chunks = 0
+      `, { documentId });
+
+      logger.info({ documentId, deletedChunks }, 'Deleted all chunks for document');
+      return { deletedChunks };
+    } catch (error) {
+      logger.error({ error, documentId }, 'Failed to delete chunks');
+      throw error;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * 스마트 청크 생성 (AI 시맨틱 청킹 결과를 Neo4j에 저장)
+   * 기존 Chunk 노드를 삭제한 후 호출
+   */
+  async createSmartChunks(documentId: string, chapters: Array<{
+    title: string;
+    summary: string;
+    text: string;
+    keywords: string[];
+    chunkType?: 'chapter' | 'section' | 'concept';
+  }>): Promise<{ createdChunks: number }> {
+    const session = this.driver.session({ database: this.database });
+
+    try {
+      const tx = session.beginTransaction();
+
+      try {
+        let createdCount = 0;
+
+        for (let i = 0; i < chapters.length; i++) {
+          const ch = chapters[i];
+          const chunkId = `smart_chunk_${Date.now()}_${i}`;
+
+          await tx.run(`
+            MATCH (d:Document {fileName: $documentId})
+            CREATE (c:Chunk {
+              id: $chunkId,
+              fileName: $documentId,
+              text: $text,
+              position: $position,
+              length: $length,
+              sectionTitle: $sectionTitle,
+              summary: $summary,
+              keywords: $keywords,
+              chunkType: $chunkType,
+              content_offset: $contentOffset
+            })
+            CREATE (c)-[:PART_OF]->(d)
+          `, {
+            documentId,
+            chunkId,
+            text: ch.text,
+            position: neo4j.int(i),
+            length: neo4j.int(ch.text.length),
+            sectionTitle: ch.title,
+            summary: ch.summary,
+            keywords: ch.keywords,
+            chunkType: ch.chunkType || 'chapter',
+            contentOffset: neo4j.int(0),
+          });
+
+          createdCount++;
+        }
+
+        // Document 노드의 chunkNodeCount 업데이트
+        await tx.run(`
+          MATCH (d:Document {fileName: $documentId})
+          SET d.chunkNodeCount = $count, d.total_chunks = $count
+        `, { documentId, count: neo4j.int(createdCount) });
+
+        await tx.commit();
+
+        logger.info({ documentId, createdChunks: createdCount }, 'Smart chunks created');
+        return { createdChunks: createdCount };
+      } catch (txError) {
+        await tx.rollback();
+        throw txError;
+      }
+    } catch (error) {
+      logger.error({ error, documentId }, 'Failed to create smart chunks');
+      throw error;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * 원자적 청크 교체: 기존 삭제 + 새 청크 생성을 단일 트랜잭션으로
+   */
+  async replaceChunksAtomic(documentId: string, chapters: Array<{
+    title: string;
+    summary: string;
+    text: string;
+    keywords: string[];
+    chunkType?: 'chapter' | 'section' | 'concept';
+  }>): Promise<{ deletedChunks: number; createdChunks: number }> {
+    const session = this.driver.session({ database: this.database });
+
+    try {
+      const tx = session.beginTransaction();
+
+      try {
+        // 1. 기존 청크 개수 먼저 조회 후 삭제
+        const countResult = await tx.run(`
+          MATCH (c:Chunk {fileName: $documentId})
+          RETURN count(c) as cnt
+        `, { documentId });
+        const deletedChunks = countResult.records[0]?.get('cnt')?.toNumber?.() || 0;
+
+        await tx.run(`
+          MATCH (c:Chunk {fileName: $documentId})
+          DETACH DELETE c
+        `, { documentId });
+
+        // 2. 새 청크 생성
+        let createdCount = 0;
+        for (let i = 0; i < chapters.length; i++) {
+          const ch = chapters[i];
+          const chunkId = `smart_chunk_${Date.now()}_${i}`;
+
+          await tx.run(`
+            MATCH (d:Document {fileName: $documentId})
+            CREATE (c:Chunk {
+              id: $chunkId,
+              fileName: $documentId,
+              text: $text,
+              position: $position,
+              length: $length,
+              sectionTitle: $sectionTitle,
+              summary: $summary,
+              keywords: $keywords,
+              chunkType: $chunkType,
+              content_offset: $contentOffset
+            })
+            CREATE (c)-[:PART_OF]->(d)
+          `, {
+            documentId,
+            chunkId,
+            text: ch.text,
+            position: neo4j.int(i),
+            length: neo4j.int(ch.text.length),
+            sectionTitle: ch.title,
+            summary: ch.summary,
+            keywords: ch.keywords,
+            chunkType: ch.chunkType || 'chapter',
+            contentOffset: neo4j.int(0),
+          });
+
+          createdCount++;
+        }
+
+        // 3. Document 노드 카운트 업데이트
+        await tx.run(`
+          MATCH (d:Document {fileName: $documentId})
+          SET d.chunkNodeCount = $count, d.total_chunks = $count
+        `, { documentId, count: neo4j.int(createdCount) });
+
+        await tx.commit();
+
+        logger.info({ documentId, deletedChunks, createdChunks: createdCount }, 'Chunks replaced atomically');
+        return { deletedChunks, createdChunks: createdCount };
+      } catch (txError) {
+        await tx.rollback();
+        throw txError;
+      }
+    } catch (error) {
+      logger.error({ error, documentId }, 'Failed to replace chunks atomically');
+      throw error;
+    } finally {
+      await session.close();
+    }
+  }
+
+  // ============================================
   // Helper 메서드
   // ============================================
 
@@ -1561,6 +1781,8 @@ export class Neo4jService {
       assignedFormula: props.assignedFormula || undefined,
       formulaName: props.formulaName || undefined,
       formulaMetaphor: props.formulaMetaphor || undefined,
+      firstFramePrompt: props.firstFramePrompt || undefined,
+      lastFramePrompt: props.lastFramePrompt || undefined,
     };
   }
 }

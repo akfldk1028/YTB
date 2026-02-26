@@ -1,35 +1,72 @@
 # NotebookLM Prompt Library
 
-## Folder Structure
+## 핵심: 소스 vs 프롬프트 (절대 헷갈리지 마)
+
+| 구분 | 파일 | NotebookLM 어디에 넣나 | 역할 |
+|------|------|----------------------|------|
+| **소스 (콘텐츠)** | `veo_episodes/EP01~.md` | **Copied Text** (소스 추가) | Neo4j에서 파싱한 에피소드 내용 (나레이션 + 비주얼 + VEO 키프레임) |
+| **프롬프트 (스타일)** | 이 폴더 `LM_Prompt/` | **"Describe the slide deck" 필드** | 슬라이드를 어떤 스타일/구조로 만들지 지시 |
+
+```
+[소스] EP01.md ──→ NotebookLM "Copied Text" (Sources 탭)
+                        │
+[프롬프트] EN.md ──→ "Describe the slide deck" 필드
+                        │
+                        ▼
+                  슬라이드 PNG 생성
+                        │
+                        ▼
+             VEO 3.1 / Grok / Ken Burns
+                        │
+                        ▼
+              FFmpeg (TTS + 자막)
+                        │
+                        ▼
+               YouTube Shorts 완성
+```
+
+## 소스 파일 위치
+```
+short-video-maker/downloads/books/veo_episodes/
+├── EP01_전쟁_게임_고수가_알려주는_최소_비용_작전.md
+├── EP02_...md
+└── EP10_...md
+
+생성 방법: PDF → Neo4j → AI 커리큘럼 → tmp_split_episodes.py → EP별 MD
+```
+
+## 프롬프트 파일 구조
 ```
 LM_Prompt/
 ├── neb-education/     ← NEB 교육/수학 (3B1B 스타일)
-│   ├── EN.md          ← English prompts (copy-paste)
-│   └── KR.md          ← 한국어 프롬프트 (복붙)
+│   ├── EN.md          ← "Describe" 필드에 복붙 (영어 = 잘 먹힘)
+│   └── KR.md          ← 내용 방향 보충용 (한국어)
 ├── lifestyle/         ← 멘탈훈련소 / 직장인공감 / 고양이
 │   ├── EN.md
 │   └── KR.md
-├── community/         ← 커뮤니티 베스트 프롬프트
+├── community/         ← 커뮤니티 베스트 프롬프트 모음
 │   └── EN.md
-└── veo-grok/          ← VEO 3.1 / Grok 영상 변환
+└── veo-grok/          ← 슬라이드 PNG → VEO/Grok 영상 변환
     └── EN.md
 ```
 
-## How to Use
-1. NotebookLM에 에피소드 MD 파일을 "Copied Text"로 입력
-2. Studio → Slide Deck → Customize
-3. Format: **Detailed Deck**, Language: **한국어**, Length: **Default**
-4. **"Describe the slide deck"** 필드에 아래 프롬프트 복붙:
-   - 비주얼: `EN.md`에서 복사 (영어가 잘 먹힘)
-   - 내용 방향: `KR.md`에서 복사 (한국어)
-   - 둘 다 합쳐서 넣어도 됨
+## Step by Step
 
-## Pipeline
-```
-에피소드 MD → NotebookLM (프롬프트 복붙) → 슬라이드 PNG
-  → VEO 3.1 (veo-grok/EN.md 프롬프트) → 영상 클립
-  → FFmpeg (TTS + 자막) → YouTube Shorts
-```
+### 1. 소스 넣기
+`veo_episodes/EP01_xxx.md` 파일을 NotebookLM에 **Copied Text**로 추가
+
+### 2. 슬라이드 생성
+Studio → Slide Deck → Customize:
+- Format: **Detailed Deck**
+- Language: **한국어**
+- Length: **Default**
+- "Describe": `neb-education/EN.md` 에서 원하는 프롬프트 복붙
+
+### 3. 슬라이드 → 영상
+생성된 PNG에 `veo-grok/EN.md` 프롬프트로 VEO 3.1 영상 생성
+
+### 4. 최종 합성
+FFmpeg로 TTS + 자막 + 후크 텍스트 합성 → YouTube Shorts
 
 ## References
 - [NotebookLM Video Overview 공식](https://support.google.com/notebooklm/answer/16454555)

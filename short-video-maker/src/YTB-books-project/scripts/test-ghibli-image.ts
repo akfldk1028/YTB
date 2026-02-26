@@ -10,7 +10,7 @@ import * as fs from 'fs-extra';
 // .env 로드
 dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
-import { GhibliImageService } from '../src/services/GhibliImageService';
+import { SceneImageService } from '../src/services/SceneImageService';
 
 async function testGhibliImage() {
   console.log('🎨 GPT Ghibli 이미지 생성 테스트 시작\n');
@@ -37,8 +37,8 @@ async function testGhibliImage() {
   await fs.ensureDir(outputDir);
   console.log(`📁 출력 디렉토리: ${outputDir}\n`);
 
-  // GhibliImageService 초기화
-  const service = new GhibliImageService(
+  // SceneImageService 초기화
+  const service = new SceneImageService(
     googleApiKey,
     openAiApiKey,
     outputDir
@@ -101,7 +101,7 @@ async function testGhibliImage() {
 
     // 상태 확인
     const state = service.getState();
-    console.log('📊 GhibliImageService 상태:');
+    console.log('📊 SceneImageService 상태:');
     console.log(`   - Reference 이미지 있음: ${state.hasReference}`);
     console.log(`   - 생성된 이미지 수: ${state.generatedCount}`);
     console.log(`   - Reference 이미지 크기: ${state.referenceImageSize || 0} bytes\n`);

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Owl Creature - Surprised Mode (wide eyes, raised tufts) -->
+
+  <g id="body">
+    <ellipse cx="100" cy="120" rx="55" ry="65" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="2"/>
+    <ellipse cx="100" cy="135" rx="35" ry="40" fill="#C4956A"/>
+    <ellipse cx="80" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+    <ellipse cx="120" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+  </g>
+
+  <!-- Wings spread out (surprised) -->
+  <g id="left_wing">
+    <path d="M42 90 Q15 115 40 155 Q48 130 45 100Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <g id="right_wing">
+    <path d="M158 90 Q185 115 160 155 Q152 130 155 100Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <!-- Ear tufts raised higher (surprised) -->
+  <g id="ear_tufts">
+    <path d="M65 55 L50 20 L75 48Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+    <path d="M135 55 L150 20 L125 48Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+  </g>
+
+  <!-- Wide eyes (surprised - larger pupils) -->
+  <g id="left_eye">
+    <circle cx="78" cy="85" r="20" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="78" cy="85" r="11" fill="#1a1a1a"/>
+    <circle cx="74" cy="80" r="4" fill="white"/>
+  </g>
+
+  <g id="right_eye">
+    <circle cx="122" cy="85" r="20" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="122" cy="85" r="11" fill="#1a1a1a"/>
+    <circle cx="118" cy="80" r="4" fill="white"/>
+  </g>
+
+  <g id="glasses" fill="none" stroke="#333" stroke-width="2.5">
+    <circle cx="78" cy="85" r="24"/>
+    <circle cx="122" cy="85" r="24"/>
+    <path d="M96 83 Q100 78 104 83" stroke="#333" stroke-width="2"/>
+    <line x1="54" y1="82" x2="43" y2="75"/>
+    <line x1="146" y1="82" x2="157" y2="75"/>
+  </g>
+
+  <!-- Open beak (surprised) -->
+  <g id="beak">
+    <path d="M93 100 L100 114 L107 100Z" fill="#E8A838" stroke="#C88C28" stroke-width="1"/>
+    <ellipse cx="100" cy="116" rx="5" ry="3" fill="#D4943A"/>
+  </g>
+
+  <!-- Surprise lines -->
+  <line x1="40" y1="50" x2="32" y2="42" stroke="#FFD700" stroke-width="2" opacity="0.7"/>
+  <line x1="160" y1="50" x2="168" y2="42" stroke="#FFD700" stroke-width="2" opacity="0.7"/>
+</svg>

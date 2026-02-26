@@ -163,7 +163,11 @@ export class NanoBananaService {
       let imageDescriptions = '';
       for (let imgIdx = 0; imgIdx < maxReferenceImages; imgIdx++) {
         if (isStyleMode) {
-          imageDescriptions += `Image ${imgIdx + 1}: Visual style reference for educational illustrations.\n`;
+          if (imgIdx === 0) {
+            imageDescriptions += `Image ${imgIdx + 1}: STYLE ANCHOR — this defines the visual identity for the entire episode.\n`;
+          } else {
+            imageDescriptions += `Image ${imgIdx + 1}: Additional content reference for topic context.\n`;
+          }
         } else {
           if (imgIdx === 0) {
             imageDescriptions += `Image ${imgIdx + 1}: Main character reference sheet showing the character's appearance, face, hairstyle, and clothing.\n`;
@@ -175,17 +179,10 @@ export class NanoBananaService {
 
       let consistencyInstruction: string;
       if (isStyleMode) {
-        consistencyInstruction = `${imageDescriptions}
-Generate a new scene in this EXACT SAME visual style (colors, composition, art technique, color palette).
-The scene content should be DIFFERENT - focus on the educational concept described below.
-Do NOT include any characters or people in the image.
-
-New scene: `;
+        // v9.0: style anchor — 프롬프트 기반 스타일 우선, 참조는 구도/레이아웃만
+        consistencyInstruction = `${imageDescriptions}Use the reference image as a layout and composition guide. Follow the text prompt below for color palette, background, and art style. Draw new content using only shapes, icons, and visual elements.\n\n`;
       } else {
-        consistencyInstruction = `${imageDescriptions}
-Generate a new scene with this EXACT SAME character. The character's face, hairstyle, clothing, and all visual features must be IDENTICAL to the reference images above. This is the same person.
-
-New scene: `;
+        consistencyInstruction = `${imageDescriptions}Generate a new scene with the exact same character from the reference images — identical face, hairstyle, clothing, and visual features.\n\n`;
       }
       parts.push({
         text: consistencyInstruction + query.prompt

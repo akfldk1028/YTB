@@ -3,10 +3,12 @@
  * 책 → Shorts 파이프라인 타입 정의
  */
 
-import type { GhibliStyleConfig } from '../services/GhibliImageService';
+import type { SceneImageConfig } from '../services/SceneImageService';
 
-// Re-export from service
-export type { SceneImageResult, GhibliStyleConfig } from '../services/GhibliImageService';
+// Re-export from service (+ backwards compat aliases)
+export type { SceneImageResult, SceneImageConfig } from '../services/SceneImageService';
+/** @deprecated Use SceneImageConfig */
+export type GhibliStyleConfig = SceneImageConfig;
 
 /**
  * 책 청크 정보 (Neo4j에서 조회)
@@ -21,6 +23,8 @@ export interface BookChunk {
   embedding?: number[];
   latexFormulas?: string[];      // v3.1.0: Neo4j에서 가져온 LaTeX 수식 목록
   sectionTitle?: string;         // v3.1.0: 청크의 섹션 제목
+  keywords?: string[];           // v12.1: AI 시맨틱 청킹 키워드
+  chunkType?: 'chapter' | 'section' | 'concept';  // v12.1: 청크 유형
 }
 
 /**
@@ -35,15 +39,17 @@ export interface SceneGenerationInput {
 }
 
 /**
- * 지브리 스타일 씬
+ * Book 씬 (스타일 프로파일 기반)
  */
-export interface GhibliScene {
+export interface BookScene {
   sceneIndex: number;
   narration: string;
   imagePrompt: string;
   videoPrompt?: string;
-  style: GhibliStyleConfig;
+  style: SceneImageConfig;
 }
+/** @deprecated Use BookScene */
+export type GhibliScene = BookScene;
 
 /**
  * Shorts 생성 상태
@@ -72,8 +78,8 @@ export interface BookMetadata {
  * Shorts 생성 설정
  */
 export interface ShortsGenerationConfig {
-  /** 지브리 스타일 설정 */
-  ghibliStyle?: GhibliStyleConfig;
+  /** 씬 이미지 스타일 설정 */
+  imageStyle?: SceneImageConfig;
   /** 영상 방향 (portrait for Shorts) */
   orientation?: 'portrait' | 'landscape';
   /** VEO3 I2V 사용 여부 */
@@ -180,6 +186,12 @@ export interface Episode {
   videoPath?: string;
   /** YouTube 업로드 ID */
   youtubeId?: string;
+  /** v8.1: YouTube SEO 설명문 (ContentPlanner 생성) */
+  description?: string;
+  /** v8.1: 에피소드 요약 (다음 에피소드 컨텍스트 + YouTube 설명용) */
+  summary?: string;
+  /** v8.1: YouTube 업로드 시각 */
+  uploadedAt?: Date;
 }
 
 /**
@@ -214,6 +226,10 @@ export interface Scene {
   formulaName?: string;
   /** v3.3.0: 수식의 고등학생 수준 비유 (예: "원본과 복사본 비교하기") */
   formulaMetaphor?: string;
+  /** v11.0: VEO 보간용 시작 키프레임 이미지 프롬프트 (ContentPlanner가 생성) */
+  firstFramePrompt?: string;
+  /** v11.0: VEO 보간용 종료 키프레임 이미지 프롬프트 (ContentPlanner가 생성) */
+  lastFramePrompt?: string;
 }
 
 /**
@@ -229,6 +245,10 @@ export interface CreateEpisodeInput {
   keywords?: string[];
   hashtags?: string[];
   previousEpisodeId?: string;
+  /** v8.1: YouTube SEO 설명문 */
+  description?: string;
+  /** v8.1: 에피소드 요약 */
+  summary?: string;
 }
 
 /**
@@ -253,6 +273,10 @@ export interface CreateSceneInput {
   formulaName?: string;
   /** v3.3.0: 수식 비유 */
   formulaMetaphor?: string;
+  /** v11.0: VEO 보간용 시작 키프레임 이미지 프롬프트 */
+  firstFramePrompt?: string;
+  /** v11.0: VEO 보간용 종료 키프레임 이미지 프롬프트 */
+  lastFramePrompt?: string;
 }
 
 /**
@@ -290,6 +314,8 @@ export type DocumentContentType = 'math_science' | 'humanities' | 'social_scienc
 export interface DocumentVideoConfig {
   /** 콘텐츠 유형 (기본 프리셋 결정) */
   contentType: DocumentContentType;
+  /** v3.7.0: 비주얼 스타일 ID (ghibli, math_character 등) — 미설정 시 contentType에서 자동 추론 */
+  style?: string;
   /** 씬당 나레이션 최대 글자수 */
   maxNarrationLength?: number;
   /** 수식 씬 나레이션 최대 글자수 */

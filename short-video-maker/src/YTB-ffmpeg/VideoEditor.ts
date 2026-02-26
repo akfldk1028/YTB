@@ -545,6 +545,65 @@ export class VideoEditor {
   }
 
   /**
+   * v4.0: Trim or loop video to exact target duration
+   * - 비디오가 길면: -t duration으로 trim
+   * - 비디오가 짧으면: -stream_loop -1 -t duration으로 loop
+   * Used by VideoAnimationService when Grok returns non-exact duration clips
+   */
+  async trimOrLoopVideo(
+    inputPath: string,
+    outputPath: string,
+    targetDuration: number
+  ): Promise<void> {
+    const sourceDuration = await this.getVideoDuration(inputPath);
+
+    logger.debug({
+      inputPath,
+      outputPath,
+      sourceDuration,
+      targetDuration,
+    }, "Trimming/looping video to target duration");
+
+    // 오차 0.1초 이내면 그냥 복사
+    if (Math.abs(sourceDuration - targetDuration) < 0.1) {
+      await fs.copy(inputPath, outputPath, { overwrite: true });
+      return;
+    }
+
+    const needsLoop = sourceDuration < targetDuration;
+
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg(inputPath);
+
+      if (needsLoop) {
+        command.inputOptions(['-stream_loop', '-1']);
+      }
+
+      command
+        .setDuration(targetDuration)
+        .videoCodec('libx264')
+        .noAudio()
+        .outputOptions([
+          '-preset', 'ultrafast',
+          '-crf', '23',
+          '-pix_fmt', 'yuv420p',
+        ])
+        .on('start', (commandLine) => {
+          logger.debug('FFmpeg trimOrLoopVideo command: ' + commandLine);
+        })
+        .on('end', () => {
+          logger.debug({ outputPath, targetDuration, looped: needsLoop }, "Video trim/loop complete");
+          resolve();
+        })
+        .on('error', (err) => {
+          logger.error({ error: err, inputPath, outputPath }, "FFmpeg trimOrLoopVideo failed");
+          reject(err);
+        })
+        .save(outputPath);
+    });
+  }
+
+  /**
    * Create static video from single image
    */
   async createStaticVideoFromImage(
@@ -574,6 +633,156 @@ export class VideoEditor {
         })
         .on('error', (error: any) => {
           logger.error(error, "Error creating static video from image");
+          reject(error);
+        })
+        .save(outputPath);
+    });
+  }
+
+  /**
+   * v4.1: Build zoompan filter expression for Ken Burns effect
+   * Extracted to avoid duplication between createKenBurnsVideoFromImage and createKenBurnsVideoWithFormulaOverlay
+   */
+  private buildZoompanFilter(
+    effect: 'zoom_in' | 'zoom_out' | 'pan_right' | 'pan_left',
+    frames: number,
+    w: number,
+    h: number
+  ): string {
+    // zoom speed: 0.004/frame → 6초(180frames)에 1.0→1.72x (확실히 보이는 수준)
+    // pan speed: 4px/frame → 6초에 720px 이동 (화면 폭의 ~67%)
+    switch (effect) {
+      case 'zoom_out':
+        return `zoompan=z='if(eq(on,1),1.8,max(zoom-0.004,1.0))':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${w}x${h}:fps=30`;
+      case 'pan_right':
+        return `zoompan=z=1.2:d=${frames}:x='if(eq(on,1),0,min(x+4,iw-iw/zoom))':y='ih/2-(ih/zoom/2)':s=${w}x${h}:fps=30`;
+      case 'pan_left':
+        return `zoompan=z=1.2:d=${frames}:x='if(eq(on,1),iw-iw/zoom,max(x-4,0))':y='ih/2-(ih/zoom/2)':s=${w}x${h}:fps=30`;
+      case 'zoom_in':
+      default:
+        return `zoompan=z='min(zoom+0.004,1.8)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${w}x${h}:fps=30`;
+    }
+  }
+
+  /**
+   * v4.1: Create Ken Burns (zoompan) video from a single image
+   * Adds subtle motion (zoom/pan) to static images for better engagement
+   */
+  async createKenBurnsVideoFromImage(
+    imagePath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: string,
+    effect?: 'zoom_in' | 'zoom_out' | 'pan_right' | 'pan_left'
+  ): Promise<void> {
+    const safeDuration = Math.max(duration, 0.5);
+    const [w, h] = dimensions.split('x').map(Number);
+    const frames = Math.round(safeDuration * 30);
+    const selectedEffect = effect || 'zoom_in';
+
+    logger.info({ imagePath, outputPath, duration: safeDuration, dimensions, effect: selectedEffect, frames }, "🎬 Creating Ken Burns video from image");
+
+    // zoompan은 단일 이미지 입력 필요 — -loop 1 사용하면 프레임 폭발 (d * input_frames)
+    const zoompanFilter = this.buildZoompanFilter(selectedEffect, frames, w, h);
+    const filterComplex = `[0:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:-1:-1:color=black,${zoompanFilter},format=yuv420p[v]`;
+
+    return new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(imagePath)
+        .complexFilter(filterComplex)
+        .outputOption('-map [v]')
+        .videoCodec('libx264')
+        .outputOptions(['-preset', 'ultrafast', '-crf', '23'])
+        .on('start', (commandLine) => {
+          logger.debug('FFmpeg createKenBurnsVideoFromImage command: ' + commandLine);
+        })
+        .on('end', () => {
+          logger.info({ outputPath, effect: selectedEffect }, "🎬 Ken Burns video creation complete");
+          resolve();
+        })
+        .on('error', (error: any) => {
+          logger.error({ error, imagePath, effect: selectedEffect }, "Error creating Ken Burns video");
+          reject(error);
+        })
+        .save(outputPath);
+    });
+  }
+
+  /**
+   * v4.1: Create Ken Burns video with formula PNG overlay
+   * Background has zoompan motion, formula PNG stays fixed position
+   */
+  async createKenBurnsVideoWithFormulaOverlay(
+    imagePath: string,
+    outputPath: string,
+    duration: number,
+    dimensions: string,
+    pngPath: string,
+    pngWidth: number,
+    pngHeight: number,
+    position: 'center' | 'top' | 'bottom',
+    effect?: 'zoom_in' | 'zoom_out' | 'pan_right' | 'pan_left'
+  ): Promise<void> {
+    const safeDuration = Math.max(duration, 0.5);
+    const [w, h] = dimensions.split('x').map(Number);
+    const frames = Math.round(safeDuration * 30);
+    const selectedEffect = effect || 'zoom_in';
+
+    // Reuse formula scaling logic from createVideoWithFormulaOverlayPng
+    let overlayY: string;
+    switch (position) {
+      case 'top':
+        overlayY = `${Math.round(h * 0.05)}`;
+        break;
+      case 'bottom':
+        overlayY = `${Math.round(h * 0.65)}`;
+        break;
+      default:
+        overlayY = `(H-h)/2`;
+    }
+
+    // Adaptive formula scaling — pngWidth=0 방어: 최소 화면 30% 보장
+    const safePngWidth = pngWidth > 0 ? pngWidth : Math.round(w * 0.3);
+    let targetWidth: number;
+    if (safePngWidth < w * 0.2) {
+      targetWidth = Math.min(Math.round(w * 0.25), safePngWidth * 3);
+    } else if (safePngWidth < w * 0.4) {
+      targetWidth = Math.min(Math.round(w * 0.40), safePngWidth * 2);
+    } else if (safePngWidth < w * 0.6) {
+      targetWidth = Math.round(w * 0.60);
+    } else {
+      targetWidth = Math.round(w * 0.85);
+    }
+
+    logger.info({
+      imagePath, pngPath, outputPath, duration: safeDuration, dimensions,
+      effect: selectedEffect, position, overlayY, targetWidth, safePngWidth,
+    }, "🎬📐 Creating Ken Burns video with formula overlay");
+
+    // zoompan은 단일 이미지 입력 필요 — -loop 1 사용 금지 (d * input_frames 폭발)
+    const zoompanExpr = this.buildZoompanFilter(selectedEffect, frames, w, h);
+
+    return new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(imagePath)
+        .input(pngPath)
+        .complexFilter([
+          `[0:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:-1:-1:color=black,${zoompanExpr}[bg]`,
+          `[1:v]scale=${targetWidth}:-1[formula]`,
+          `[bg][formula]overlay=(W-w)/2:${overlayY}[v]`
+        ])
+        .outputOption('-map [v]')
+        .videoCodec('libx264')
+        .outputOptions(['-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p'])
+        .on('start', (commandLine) => {
+          logger.debug('FFmpeg createKenBurnsVideoWithFormulaOverlay command: ' + commandLine);
+        })
+        .on('end', () => {
+          logger.info({ outputPath, effect: selectedEffect }, "🎬📐 Ken Burns video with formula overlay complete");
+          resolve();
+        })
+        .on('error', (error: any) => {
+          logger.error({ error, pngPath, effect: selectedEffect }, "Error creating Ken Burns video with formula overlay");
           reject(error);
         })
         .save(outputPath);

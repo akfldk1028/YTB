@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Owl Creature - Pointing Mode (right wing extended up, eyes looking at target) -->
+
+  <g id="body">
+    <ellipse cx="100" cy="120" rx="55" ry="65" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="2"/>
+    <ellipse cx="100" cy="135" rx="35" ry="40" fill="#C4956A"/>
+    <ellipse cx="80" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+    <ellipse cx="120" cy="182" rx="12" ry="5" fill="#D4A25A"/>
+  </g>
+
+  <g id="left_wing">
+    <path d="M45 100 Q25 130 50 160 Q55 140 50 115Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+  </g>
+
+  <!-- Right wing pointing up-right -->
+  <g id="right_wing">
+    <path d="M155 95 Q180 70 175 45 Q170 55 160 80 Q155 90 155 95Z" fill="#7A5232" stroke="#5C3D2E" stroke-width="1.5"/>
+    <!-- Wing tip (feather detail) -->
+    <path d="M175 45 L180 38 L172 42Z" fill="#6B4528"/>
+  </g>
+
+  <g id="ear_tufts">
+    <path d="M65 58 L55 30 L75 50Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+    <path d="M135 58 L145 30 L125 50Z" fill="#8B5E3C" stroke="#5C3D2E" stroke-width="1"/>
+  </g>
+
+  <!-- Eyes looking up-right (at what's being pointed at) -->
+  <g id="left_eye">
+    <circle cx="78" cy="85" r="18" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="84" cy="80" r="9" fill="#1a1a1a"/>
+    <circle cx="81" cy="76" r="3" fill="white"/>
+  </g>
+
+  <g id="right_eye">
+    <circle cx="122" cy="85" r="18" fill="white" stroke="#333" stroke-width="2"/>
+    <circle cx="128" cy="80" r="9" fill="#1a1a1a"/>
+    <circle cx="125" cy="76" r="3" fill="white"/>
+  </g>
+
+  <g id="glasses" fill="none" stroke="#333" stroke-width="2.5">
+    <circle cx="78" cy="85" r="22"/>
+    <circle cx="122" cy="85" r="22"/>
+    <path d="M96 83 Q100 78 104 83" stroke="#333" stroke-width="2"/>
+    <line x1="56" y1="82" x2="45" y2="75"/>
+    <line x1="144" y1="82" x2="155" y2="75"/>
+  </g>
+
+  <g id="beak">
+    <path d="M95 100 L100 112 L105 100Z" fill="#E8A838" stroke="#C88C28" stroke-width="1"/>
+  </g>
+</svg>

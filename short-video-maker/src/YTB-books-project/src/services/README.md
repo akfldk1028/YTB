@@ -1,7 +1,7 @@
 # Services - 비즈니스 로직 계층
 
-> Last Updated: 2026-02-04
-> Status: **v3.4.2 MathJax AllPackages 크래시 수정 — 수식 PNG 렌더링 완전 복구**
+> Last Updated: 2026-02-25
+> Status: **v12.1 NotebookLM + VEO 3.1 + 멀티 스타일 (4개 활성) + 핸들러 분리**
 >
 > **핵심 철학**: 수식이 주인공. math_science 문서는 수식 중심 커리큘럼으로 자동 전환. 각 씬에 assignedFormula 할당, 고등학생 수준 40-60자 나레이션
 >
@@ -19,32 +19,68 @@
 
 | 서비스 | 파일 | 상태 | 설명 |
 |--------|------|:----:|------|
-| Neo4jService | `Neo4jService.ts` | ✅ | Neo4j 연결/쿼리 + Episode/Scene CRUD + contentType 캐싱 |
-| ContentPlannerService | `ContentPlannerService.ts` | ✅ | AI 분석 (Gemini) → ShortsPlan |
-| GhibliImageService | `GhibliImageService.ts` | ✅ | GPT + NanoBanana 하이브리드 이미지 |
-| BooksVideoService | `BooksVideoService.ts` | ✅ | TTS + FFmpeg 비디오 생성 (테스트 완료) |
-| MathFormulaService | `MathFormulaService.ts` | ✅ | MathJax v4 LaTeX → SVG → PNG 렌더링 (v3.4.2: AllPackages 제거, 완전 복구) |
+| Neo4jService | `Neo4jService.ts` | ✅ | Neo4j 연결/쿼리 + Episode/Scene CRUD + replaceChunksAtomic (v12.1) |
+| ContentPlannerService | `ContentPlannerService.ts` | ✅ | AI 분석 (Gemini) → ShortsPlan (939줄, v7.0 리팩토링) |
+| SceneImageService | `SceneImageService.ts` | ✅ | NanoBanana 이미지 생성 (v7.0 리네이밍, GPT-4o 제거) |
+| BooksVideoService | `BooksVideoService.ts` | ✅ | TTS + FFmpeg 비디오 생성 (VEO/Hook 분기 포함) |
+| MathFormulaService | `MathFormulaService.ts` | ✅ | MathJax v4 LaTeX → SVG → PNG 렌더링 |
+| StyleRegistry | `styles/index.ts` | ✅ | Strategy Pattern 스타일 프로파일 (4개 활성 + 1 legacy) |
+| LongFormCompilerService | `LongFormCompilerService.ts` | ✅ | 숏츠 N개 → 롱폼 컴필레이션 (VideoConcat + 챕터) |
+| YouTubePublishService | `YouTubePublishService.ts` | ✅ | YouTube 자동 업로드 (OAuth2) |
+| VeoInterpolationNode | `VeoInterpolationNode.ts` | ✅ | VEO 3.1 프레임 보간 (v11.0, n8n 노드) |
+| HookTextOverlayNode | `HookTextOverlayNode.ts` | ✅ | FFmpeg 후크 텍스트 오버레이 (v12.0, n8n 노드) |
+| NotebookLMService | `NotebookLMService.ts` | ✅ | NotebookLM export/import (v12.1, n8n 노드) |
+| SemanticRechunkService | `SemanticRechunkService.ts` | ✅ | AI 시맨틱 청킹 (v12.1, Gemini Flash) |
+| SlideToVideoNode | `SlideToVideoNode.ts` | ✅ | 슬라이드 → 비디오 변환 (n8n 노드) |
+| EpisodeOrchestrator | `orchestration/EpisodeOrchestrator.ts` | ✅ | 이미지/비디오 파이프라인 오케스트레이션 (v7.0) |
 
 ---
 
 ## 서비스 의존성
 
 ```
-BooksRouter (API)
+BooksRouter (v12.1: RouterContext + 10 handlers)
     │
     ├── Neo4jService
     │   └── neo4j-driver (bolt://34.47.112.49:7687)
     │
-    ├── ContentPlannerService
+    ├── ContentPlannerService (939줄, v7.0)
     │   └── Gemini API (@google/generative-ai)
     │
-    ├── GhibliImageService
-    │   ├── GPTImageService (OpenAI gpt-image-1.5)
-    │   └── NanoBananaService (Gemini Imagen)
+    ├── EpisodeOrchestrator (v7.0)
+    │   └── SceneImageService → NanoBananaService
+    │
+    ├── SceneImageService (v7.0, 구 GhibliImageService)
+    │   └── NanoBananaService (Gemini Imagen, 모든 이미지)
+    │
+    ├── StyleRegistry (styles/)
+    │   ├── VideoStyleProfile (interface)
+    │   ├── MathCharacterStyleProfile (PRIMARY)
+    │   ├── ViralCatStyleProfile (v10.0)
+    │   ├── PhilosophyMentorStyleProfile (v12.0)
+    │   └── HumanitiesStyleProfile
+    │
+    ├── VeoInterpolationNode (v11.0)
+    │   └── VEO 3.1 API
+    │
+    ├── HookTextOverlayNode (v12.0)
+    │   └── FFmpeg drawtext
+    │
+    ├── LongFormCompilerService (v9.0)
+    │   └── VideoConcat (concatVideosWithXfade)
+    │
+    ├── YouTubePublishService (v8.1)
+    │   └── YouTube Data API v3 (OAuth2)
+    │
+    ├── NotebookLMService (v12.1)
+    │   └── NotebookLM export/import
+    │
+    ├── SemanticRechunkService (v12.1)
+    │   └── Gemini Flash (AI 시맨틱 청킹)
     │
     └── BooksVideoService
-        ├── GeminiTTS
-        └── FFmpeg
+        ├── GeminiTTS (스타일별 voice 자동 선택)
+        └── FFmpeg (overlay + 자막 합성)
 ```
 
 ---
@@ -190,7 +226,7 @@ interface ContentPlannerConfig {
   maxShortsPerBook?: number;       // default: 10
   maxScenesPerShort?: number;      // default: 8
   language?: 'ko' | 'en';          // default: ko
-  style?: string;                  // default: ghibli
+  style?: string;                  // default: math_character (교육 콘텐츠 기본)
 
   // 🆕 ELI5 옵션
   audienceLevel?: 'elementary' | 'general' | 'professional';  // default: general
@@ -248,15 +284,30 @@ analyzeAndPlan(options: PlanningOptions): Promise<ShortsPlan>
 
 ---
 
-## GhibliImageService (v2.9.0 - 다이어그램 감지)
+## SceneImageService (v9.0 - Ghibli 완전 제거, NanoBanana Only)
 
-하이브리드 이미지 생성 (캐릭터 일관성 + 다이어그램 자동 전환)
+NanoBanana 이미지 생성 (v3.8.0: GPT-4o 완전 제거, 스타일별 캐릭터 일관성 + 다이어그램 자동 전환)
 
-### 전략
-```
-Scene 0 → GPT-4o로 마스터 이미지 (~50초)
-Scene 1+ → NanoBanana + referenceImage (~10초/장)
-```
+> **참고**: `GhibliImageService.ts`는 하위호환 re-export wrapper 파일 (deprecated). 실제 코드는 `SceneImageService.ts`에 있음.
+
+### 전략 (v3.8.0)
+| 씬 타입 | imageMode | 이미지 전략 | 캐릭터 |
+|---------|-----------|------------|--------|
+| narrative (hook/conclusion) | narrative 또는 educational* | NanoBanana character ref | O (올빼미 교수 / 수채화 캐릭터) |
+| educational (explanation/data) | educational | NanoBanana style ref | X |
+| formula (assignedFormula 씬) | formula | NanoBanana style ref | X |
+
+*non-ghibli 스타일은 educational path + styleOverridePrefix로 기본 스타일 우회
+
+### v3.8.0: GPT-4o 제거
+- `forceGpt` 파라미터: BooksRouter에서 더 이상 전달하지 않음 (인터페이스는 보존)
+- 첫 씬 GPT-4o 블록: 제거 → 모든 narrative 씬이 NanoBanana로 직행
+- 첫 씬 결과는 `referenceImage`로 저장 → 이후 씬 캐릭터 일관성 유지
+- GPT-4o 서비스 코드는 삭제하지 않음 (필요 시 복구 가능)
+
+### v3.7.0: 스타일 프로파일 연동
+- `styleOverridePrefix`: 외부 스타일 프리픽스가 GHIBLI_STYLE_PREFIX 대신 사용됨
+- `compositions`: 스타일별 카메라 구도 배열
 
 ### v2.9.0: 다이어그램/인포그래픽 자동 감지
 
@@ -275,6 +326,195 @@ Scene 1+ → NanoBanana + referenceImage (~10초/장)
 generateSceneImage(prompt, sceneIndex, aspectRatio, config?, videoId?): Promise<SceneImageResult>
 generateAllSceneImages(scenes, aspectRatio, videoId?): Promise<SceneImageResult[]>
 ```
+
+---
+
+## StyleRegistry (v12.0 - Strategy Pattern, 4개 활성 프로파일)
+
+스타일별 비주얼/TTS/수식 설정을 프로파일로 분리. 새 스타일 = 1파일 + registry 등록.
+
+### 구조
+```
+styles/
+├── VideoStyleProfile.ts          # 인터페이스 (+engagementGuide, hookTextOverlay)
+├── MathCharacterStyleProfile.ts  # PRIMARY: 올빼미 교수, dark navy, Charon
+├── ViralCatStyleProfile.ts       # v10.0: 고양이+수채화+직장인공감, Fenrir
+├── PhilosophyMentorStyleProfile.ts # v12.0: 멘탈훈련소, Enceladus
+├── HumanitiesStyleProfile.ts     # 인문학: 역사/철학/문학
+├── GhibliStyleProfile.ts         # DEPRECATED (하위호환 re-export)
+├── ContentPlannerStyleGuide.ts   # 스타일 선택 유틸
+└── index.ts                      # getStyleProfile(id?) 팩토리 + STYLE_REGISTRY
+```
+
+### 활성 프로파일 비교
+
+| 스타일 | 캐릭터 | 배경 | TTS Voice | hookTextOverlay | 용도 |
+|--------|--------|------|-----------|:---:|------|
+| `math_character` | 안경 올빼미 | dark navy | Charon (남성) | X | 수학/과학 교육 |
+| `viral_cat` | 고양이 | 따뜻한 수채화 | Fenrir (남성) | O | 직장인 공감/라이프스타일 |
+| `philosophy_mentor` | 만화풍 | 따뜻한 톤 | Enceladus (남성) | O | 철학/마인드셋/멘탈 |
+| `humanities` | - | 시네마틱 | Charon | X | 역사/철학/문학 |
+
+### 새 스타일 추가 방법
+1. `styles/NewStyleProfile.ts` 파일 생성 (VideoStyleProfile 구현)
+2. `styles/index.ts`의 STYLE_REGISTRY에 등록
+3. (optional) `prompts/`에 전용 콘텐츠 가이드 추가
+4. 끝. 기존 코드 변경 없음.
+
+### VideoStyleProfile 인터페이스 (v12.0)
+```typescript
+interface VideoStyleProfile {
+  id: string;
+  narrativeStylePrefix: string;
+  educationalStylePrefix: string;
+  ttsVoice: string;
+  ttsGender: 'male' | 'female';
+  compositions: string[];
+  engagementGuide?: string;       // v10.0: 커스텀 바이럴 가이드
+  hookTextOverlay?: {              // v12.0: 후크 텍스트 오버레이 설정
+    enabled: boolean;
+    fontColor?: string;
+    fontSize?: number;
+  };
+}
+```
+
+### 자동 감지 우선순위 (4중 방어)
+1. API `config.style` → 명시적 지정
+2. Neo4j `videoConfig.style` → 문서별 저장된 스타일
+3. Neo4j `contentType` 매핑 (math_science → math_character, empathy_lifestyle → viral_cat)
+4. Episode `assignedFormula` 존재 → math_character
+5. Fallback → math_character (기본)
+
+---
+
+## LongFormCompilerService (v9.0 - 롱폼 컴필레이션)
+
+숏츠 N개를 합쳐서 8-15분 롱폼 비디오 생성 (Phase 2 수익화)
+
+### n8n 노드 인터페이스
+```typescript
+interface CompileInput {
+  documentId: string;
+  episodeIds?: string[];       // 미지정 시 completed 에피소드 전부
+  title?: string;
+  transitionType?: string;     // default: 'dissolve'
+  transitionDuration?: number; // default: 0.5
+  orientation?: string;        // default: '1080x1920' (portrait)
+  includeChapters?: boolean;   // default: true
+}
+
+interface CompileOutput {
+  success: boolean;
+  videoPath?: string;
+  duration?: number;
+  episodeCount?: number;
+  chapters?: Array<{ title: string; startTime: number }>;
+  error?: string;
+}
+```
+
+### 핵심 메서드
+- `compile(input)` — 에피소드 비디오들 → 1개 롱폼 비디오 + 챕터
+- `getCompilableEpisodes(documentId)` — 컴파일 가능 에피소드 목록
+
+### 의존성
+- `VideoConcat.concatVideosWithXfade()` — dissolve 트랜지션
+- `getVideoDuration()` — 챕터 시작 시간 계산
+- `Neo4jService.getDocumentEpisodes()` — 에피소드 조회
+
+---
+
+## YouTubePublishService (v8.1 - YouTube 자동 업로드)
+
+에피소드 → YouTube 업로드 (n8n 노드 패턴)
+
+### n8n 노드 인터페이스
+- `PublishInput` → `publish()` → `PublishOutput`
+- YouTube Data API v3 (OAuth2)
+- 업로드 후 Neo4j 상태 업데이트 (`updateEpisodeStatus(id, 'uploaded', { youtubeId })`)
+
+---
+
+## VeoInterpolationNode (v11.0 - VEO 3.1 Frame Interpolation)
+
+씬당 키프레임 2장 → VEO 3.1 AI 보간 → 8초 시네마틱 비디오 (n8n 노드 패턴)
+
+### n8n 노드 인터페이스
+```typescript
+interface VeoInterpolationInput {
+  firstFramePath: string;    // 첫 키프레임 이미지
+  lastFramePath: string;     // 마지막 키프레임 이미지
+  durationSeconds?: number;  // default: 8
+  model?: string;            // default: veo-3.1-fast-generate-preview
+}
+
+interface VeoInterpolationOutput {
+  success: boolean;
+  videoPath?: string;
+  duration?: number;
+  error?: string;
+}
+```
+
+### 사용
+- `useVeo: true` API 파라미터 → 전체 파이프라인 VEO 모드 전환
+- ContentPlanner: `useVeoInterpolation=true` → AI가 씬별 `firstFramePrompt`/`lastFramePrompt` 생성
+- EpisodeOrchestrator: `generateKeyframePairs()` — 씬당 2장 이미지 생성
+- BooksVideoService Step 2: VEO 분기 (성공→trim+resize, 실패→Ken Burns fallback)
+- 비용: ~$1.3/에피소드, 하위 호환 100%
+
+---
+
+## HookTextOverlayNode (v12.0 - FFmpeg Hook 텍스트 오버레이)
+
+첫 씬에 굵은 한국어 후크 텍스트를 FFmpeg drawtext로 오버레이 (n8n 노드 패턴)
+
+### 사용
+- VideoStyleProfile의 `hookTextOverlay.enabled: true` 시 활성화
+- BooksVideoService Step 2.5에서 자동 분기
+- 현재 활성: `philosophy_mentor`, `viral_cat`
+- 미설정 스타일은 기존 파이프라인 그대로 (하위 호환)
+
+---
+
+## NotebookLMService (v12.1 - NotebookLM Export/Import)
+
+NotebookLM 연동 서비스 (n8n 노드 패턴, 290줄)
+
+### 핵심 메서드
+- `exportPackage(bookId)` — Neo4j → NotebookLM 소스 파일 export
+- `exportEpisodes(bookId)` — 에피소드별 슬라이드 export
+- `importSlides(bookId, slidesData)` — NotebookLM 슬라이드 import → VEO 파이프라인
+- OCR 깨짐 텍스트 클리닝: `cleanGarbledText()` + `trimTrailingGarbage()`
+  - 한글 비율 <15% 줄 제거, trailing garbage 자동 정리
+
+### 폴더 구조
+```
+notebookLM/{bookSlug}/
+├── sources/     # Neo4j 청크 → txt 파일
+├── prompts/     # 프롬프트 가이드
+├── episodes/    # 에피소드 슬라이드
+└── slides/      # import된 슬라이드
+```
+
+### Circular Flow
+```
+export → NotebookLM (external) → slides → import/slides → VEO 파이프라인
+```
+
+---
+
+## SemanticRechunkService (v12.1 - AI 시맨틱 청킹)
+
+Neo4j 청크를 의미 단위로 재분할 (252줄)
+
+### 핵심 메서드
+- `rechunk(bookId)` — AI가 chunkIndices로 의미 단위 병합 지시 → Neo4j 원자적 교체
+- `Neo4jService.replaceChunksAtomic()` — 삭제+생성 단일 트랜잭션
+- 청크 스키마 확장: `sectionTitle`, `summary`, `keywords`, `chunkType`
+- 모델: `gemini-3-flash-preview`
+- 결과: Sonja 50→19 chunks, AR_TALK 28→13 chunks (주제별 의미 단위)
 
 ---
 
@@ -462,10 +702,15 @@ USE_NOUGAT_FOR_PDF: true
 - [x] 점진적 비디오 생성 API
 - [x] 수학 수식 LaTeX 렌더링
 - [x] ICS 시각화 프레임워크 + 다이어그램 감지 (v2.9.0)
+- [x] YouTube 자동 업로드 (v8.1)
+- [x] Viral Cat 스타일 피벗 (v10.0)
+- [x] VEO 3.1 Frame Interpolation (v11.0)
+- [x] 모듈별 독립 테스트 + PhilosophyMentor 스타일 (v12.0)
+- [x] NotebookLM 파이프라인 + 시맨틱 리청킹 (v12.1)
+- [x] BooksRouter 핸들러 분리 (v12.1)
 - [ ] Nougat PDF 재처리 (AR_TALK.pdf)
 - [ ] n8n 워크플로우 연동
 - [ ] 24시간 Cron 자동화
-- [ ] YouTube 자동 업로드
 
 ---
 

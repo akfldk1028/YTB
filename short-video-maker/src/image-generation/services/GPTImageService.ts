@@ -12,9 +12,7 @@ import { logger } from '../../config';
 // 🔥 지브리 스타일 프롬프트 프리픽스 (OpenAI 모더레이션 통과)
 // Note: "Ghibli-style" OK, but "Studio Ghibli" or "Hayao Miyazaki" are blocked
 // Reference: https://docs.aihubmix.com/en/api/GPT-Image-1
-export const GHIBLI_STYLE_PREFIX = `Ghibli-style animation, hand-painted aesthetic,
-soft watercolor textures, warm nostalgic lighting, whimsical dreamlike atmosphere,
-detailed natural environments, expressive character design.`;
+export const GHIBLI_STYLE_PREFIX = `In Ghibli-style hand-painted watercolor with soft textures, warm nostalgic lighting, and a whimsical dreamlike atmosphere. Detailed natural environments with expressive character design`;
 
 export class GPTImageService {
   private generator: GPTImageGenerator;

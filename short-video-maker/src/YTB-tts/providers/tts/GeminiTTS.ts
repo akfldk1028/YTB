@@ -34,12 +34,16 @@ export const GEMINI_KOREAN_VOICES = {
     { name: 'Leda', style: 'warm', description: '따뜻하고 친근한 목소리' },
     { name: 'Zephyr', style: 'gentle', description: '부드럽고 편안한 목소리' },
     { name: 'Aoede', style: 'bright', description: '밝고 생동감 있는 목소리' },
+    { name: 'Gacrux', style: 'mature', description: '성숙하고 신뢰감 있는 목소리' },
+    { name: 'Erinome', style: 'clear', description: '명확하고 교육적인 목소리' },
   ],
   male: [
     { name: 'Puck', style: 'upbeat', description: '활기차고 경쾌한 목소리' },
-    { name: 'Charon', style: 'firm', description: '단단하고 힘 있는 목소리' },
+    { name: 'Charon', style: 'firm', description: '단단하고 힘 있는 목소리 (뉴스/정보)' },
     { name: 'Fenrir', style: 'deep', description: '깊고 중후한 목소리' },
     { name: 'Enceladus', style: 'calm', description: '차분하고 안정적인 목소리' },
+    { name: 'Sadaltager', style: 'knowledgeable', description: '지적이고 신뢰감 있는 목소리 (교육/강의)' },
+    { name: 'Rasalgethi', style: 'informative', description: '전문적이고 정보 전달에 최적화된 목소리' },
   ],
 } as const;
 
